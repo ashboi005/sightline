@@ -10,10 +10,14 @@ import { recordingCleanup } from "./recording-cleanup";
 export class PostgresJobs implements JobRepository {
   constructor(private readonly db: Database) {}
 
+  /**
+   * Every change to a session's jobs runs under that session's advisory lock. Claims take no global lock: they
+   * try-lock each candidate's session (non-blocking) and re-check the row, so any number of server instances can
+   * claim concurrently and one stuck connection can't stall every instance's jobs.
+   */
   private atomic<Result>(work: (database: Database) => Promise<Result>, sessionId?: string) {
     return this.db.transaction(async (transaction) => {
       if (sessionId) await transaction.execute(sql`select pg_advisory_xact_lock(hashtextextended(${sessionId}, 0))`);
-      else await transaction.execute(sql`select pg_advisory_xact_lock(913481)`);
       return work(transaction as unknown as Database);
     });
   }
