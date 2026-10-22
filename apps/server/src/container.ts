@@ -11,7 +11,7 @@ import { ENV } from "./env.server";
 import { createLiveModule } from "./modules/live";
 import { DeepgramStt } from "./modules/live/speech/deepgram-stt";
 import { MockReplayStt } from "./modules/live/speech/mock-stt";
-import { MockTts, ProviderTts } from "./modules/live/speech/tts";
+import { CachedTts, ElevenLabsTts, MockTts, SarvamTts } from "./modules/live/speech/tts";
 import { DiskAssetStore, MemoryAssetStore } from "./modules/platform/assets/asset-store";
 import { createUserResolver } from "./modules/platform/auth";
 import { MockKnowledgeEngine } from "./modules/platform/knowledge/mock-knowledge-engine";
@@ -42,10 +42,19 @@ export function createContainer() {
   const stt = mocks.speech ? new MockReplayStt(config.mockReplaySpeed) : new DeepgramStt(ENV.DEEPGRAM_API_KEY, ENV.DEEPGRAM_MODEL);
   const tts = mocks.speech
     ? new MockTts()
-    : new ProviderTts(
-        ENV.TTS_PROVIDER,
-        ENV.TTS_PROVIDER === "sarvam" ? ENV.SARVAM_API_KEY : ENV.ELEVENLABS_API_KEY,
-        ENV.ELEVENLABS_VOICE_ID,
+    : new CachedTts(
+        ENV.TTS_PROVIDER === "sarvam"
+          ? new SarvamTts({
+              apiKey: ENV.SARVAM_API_KEY,
+              model: ENV.SARVAM_TTS_MODEL,
+              speaker: ENV.SARVAM_SPEAKER,
+              language: ENV.SARVAM_LANGUAGE,
+            })
+          : new ElevenLabsTts({
+              apiKey: ENV.ELEVENLABS_API_KEY,
+              voiceId: ENV.ELEVENLABS_VOICE_ID,
+              modelId: ENV.ELEVENLABS_MODEL_ID,
+            }),
       );
   const live = createLiveModule({ mockCaptions: mocks.captions, stt, tts, store, assets, knowledge, resolveUser, assetUrl });
 

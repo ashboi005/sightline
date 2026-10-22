@@ -10,7 +10,8 @@
     "start": "bun run dist/index.mjs",
     "env:generate": "varlock codegen",
     "auth:generate": "varlock run -- bun x auth@latest generate --config src/services.ts --output ../../packages/db/src/schema/auth.ts --yes",
-    "smoke": "bun scripts/smoke.ts"
+    "smoke": "bun scripts/smoke.ts",
+    "test": "bun test src"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.2",
