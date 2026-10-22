@@ -85,6 +85,11 @@ function SectionView({ section, linker }: { section: NoteSection; linker?: Sourc
           </Link>
         )}
       </div>
+      {section.slideIndexes.length > 0 && (
+        <p className="mt-1 text-sm text-muted-foreground">
+          {section.slideIndexes.length === 1 ? "Slide" : "Slides"} {section.slideIndexes.map((i) => i + 1).join(", ")}
+        </p>
+      )}
       {section.boardFocus?.isBoardHeavy && (
         <p className="mt-2 inline-flex items-center gap-2 rounded-full bg-highlight px-3 py-1 text-sm font-semibold">
           <Presentation aria-hidden="true" className="size-4" />

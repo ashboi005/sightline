@@ -98,6 +98,11 @@ export function RecordingDetail({ sessionId }: { sessionId: string }) {
             ) : segments.length ? (
               <>
                 <RecordingPlayer segments={segments} seek={seek} onTime={setLectureMs} onExpired={() => recordings.refetch()} />
+                {recording && (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Recorded from the {{ SCENE_CAMERA: "scene camera", WEBCAM: "webcam", SCREEN: "screen" }[recording.source]}
+                  </p>
+                )}
                 {incompleteParts > 0 && (
                   <p className="mt-2 text-sm text-destructive">
                     {incompleteParts} part{incompleteParts === 1 ? "" : "s"} of this recording didn&apos;t finish uploading and can&apos;t be played.

@@ -200,6 +200,18 @@ export function ContextCard({ sessionId }: { sessionId: string }) {
       </Tabs>
 
       {ctx?.status === "FAILED" && <InlineAlert className="mt-4">{ctx.error ?? "Sightline couldn't learn from this context. Try other slides or text."}</InlineAlert>}
+      {ctx?.status === "READY" && ctx.topics.length > 0 && (
+        <div className="mt-5">
+          <p className="text-sm font-semibold">Topics Sightline found</p>
+          <ul className="mt-2 flex flex-wrap gap-1.5">
+            {ctx.topics.map((topic) => (
+              <li key={topic} className="rounded-full bg-lilac px-2.5 py-1 text-sm font-semibold text-lilac-ink">
+                {topic}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {ctx?.status === "READY" && ctx.glossary.length > 0 && (
         <div className="mt-5">
           <p className="text-sm font-semibold">Words the captions will get right</p>
