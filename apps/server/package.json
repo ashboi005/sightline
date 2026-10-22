@@ -14,7 +14,8 @@
     "test": "bun test src",
     "eval:captions": "bun scripts/eval-captions.ts",
     "check:pipeline": "bun scripts/pipeline-check.ts",
-    "check:providers": "bun scripts/check-providers.ts"
+    "check:providers": "bun scripts/check-providers.ts",
+    "check:auth": "bun scripts/auth-check.ts"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.2",

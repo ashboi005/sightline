@@ -199,6 +199,13 @@ smoke passes on your branch. What's left / inconsistent, most urgent first:
 11. Minor: the ledger says "do not create branches or commits", but the work landed as commits on `main` (that's fine).
     Update the ledger so it doesn't confuse the next reader.
 
+**Auth: verified end to end (Ashwath, 2026-10-22).** The server side you wired works against real Postgres
+(your migration + your 5 Postgres integration tests pass). `bun run --filter server check:auth` passes 21/21:
+CORS + credentials, sign-up/sign-in/sign-out, HttpOnly cookie, `/api` 401 without a cookie, cross-user 404s,
+WebSocket refused for anonymous/other users, and the old cookie revoked after sign-out. Headless Chrome ran Sahil's real
+sign-up form through to the dashboard and back. Added: `AUTH_COOKIE_DOMAIN` → better-auth `crossSubDomainCookies`, so the
+production cookie (`__Secure-…; Domain=<parent>; SameSite=None; Secure`) reaches the web app on another subdomain.
+
 **Merge status:** merged into `main` (see the merge commit). The notes above marked ✅ are done; everything else is open.
 Previous note: Ashwath's local `main` (ElevenLabs STT, S3 storage, recordings) diverged from `origin/main`.
 Expect conflicts in `container.ts`, `index.ts`, `assets/asset-store.ts`, `store/types.ts`, `memory-store.ts`,

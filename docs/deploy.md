@@ -43,6 +43,7 @@
 | `PUBLIC_SERVER_URL`, `BETTER_AUTH_URL` | `https://api.<domain>` |
 | `CORS_ORIGIN` | `https://<domain>` |
 | `BETTER_AUTH_SECRET` | `openssl rand -base64 32` |
+| `AUTH_COOKIE_DOMAIN` | the parent domain, e.g. `sightline.app` (web on `sightline.app`, API on `api.sightline.app`). **Required**: without it the session cookie stays on the API host and the web app's server-rendered pages (dashboard) never see it |
 | `DATABASE_URL` | Postgres internal URL |
 | `USE_MOCK_DATA` | `false` for real engines; explicitly retain mocks for integrations not yet accepted. Platform implementations exist; real-service acceptance is separate. Never deploy mock auth publicly. |
 | `DEEPGRAM_API_KEY` | required when `MOCK_SPEECH=false` and `STT_PROVIDER=deepgram` |

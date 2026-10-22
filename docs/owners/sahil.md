@@ -36,23 +36,31 @@ All of [`apps/web`](../../apps/web) (Next.js 16, Tailwind 4, shadcn-style `packa
 Any server logic, recognition, or the LLM. If you need a field that doesn't exist, propose it in
 `packages/contracts` (additive, optional) and ping Ashwath (live/captions/sign) or Tushar (sessions/slides/notes).
 
-## What you consume — use the ready-made clients
+## What you consume: the web app's hooks
+
+REST goes through TanStack Query hooks in `apps/web/src/hooks` (built on `lib/api.ts`). The three JSON sockets
+have their own hooks; message types live in `apps/web/src/types/realtime.ts` and mirror the protocol docs.
+
+| Hook | Socket | Gives you |
+| --- | --- | --- |
+| `useSessionSocket(sessionId)` | server `/ws/sessions/:id` | ordered captions (refined in place, backfilled after reconnects), interim line, slide pointer, sign utterances, snapshots, notes status, `send`, raw `socket` |
+| `useGazeBridge({ onTransition })` | gaze bridge `:7777` | device status, `zone` (blinks ignored), `isAway`, targets, calibration, `setMode`, `startCalibration` |
+| `useSignService({ onPhrase })` | sign service `:7788/ws` | vocabulary, hands detected, partial gloss, phrase tokens, `start` / `sendFrame` / `stop` / `reset` |
+| `useCreateSignUtterance(sessionId)` | REST | phrase tokens → sentence + audio |
 
 ```ts
-import { createSightlineApi, connectSessionSocket, connectGazeBridge, connectSignService } from "@sightline/contracts/client";
-import type { CaptionSegment, GazeZone, SignToken } from "@sightline/contracts";
-
-const api = createSightlineApi({ baseUrl: process.env.NEXT_PUBLIC_SERVER_URL! });
-const session = await api.createSession({ title: "EE101 · Lecture 7", mode: "DEAF" });
-await api.startSession(session.id);
-
-const socket = connectSessionSocket(process.env.NEXT_PUBLIC_SERVER_WS_URL!, session.id, {
-  onMessage: (m) => { /* switch (m.type) { case "caption.final": … case "caption.refined": … } */ },
+const live = useSessionSocket(sessionId, { onMessage: (m) => snapshots.onSessionMessage(m) });
+const gaze = useGazeBridge({
+  onTransition: (transition) => live.send({ type: "gaze.transition", transition, ts: Date.now() }),
 });
-const gaze = connectGazeBridge(process.env.NEXT_PUBLIC_GAZE_BRIDGE_URL!, {
-  onMessage: (m) => { if (m.type === "gaze.zone") { /* pause/resume + socket.send({ type: "gaze.transition", … }) */ } },
-});
+const utter = useCreateSignUtterance(sessionId);
+const sign = useSignService({ onPhrase: (tokens, source) => utter.mutate({ tokens, source }) });
+// webcam → sign: startWebcamFrames(videoEl, { fps: 12, width: 640, height: 480 }, sign.sendFrame) after sign.start()
 ```
+
+`NEXT_PUBLIC_MOCK_MODE=true` swaps every socket for a scripted mock in the browser (`apps/web/src/mocks/realtime`):
+a Kirchhoff lecture with corrections and formulas, a gaze timeline with calibration, and repeating sign phrases.
+No server or device services needed.
 
 For the **mic, live captions and look-to-hear**, don't touch Web Audio yourself. Use `@sightline/live-client` (Ashwath's):
 
@@ -60,7 +68,7 @@ For the **mic, live captions and look-to-hear**, don't touch Web Audio yourself.
 import { startMicCapture, streamMicToSession, startLookToHear } from "@sightline/live-client";
 
 const mic = await startMicCapture();                         // after a user gesture (button)
-const captions = streamMicToSession(socket, mic);            // Deepgram captions via the session socket
+const captions = streamMicToSession(live.socket!, mic);     // captions from the mic, via the session socket
 const lth = await startLookToHear({
   mic, sceneVideo: videoEl,                                  // <video> showing the scene camera
   speakerUrl: process.env.NEXT_PUBLIC_SPEAKER_SERVICE_URL!,
@@ -77,6 +85,11 @@ const snaps = startSmartSnapshots({                          // board/diagram fr
 // "Save board" button → snaps.capture("MANUAL")
 await lth.stop(); captions.stop(); await mic.stop();
 ```
+
+**Auth is verified end to end with your pages:** headless Chrome signed up through your `/sign-up` form, landed on
+`/dashboard`, `/sign-in` redirected a signed-in user, and sign-out sent `/dashboard` back to `/sign-in`. Keep using
+`authClient` + `credentials: "include"` (the API client already does). In production the server sets
+`AUTH_COOKIE_DOMAIN` so your server-rendered pages see the session cookie.
 
 All incoming messages are zod-validated; types are exhaustive discriminated unions. `@sightline/contracts` is
 already a dependency of `apps/web`; add `katex` for formulas.
