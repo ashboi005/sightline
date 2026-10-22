@@ -1,0 +1,18 @@
+{
+  "description": "Scripted gaze for the mock gaze bridge in auto mode. Steps loop forever. Lines up roughly with the Kirchhoff replay so the BOARD window covers the 'let me draw an example on the board' segments.",
+  "targets": [
+    { "id": "teacher", "label": "Teacher", "kind": "TEACHER", "azimuthDeg": 0 },
+    { "id": "peer_left", "label": "Classmate (left)", "kind": "PEER", "azimuthDeg": -45 },
+    { "id": "peer_right", "label": "Classmate (right)", "kind": "PEER", "azimuthDeg": 50 }
+  ],
+  "steps": [
+    { "zone": "SCREEN", "targetId": null, "durationMs": 42000 },
+    { "zone": "BOARD", "targetId": "teacher", "durationMs": 15000 },
+    { "zone": "SCREEN", "targetId": null, "durationMs": 20000 },
+    { "zone": "PERSON", "targetId": "peer_left", "durationMs": 5000 },
+    { "zone": "SCREEN", "targetId": null, "durationMs": 15000 },
+    { "zone": "UNKNOWN", "targetId": null, "durationMs": 400 },
+    { "zone": "SCREEN", "targetId": null, "durationMs": 10000 },
+    { "zone": "BOARD", "targetId": "teacher", "durationMs": 8000 }
+  ]
+}

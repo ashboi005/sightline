@@ -1,0 +1,336 @@
+{
+  "description": "Scripted lecture replay. `raw` is what STT hears (with realistic mistakes); `refined` is what the intelligence module should produce. Used by MockSpeechToText (raw) and MockIntelligenceEngine (refined). atMs/durationMs are offsets from session start at 1x speed.",
+  "loopGapMs": 6000,
+  "segments": [
+    {
+      "atMs": 0, "durationMs": 5200, "speaker": "teacher",
+      "raw": "good morning everyone today we're going to look at kerchief's laws for electrical circuits",
+      "refined": {
+        "text": "Good morning everyone, today we're going to look at Kirchhoff's laws for electrical circuits.",
+        "parts": [
+          { "type": "text", "text": "Good morning everyone, today we're going to look at " },
+          { "type": "term", "text": "Kirchhoff's", "glossaryTermId": "trm_kirchhoff", "original": "kerchief's" },
+          { "type": "text", "text": " laws for electrical circuits." }
+        ],
+        "corrections": [{ "from": "kerchief's", "to": "Kirchhoff's", "reason": "GLOSSARY" }],
+        "confidence": 0.95
+      },
+      "slidePointer": { "slideIndex": 0, "bulletIndex": null, "confidence": 0.92 }
+    },
+    {
+      "atMs": 5600, "durationMs": 4800, "speaker": "teacher",
+      "raw": "these two laws let us analyze any circuit no matter how many loops or junctions it has",
+      "refined": {
+        "text": "These two laws let us analyse any circuit, no matter how many loops or junctions it has.",
+        "parts": [
+          { "type": "text", "text": "These two laws let us analyse any circuit, no matter how many loops or " },
+          { "type": "term", "text": "junctions", "glossaryTermId": "trm_junction", "original": null },
+          { "type": "text", "text": " it has." }
+        ],
+        "corrections": [],
+        "confidence": 0.97
+      },
+      "slidePointer": { "slideIndex": 0, "bulletIndex": 1, "confidence": 0.88 }
+    },
+    {
+      "atMs": 10800, "durationMs": 4200, "speaker": "teacher",
+      "raw": "first a quick recap of homes law v equals i times r",
+      "refined": {
+        "text": "First, a quick recap of Ohm's law: V = IR.",
+        "parts": [
+          { "type": "text", "text": "First, a quick recap of " },
+          { "type": "term", "text": "Ohm's law", "glossaryTermId": "trm_ohms_law", "original": "homes law" },
+          { "type": "text", "text": ": " },
+          { "type": "formula", "latex": "V = IR", "spoken": "v equals i times r", "display": "INLINE" }
+        ],
+        "corrections": [
+          { "from": "homes law", "to": "Ohm's law", "reason": "GLOSSARY" },
+          { "from": "v equals i times r", "to": "V = IR", "reason": "FORMULA" }
+        ],
+        "confidence": 0.93
+      },
+      "slidePointer": { "slideIndex": 1, "bulletIndex": 0, "confidence": 0.95 }
+    },
+    {
+      "atMs": 15400, "durationMs": 6100, "speaker": "teacher",
+      "raw": "where v is the potential difference across the resistor i is the current and r is the resistance in ohms",
+      "refined": {
+        "text": "Where V is the potential difference across the resistor, I is the current, and R is the resistance in ohms (Ω).",
+        "parts": [
+          { "type": "text", "text": "Where " },
+          { "type": "formula", "latex": "V", "spoken": "v", "display": "INLINE" },
+          { "type": "text", "text": " is the " },
+          { "type": "term", "text": "potential difference", "glossaryTermId": "trm_pd", "original": null },
+          { "type": "text", "text": " across the resistor, " },
+          { "type": "formula", "latex": "I", "spoken": "i", "display": "INLINE" },
+          { "type": "text", "text": " is the current, and " },
+          { "type": "formula", "latex": "R", "spoken": "r", "display": "INLINE" },
+          { "type": "text", "text": " is the resistance in ohms (" },
+          { "type": "formula", "latex": "\\Omega", "spoken": "ohms", "display": "INLINE" },
+          { "type": "text", "text": ")." }
+        ],
+        "corrections": [],
+        "confidence": 0.96
+      },
+      "slidePointer": { "slideIndex": 1, "bulletIndex": 1, "confidence": 0.8 }
+    },
+    {
+      "atMs": 22000, "durationMs": 7000, "speaker": "teacher",
+      "raw": "now kerchief's current law or k c l says that at any note the sum of currents entering equals the sum of currents leaving",
+      "refined": {
+        "text": "Now, Kirchhoff's Current Law (KCL) says that at any node the sum of currents entering equals the sum of currents leaving.",
+        "parts": [
+          { "type": "text", "text": "Now, " },
+          { "type": "term", "text": "Kirchhoff's Current Law (KCL)", "glossaryTermId": "trm_kcl", "original": "kerchief's current law or k c l" },
+          { "type": "text", "text": " says that at any " },
+          { "type": "term", "text": "node", "glossaryTermId": "trm_node", "original": "note" },
+          { "type": "text", "text": " the sum of currents entering equals the sum of currents leaving." }
+        ],
+        "corrections": [
+          { "from": "kerchief's current law or k c l", "to": "Kirchhoff's Current Law (KCL)", "reason": "GLOSSARY" },
+          { "from": "note", "to": "node", "reason": "CONTEXT" }
+        ],
+        "confidence": 0.91
+      },
+      "slidePointer": { "slideIndex": 2, "bulletIndex": 0, "confidence": 0.94 }
+    },
+    {
+      "atMs": 29600, "durationMs": 7600, "speaker": "teacher",
+      "raw": "we can write that as sigma i in equals sigma i out or equivalently the summation of i k from k equals one to n equals zero",
+      "refined": {
+        "text": "We can write that as ΣI_in = ΣI_out, or equivalently: \\sum_{k=1}^{n} I_k = 0",
+        "parts": [
+          { "type": "text", "text": "We can write that as " },
+          { "type": "formula", "latex": "\\sum I_{\\text{in}} = \\sum I_{\\text{out}}", "spoken": "sigma i in equals sigma i out", "display": "INLINE" },
+          { "type": "text", "text": ", or equivalently:" },
+          { "type": "formula", "latex": "\\sum_{k=1}^{n} I_k = 0", "spoken": "the summation of i k from k equals one to n equals zero", "display": "BLOCK" }
+        ],
+        "corrections": [
+          { "from": "sigma i in equals sigma i out", "to": "\\sum I_{in} = \\sum I_{out}", "reason": "FORMULA" },
+          { "from": "the summation of i k from k equals one to n equals zero", "to": "\\sum_{k=1}^{n} I_k = 0", "reason": "FORMULA" }
+        ],
+        "confidence": 0.9
+      },
+      "slidePointer": { "slideIndex": 2, "bulletIndex": 1, "confidence": 0.93 }
+    },
+    {
+      "atMs": 37600, "durationMs": 4600, "speaker": "teacher",
+      "raw": "this is really just conservation of charge charge cannot pile up at a junction",
+      "refined": {
+        "text": "This is really just conservation of charge — charge cannot pile up at a junction.",
+        "parts": [
+          { "type": "text", "text": "This is really just " },
+          { "type": "term", "text": "conservation of charge", "glossaryTermId": "trm_coc", "original": null },
+          { "type": "text", "text": " — charge cannot pile up at a " },
+          { "type": "term", "text": "junction", "glossaryTermId": "trm_junction", "original": null },
+          { "type": "text", "text": "." }
+        ],
+        "corrections": [{ "from": "charge charge", "to": "charge — charge", "reason": "GRAMMAR" }],
+        "confidence": 0.95
+      },
+      "slidePointer": { "slideIndex": 2, "bulletIndex": 2, "confidence": 0.9 }
+    },
+    {
+      "atMs": 42600, "durationMs": 3000, "speaker": "teacher",
+      "raw": "let me draw an example on the board",
+      "refined": {
+        "text": "Let me draw an example on the board.",
+        "parts": [{ "type": "text", "text": "Let me draw an example on the board." }],
+        "corrections": [],
+        "confidence": 0.99
+      },
+      "slidePointer": null
+    },
+    {
+      "atMs": 46000, "durationMs": 6800, "speaker": "teacher",
+      "raw": "here three branches meet at note a i one is two amps coming in i two is three amps coming in",
+      "refined": {
+        "text": "Here three branches meet at node A: I₁ = 2 A coming in, I₂ = 3 A coming in.",
+        "parts": [
+          { "type": "text", "text": "Here three branches meet at " },
+          { "type": "term", "text": "node", "glossaryTermId": "trm_node", "original": "note" },
+          { "type": "text", "text": " A: " },
+          { "type": "formula", "latex": "I_1 = 2\\,\\text{A}", "spoken": "i one is two amps", "display": "INLINE" },
+          { "type": "text", "text": " coming in, " },
+          { "type": "formula", "latex": "I_2 = 3\\,\\text{A}", "spoken": "i two is three amps", "display": "INLINE" },
+          { "type": "text", "text": " coming in." }
+        ],
+        "corrections": [
+          { "from": "note", "to": "node", "reason": "CONTEXT" },
+          { "from": "i one is two amps", "to": "I_1 = 2\\,\\text{A}", "reason": "FORMULA" },
+          { "from": "i two is three amps", "to": "I_2 = 3\\,\\text{A}", "reason": "FORMULA" }
+        ],
+        "confidence": 0.89
+      },
+      "slidePointer": null
+    },
+    {
+      "atMs": 53200, "durationMs": 4000, "speaker": "teacher",
+      "raw": "so i three leaving must be five amps",
+      "refined": {
+        "text": "So I₃ leaving must be I₁ + I₂ = 5 A.",
+        "parts": [
+          { "type": "text", "text": "So the current leaving must be" },
+          { "type": "formula", "latex": "I_3 = I_1 + I_2 = 5\\,\\text{A}", "spoken": "i three leaving must be five amps", "display": "BLOCK" }
+        ],
+        "corrections": [{ "from": "i three leaving must be five amps", "to": "I_3 = I_1 + I_2 = 5\\,\\text{A}", "reason": "FORMULA" }],
+        "confidence": 0.9
+      },
+      "slidePointer": null
+    },
+    {
+      "atMs": 58000, "durationMs": 7200, "speaker": "teacher",
+      "raw": "moving on kerchief's voltage law k v l says the sum of all voltages around any closed loop is zero",
+      "refined": {
+        "text": "Moving on: Kirchhoff's Voltage Law (KVL) says the sum of all voltages around any closed loop is zero.",
+        "parts": [
+          { "type": "text", "text": "Moving on: " },
+          { "type": "term", "text": "Kirchhoff's Voltage Law (KVL)", "glossaryTermId": "trm_kvl", "original": "kerchief's voltage law k v l" },
+          { "type": "text", "text": " says the sum of all voltages around any closed loop is zero." }
+        ],
+        "corrections": [{ "from": "kerchief's voltage law k v l", "to": "Kirchhoff's Voltage Law (KVL)", "reason": "GLOSSARY" }],
+        "confidence": 0.93
+      },
+      "slidePointer": { "slideIndex": 3, "bulletIndex": 0, "confidence": 0.95 }
+    },
+    {
+      "atMs": 65600, "durationMs": 3600, "speaker": "teacher",
+      "raw": "sum of v k around the loop equals zero",
+      "refined": {
+        "text": "\\sum_{k} V_k = 0",
+        "parts": [
+          { "type": "formula", "latex": "\\sum_{k} V_k = 0", "spoken": "sum of v k around the loop equals zero", "display": "BLOCK" }
+        ],
+        "corrections": [{ "from": "sum of v k around the loop equals zero", "to": "\\sum_{k} V_k = 0", "reason": "FORMULA" }],
+        "confidence": 0.92
+      },
+      "slidePointer": { "slideIndex": 3, "bulletIndex": 0, "confidence": 0.9 }
+    },
+    {
+      "atMs": 69600, "durationMs": 7400, "speaker": "teacher",
+      "raw": "this follows from conservation of energy the e m f supplied by the battery is used up by the drops across the resistors",
+      "refined": {
+        "text": "This follows from conservation of energy: the EMF supplied by the battery is used up by the drops across the resistors.",
+        "parts": [
+          { "type": "text", "text": "This follows from conservation of energy: the " },
+          { "type": "term", "text": "EMF", "glossaryTermId": "trm_emf", "original": "e m f" },
+          { "type": "text", "text": " supplied by the battery is used up by the drops across the resistors." }
+        ],
+        "corrections": [{ "from": "e m f", "to": "EMF", "reason": "GLOSSARY" }],
+        "confidence": 0.95
+      },
+      "slidePointer": { "slideIndex": 3, "bulletIndex": 2, "confidence": 0.91 }
+    },
+    {
+      "atMs": 77400, "durationMs": 6400, "speaker": "teacher",
+      "raw": "for a single loop with a twelve volt battery and two resistors of four ohms and two ohms",
+      "refined": {
+        "text": "For a single loop with a 12 V battery and two resistors of 4 Ω and 2 Ω,",
+        "parts": [
+          { "type": "text", "text": "For a single loop with a " },
+          { "type": "formula", "latex": "12\\,\\text{V}", "spoken": "twelve volt", "display": "INLINE" },
+          { "type": "text", "text": " battery and two resistors of " },
+          { "type": "formula", "latex": "4\\,\\Omega", "spoken": "four ohms", "display": "INLINE" },
+          { "type": "text", "text": " and " },
+          { "type": "formula", "latex": "2\\,\\Omega", "spoken": "two ohms", "display": "INLINE" },
+          { "type": "text", "text": "," }
+        ],
+        "corrections": [],
+        "confidence": 0.94
+      },
+      "slidePointer": { "slideIndex": 3, "bulletIndex": 2, "confidence": 0.7 }
+    },
+    {
+      "atMs": 84200, "durationMs": 4400, "speaker": "teacher",
+      "raw": "the current is twelve divided by four plus two which is two amps",
+      "refined": {
+        "text": "the current is I = 12 / (4 + 2) = 2 A.",
+        "parts": [
+          { "type": "text", "text": "the current is" },
+          { "type": "formula", "latex": "I = \\frac{12}{4 + 2} = 2\\,\\text{A}", "spoken": "twelve divided by four plus two which is two amps", "display": "BLOCK" }
+        ],
+        "corrections": [{ "from": "twelve divided by four plus two which is two amps", "to": "I = \\frac{12}{4 + 2} = 2\\,\\text{A}", "reason": "FORMULA" }],
+        "confidence": 0.92
+      },
+      "slidePointer": { "slideIndex": 3, "bulletIndex": 2, "confidence": 0.66 }
+    },
+    {
+      "atMs": 89000, "durationMs": 7000, "speaker": "teacher",
+      "raw": "sign convention matters going across a resistor in the direction of current the voltage drops by i r",
+      "refined": {
+        "text": "Sign convention matters: going across a resistor in the direction of current, the voltage drops by IR.",
+        "parts": [
+          { "type": "text", "text": "Sign convention matters: going across a resistor in the direction of current, the voltage drops by " },
+          { "type": "formula", "latex": "IR", "spoken": "i r", "display": "INLINE" },
+          { "type": "text", "text": "." }
+        ],
+        "corrections": [{ "from": "i r", "to": "IR", "reason": "FORMULA" }],
+        "confidence": 0.94
+      },
+      "slidePointer": { "slideIndex": 4, "bulletIndex": 0, "confidence": 0.93 }
+    },
+    {
+      "atMs": 96400, "durationMs": 4000, "speaker": "teacher",
+      "raw": "power dissipated in each resistor is i squared r",
+      "refined": {
+        "text": "Power dissipated in each resistor is P = I²R.",
+        "parts": [
+          { "type": "text", "text": "Power dissipated in each resistor is " },
+          { "type": "formula", "latex": "P = I^2 R", "spoken": "i squared r", "display": "INLINE" },
+          { "type": "text", "text": "." }
+        ],
+        "corrections": [{ "from": "i squared r", "to": "P = I^2 R", "reason": "FORMULA" }],
+        "confidence": 0.95
+      },
+      "slidePointer": { "slideIndex": 4, "bulletIndex": 2, "confidence": 0.94 }
+    },
+    {
+      "atMs": 100800, "durationMs": 6200, "speaker": "teacher",
+      "raw": "also remember the charge delivered over time is the integral from zero to t of i d t",
+      "refined": {
+        "text": "Also remember the charge delivered over time is q = ∫₀ᵗ i dt.",
+        "parts": [
+          { "type": "text", "text": "Also remember the charge delivered over time is" },
+          { "type": "formula", "latex": "q = \\int_{0}^{t} i \\, dt", "spoken": "the integral from zero to t of i d t", "display": "BLOCK" }
+        ],
+        "corrections": [{ "from": "the integral from zero to t of i d t", "to": "q = \\int_{0}^{t} i \\, dt", "reason": "FORMULA" }],
+        "confidence": 0.9
+      },
+      "slidePointer": { "slideIndex": 4, "bulletIndex": 3, "confidence": 0.92 }
+    },
+    {
+      "atMs": 107400, "durationMs": 6600, "speaker": "teacher",
+      "raw": "for next class try applying k v l and k c l together using mash analysis on the problem set",
+      "refined": {
+        "text": "For next class, try applying KVL and KCL together using mesh analysis on the problem set.",
+        "parts": [
+          { "type": "text", "text": "For next class, try applying " },
+          { "type": "term", "text": "KVL", "glossaryTermId": "trm_kvl", "original": "k v l" },
+          { "type": "text", "text": " and " },
+          { "type": "term", "text": "KCL", "glossaryTermId": "trm_kcl", "original": "k c l" },
+          { "type": "text", "text": " together using " },
+          { "type": "term", "text": "mesh analysis", "glossaryTermId": "trm_mesh", "original": "mash analysis" },
+          { "type": "text", "text": " on the problem set." }
+        ],
+        "corrections": [
+          { "from": "k v l", "to": "KVL", "reason": "GLOSSARY" },
+          { "from": "k c l", "to": "KCL", "reason": "GLOSSARY" },
+          { "from": "mash analysis", "to": "mesh analysis", "reason": "GLOSSARY" }
+        ],
+        "confidence": 0.93
+      },
+      "slidePointer": { "slideIndex": 5, "bulletIndex": 0, "confidence": 0.9 }
+    },
+    {
+      "atMs": 114400, "durationMs": 2000, "speaker": "teacher",
+      "raw": "any questions so far",
+      "refined": {
+        "text": "Any questions so far?",
+        "parts": [{ "type": "text", "text": "Any questions so far?" }],
+        "corrections": [],
+        "confidence": 0.99
+      },
+      "slidePointer": { "slideIndex": 5, "bulletIndex": null, "confidence": 0.6 }
+    }
+  ]
+}

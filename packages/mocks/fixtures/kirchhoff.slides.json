@@ -1,0 +1,35 @@
+{
+  "fileName": "EE101-L07-kirchhoff.pdf",
+  "slides": [
+    {
+      "index": 0,
+      "title": "Kirchhoff's Circuit Laws",
+      "bullets": ["EE101 · Lecture 7", "Analysing circuits with any number of loops and junctions"]
+    },
+    {
+      "index": 1,
+      "title": "Recap: Ohm's Law",
+      "bullets": ["V = IR", "V — potential difference (volts, V)", "I — current (amperes, A)", "R — resistance (ohms, Ω)"]
+    },
+    {
+      "index": 2,
+      "title": "Kirchhoff's Current Law (KCL)",
+      "bullets": ["At any node: Σ I_in = Σ I_out", "Equivalently: Σ I_k = 0", "Follows from conservation of charge"]
+    },
+    {
+      "index": 3,
+      "title": "Kirchhoff's Voltage Law (KVL)",
+      "bullets": ["Around any closed loop: Σ V_k = 0", "Follows from conservation of energy", "EMF supplied = sum of IR drops"]
+    },
+    {
+      "index": 4,
+      "title": "Sign Conventions & Power",
+      "bullets": ["Across a resistor, along the current: −IR", "Across a source from − to +: +EMF", "Power dissipated: P = I²R", "Charge delivered: q = ∫ i dt"]
+    },
+    {
+      "index": 5,
+      "title": "Next Class: Mesh Analysis",
+      "bullets": ["Combine KVL and KCL", "Assign a mesh current to every independent loop", "Problem set 7 — Q1 to Q5"]
+    }
+  ]
+}

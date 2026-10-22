@@ -1,0 +1,30 @@
+{
+  "session": {
+    "title": "EE101 · Lecture 7 — Kirchhoff's Circuit Laws",
+    "subject": "Basic Electrical Engineering",
+    "mode": "DEAF"
+  },
+  "contextText": "Subject: Basic Electrical Engineering (EE101). Topic: Kirchhoff's Current Law (KCL) and Kirchhoff's Voltage Law (KVL). Recap of Ohm's law V = IR. Conservation of charge at a node/junction, conservation of energy around a closed loop, EMF and IR drops, sign conventions, power dissipated P = I^2 R, charge as the integral of current. Next class: mesh analysis.",
+  "topics": [
+    "Ohm's law recap",
+    "Kirchhoff's Current Law (KCL)",
+    "Kirchhoff's Voltage Law (KVL)",
+    "Sign conventions and power",
+    "Mesh analysis (preview)"
+  ],
+  "glossary": [
+    { "id": "trm_kirchhoff", "term": "Kirchhoff", "aliases": ["kerchief", "kirchoff", "kirk off", "kerchoff"], "definition": "Gustav Kirchhoff, physicist who formulated the circuit laws (1845).", "category": "PERSON", "source": "SLIDES" },
+    { "id": "trm_kcl", "term": "Kirchhoff's Current Law (KCL)", "aliases": ["kcl", "k c l", "kerchief's current law"], "definition": "The algebraic sum of currents at any node is zero.", "category": "LAW", "source": "SLIDES" },
+    { "id": "trm_kvl", "term": "Kirchhoff's Voltage Law (KVL)", "aliases": ["kvl", "k v l", "kerchief's voltage law"], "definition": "The algebraic sum of voltages around any closed loop is zero.", "category": "LAW", "source": "SLIDES" },
+    { "id": "trm_ohms_law", "term": "Ohm's law", "aliases": ["ohms law", "omes law", "homes law"], "definition": "V = IR — voltage across a resistor equals current times resistance.", "category": "LAW", "source": "SLIDES" },
+    { "id": "trm_node", "term": "node", "aliases": ["note", "mode"], "definition": "A point where two or more circuit elements meet.", "category": "TERM", "source": "SLIDES" },
+    { "id": "trm_junction", "term": "junction", "aliases": [], "definition": "A node where three or more branches meet.", "category": "TERM", "source": "TEXT" },
+    { "id": "trm_mesh", "term": "mesh analysis", "aliases": ["mash analysis", "mess analysis"], "definition": "Circuit analysis that applies KVL to independent loops using mesh currents.", "category": "TERM", "source": "SLIDES" },
+    { "id": "trm_emf", "term": "EMF", "aliases": ["e m f", "emf", "e.m.f"], "definition": "Electromotive force — energy per unit charge supplied by a source.", "category": "TERM", "source": "SLIDES" },
+    { "id": "trm_pd", "term": "potential difference", "aliases": ["potential differences"], "definition": "Work done per unit charge moving between two points (volts).", "category": "TERM", "source": "SLIDES" },
+    { "id": "trm_coc", "term": "conservation of charge", "aliases": [], "definition": "Electric charge can neither be created nor destroyed.", "category": "LAW", "source": "TEXT" },
+    { "id": "trm_ohm_unit", "term": "Ω", "aliases": ["ohms", "ohm"], "definition": "Ohm — SI unit of resistance.", "category": "UNIT", "source": "SLIDES" },
+    { "id": "trm_ampere", "term": "A", "aliases": ["amps", "amp", "amperes"], "definition": "Ampere — SI unit of current.", "category": "UNIT", "source": "SLIDES" }
+  ],
+  "sttKeyterms": ["Kirchhoff", "KCL", "KVL", "Ohm's law", "node", "junction", "mesh analysis", "EMF", "potential difference", "conservation of charge", "ohms", "amperes"]
+}

@@ -1,0 +1,67 @@
+{
+  "description": "Scripted sign phrases. The mock sign service cycles through these (one phrase per signing burst). MockIntelligenceEngine.composeSignSentence matches on the gloss sequence; unknown sequences fall back to a joined, sentence-cased gloss.",
+  "vocabulary": [
+    "HELLO", "THANK-YOU", "PLEASE", "SORRY", "YES", "NO", "QUESTION", "WHAT", "WHY", "HOW", "WHERE",
+    "REPEAT", "AGAIN", "SLOW", "UNDERSTAND", "NOT", "FORMULA", "BOARD", "WRITE", "MEANING", "EXAMPLE",
+    "ME", "YOU", "NAME", "HELP", "KCL", "KVL"
+  ],
+  "phrases": [
+    {
+      "source": "SELF",
+      "tokens": [
+        { "gloss": "PLEASE", "kind": "SIGN", "confidence": 0.93 },
+        { "gloss": "REPEAT", "kind": "SIGN", "confidence": 0.88 },
+        { "gloss": "FORMULA", "kind": "SIGN", "confidence": 0.81 }
+      ],
+      "text": "Could you please repeat the formula?",
+      "alternatives": ["Please repeat the formula.", "Can you say the formula again?"]
+    },
+    {
+      "source": "SELF",
+      "tokens": [
+        { "gloss": "QUESTION", "kind": "SIGN", "confidence": 0.9 },
+        { "gloss": "KCL", "kind": "FINGERSPELL", "confidence": 0.77 },
+        { "gloss": "MEANING", "kind": "SIGN", "confidence": 0.85 },
+        { "gloss": "WHAT", "kind": "SIGN", "confidence": 0.92 }
+      ],
+      "text": "I have a question — what does Kirchhoff's Current Law mean?",
+      "alternatives": ["What does KCL mean?", "Can you explain what KCL means?"]
+    },
+    {
+      "source": "SELF",
+      "tokens": [
+        { "gloss": "SLOW", "kind": "SIGN", "confidence": 0.89 },
+        { "gloss": "PLEASE", "kind": "SIGN", "confidence": 0.94 }
+      ],
+      "text": "Could you slow down a little, please?",
+      "alternatives": ["Please go slower.", "Slower, please."]
+    },
+    {
+      "source": "SELF",
+      "tokens": [
+        { "gloss": "BOARD", "kind": "SIGN", "confidence": 0.86 },
+        { "gloss": "WRITE", "kind": "SIGN", "confidence": 0.9 },
+        { "gloss": "AGAIN", "kind": "SIGN", "confidence": 0.88 }
+      ],
+      "text": "Could you write that on the board again?",
+      "alternatives": ["Please write it on the board again.", "Can you rewrite that on the board?"]
+    },
+    {
+      "source": "PEER",
+      "tokens": [
+        { "gloss": "HELLO", "kind": "SIGN", "confidence": 0.95 },
+        { "gloss": "ME", "kind": "SIGN", "confidence": 0.9 },
+        { "gloss": "NAME", "kind": "SIGN", "confidence": 0.91 },
+        { "gloss": "RIA", "kind": "FINGERSPELL", "confidence": 0.74 }
+      ],
+      "text": "Hello, my name is Ria.",
+      "alternatives": ["Hi, I'm Ria.", "Hello, I am Ria."]
+    },
+    {
+      "source": "SELF",
+      "tokens": [{ "gloss": "THANK-YOU", "kind": "SIGN", "confidence": 0.97 }],
+      "text": "Thank you!",
+      "alternatives": ["Thanks!"]
+    }
+  ]
+}

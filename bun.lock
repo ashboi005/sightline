@@ -107,6 +107,18 @@
         "varlock": "catalog:",
       },
     },
+    "packages/mocks": {
+      "name": "@sightline/mocks",
+      "dependencies": {
+        "@sightline/contracts": "workspace:*",
+        "zod": "catalog:",
+      },
+      "devDependencies": {
+        "@sightline/config": "workspace:*",
+        "@types/bun": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
     "packages/ui": {
       "name": "@sightline/ui",
       "version": "0.0.0",
@@ -457,6 +469,8 @@
     "@sightline/contracts": ["@sightline/contracts@workspace:packages/contracts"],
 
     "@sightline/db": ["@sightline/db@workspace:packages/db"],
+
+    "@sightline/mocks": ["@sightline/mocks@workspace:packages/mocks"],
 
     "@sightline/ui": ["@sightline/ui@workspace:packages/ui"],
 

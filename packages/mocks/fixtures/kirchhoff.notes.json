@@ -1,0 +1,90 @@
+{
+  "title": "Kirchhoff's Circuit Laws — Lecture Notes",
+  "summary": "Kirchhoff's two laws let you analyse any circuit. KCL (conservation of charge) says currents into a node equal currents out; KVL (conservation of energy) says voltages around any closed loop sum to zero. Combined with Ohm's law (V = IR) they solve single-loop and multi-node circuits, and lead into mesh analysis next class.",
+  "sections": [
+    {
+      "id": "sec_recap",
+      "heading": "Recap: Ohm's Law",
+      "blocks": [
+        { "type": "formula", "latex": "V = IR", "caption": "Ohm's law" },
+        { "type": "bullets", "items": ["V — potential difference across the resistor (volts, V)", "I — current through it (amperes, A)", "R — resistance (ohms, Ω)"] }
+      ],
+      "sourceSegmentIds": [],
+      "slideIndexes": [1],
+      "boardFocus": null
+    },
+    {
+      "id": "sec_kcl",
+      "heading": "Kirchhoff's Current Law (KCL)",
+      "blocks": [
+        { "type": "definition", "term": "KCL", "definition": "At any node, the sum of currents entering equals the sum of currents leaving." },
+        { "type": "formula", "latex": "\\sum I_{\\text{in}} = \\sum I_{\\text{out}} \\quad\\Longleftrightarrow\\quad \\sum_{k=1}^{n} I_k = 0", "caption": "Two equivalent forms" },
+        { "type": "paragraph", "text": "KCL is a statement of conservation of charge: charge cannot pile up at a junction." },
+        { "type": "callout", "variant": "BOARD", "text": "Worked example on the board: at node A, I₁ = 2 A and I₂ = 3 A enter, so I₃ = I₁ + I₂ = 5 A leaves." },
+        { "type": "formula", "latex": "I_3 = I_1 + I_2 = 5\\,\\text{A}", "caption": "Board example result" }
+      ],
+      "sourceSegmentIds": [],
+      "slideIndexes": [2],
+      "boardFocus": { "isBoardHeavy": true, "awaySeconds": 15 }
+    },
+    {
+      "id": "sec_kvl",
+      "heading": "Kirchhoff's Voltage Law (KVL)",
+      "blocks": [
+        { "type": "definition", "term": "KVL", "definition": "The sum of all voltages around any closed loop is zero." },
+        { "type": "formula", "latex": "\\sum_{k} V_k = 0", "caption": null },
+        { "type": "paragraph", "text": "KVL follows from conservation of energy: the EMF supplied by the battery is used up by the IR drops across the resistors." },
+        { "type": "paragraph", "text": "Example: a single loop with a 12 V battery and resistors of 4 Ω and 2 Ω." },
+        { "type": "formula", "latex": "I = \\frac{12}{4 + 2} = 2\\,\\text{A}", "caption": "Loop current" }
+      ],
+      "sourceSegmentIds": [],
+      "slideIndexes": [3],
+      "boardFocus": null
+    },
+    {
+      "id": "sec_sign_power",
+      "heading": "Sign Conventions & Power",
+      "blocks": [
+        { "type": "bullets", "items": ["Crossing a resistor in the direction of current: voltage drops by IR (−IR).", "Crossing a source from − to +: +EMF."] },
+        { "type": "formula", "latex": "P = I^2 R", "caption": "Power dissipated in a resistor" },
+        { "type": "formula", "latex": "q = \\int_{0}^{t} i \\, dt", "caption": "Charge delivered over time" },
+        { "type": "callout", "variant": "WARNING", "text": "Most KVL mistakes are sign mistakes — pick a loop direction and stick to it." }
+      ],
+      "sourceSegmentIds": [],
+      "slideIndexes": [4],
+      "boardFocus": null
+    },
+    {
+      "id": "sec_next",
+      "heading": "Next Class: Mesh Analysis",
+      "blocks": [
+        { "type": "paragraph", "text": "Combine KVL and KCL using mesh currents — one per independent loop." },
+        { "type": "callout", "variant": "TIP", "text": "Homework: Problem set 7, Q1–Q5." }
+      ],
+      "sourceSegmentIds": [],
+      "slideIndexes": [5],
+      "boardFocus": null
+    }
+  ],
+  "keyTerms": [
+    { "term": "Node / junction", "definition": "A point where circuit elements meet; a junction joins three or more branches." },
+    { "term": "KCL", "definition": "Kirchhoff's Current Law — Σ currents at a node = 0." },
+    { "term": "KVL", "definition": "Kirchhoff's Voltage Law — Σ voltages around a closed loop = 0." },
+    { "term": "EMF", "definition": "Electromotive force — energy per unit charge supplied by a source." },
+    { "term": "Mesh analysis", "definition": "Applying KVL to independent loops using mesh currents." }
+  ],
+  "formulas": [
+    { "latex": "V = IR", "description": "Ohm's law" },
+    { "latex": "\\sum_{k=1}^{n} I_k = 0", "description": "KCL" },
+    { "latex": "\\sum_{k} V_k = 0", "description": "KVL" },
+    { "latex": "P = I^2 R", "description": "Power dissipated in a resistor" },
+    { "latex": "q = \\int_{0}^{t} i \\, dt", "description": "Charge from current" }
+  ],
+  "takeaways": [
+    "KCL = conservation of charge; KVL = conservation of energy.",
+    "Use Ohm's law to turn KVL voltage terms into IR drops.",
+    "Be consistent with sign conventions around a loop.",
+    "Next: mesh analysis combines both laws systematically."
+  ],
+  "markdown": "# Kirchhoff's Circuit Laws — Lecture Notes\n\n> Kirchhoff's two laws let you analyse any circuit. KCL (conservation of charge) says currents into a node equal currents out; KVL (conservation of energy) says voltages around any closed loop sum to zero.\n\n## Recap: Ohm's Law\n\n$$V = IR$$\n\n- V — potential difference (volts)\n- I — current (amperes)\n- R — resistance (ohms, Ω)\n\n## Kirchhoff's Current Law (KCL)\n\n**KCL:** At any node, the sum of currents entering equals the sum of currents leaving.\n\n$$\\sum_{k=1}^{n} I_k = 0$$\n\n> 📋 **Board:** at node A, I₁ = 2 A and I₂ = 3 A enter, so I₃ = 5 A leaves.\n\n## Kirchhoff's Voltage Law (KVL)\n\n**KVL:** The sum of all voltages around any closed loop is zero.\n\n$$\\sum_{k} V_k = 0$$\n\nExample: 12 V battery, 4 Ω and 2 Ω in series:\n\n$$I = \\frac{12}{4 + 2} = 2\\,\\text{A}$$\n\n## Sign Conventions & Power\n\n- Along the current through a resistor: −IR\n- Across a source from − to +: +EMF\n\n$$P = I^2 R \\qquad q = \\int_{0}^{t} i \\, dt$$\n\n## Next Class: Mesh Analysis\n\nHomework: Problem set 7, Q1–Q5.\n\n## Key Takeaways\n\n- KCL = conservation of charge; KVL = conservation of energy.\n- Use Ohm's law to turn KVL voltage terms into IR drops.\n- Be consistent with sign conventions around a loop.\n"
+}

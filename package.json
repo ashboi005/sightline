@@ -43,7 +43,11 @@
     "postinstall": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/",
     "auth:generate": "cd apps/server && bun run auth:generate",
     "infra:up": "docker compose -f docker-compose.dev.yml up -d",
-    "infra:down": "docker compose -f docker-compose.dev.yml down"
+    "infra:down": "docker compose -f docker-compose.dev.yml down",
+    "mock:gaze": "bun run --filter @sightline/mocks gaze",
+    "mock:sign": "bun run --filter @sightline/mocks sign",
+    "mock:validate": "bun run --filter @sightline/mocks validate",
+    "contracts:json-schema": "bun run --filter @sightline/contracts json-schema"
   },
   "dependencies": {
     "zod": "catalog:"

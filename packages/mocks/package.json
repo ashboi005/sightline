@@ -1,0 +1,23 @@
+{
+  "name": "@sightline/mocks",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./fixtures/*": "./fixtures/*"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "validate": "bun src/validate.ts",
+    "gaze": "bun servers/mock-gaze-bridge.ts",
+    "sign": "bun servers/mock-sign-service.ts"
+  },
+  "dependencies": {
+    "@sightline/contracts": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@sightline/config": "workspace:*",
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  }
+}
