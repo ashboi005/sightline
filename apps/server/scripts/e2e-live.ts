@@ -28,6 +28,7 @@ import { fixtures } from "@sightline/mocks";
 import type { z } from "zod";
 
 import { ENV } from "../src/env";
+import { textDeckPdf } from "./fixtures";
 
 const BASE = process.env.SERVER_URL ?? "http://localhost:3000";
 const ORIGIN = process.env.WEB_ORIGIN ?? ENV.CORS_ORIGIN;
@@ -118,7 +119,7 @@ check("context vectors live in the shared Qdrant collection", (await sessionPoin
 
 section("slides (real PDF → poppler → S3 assets)");
 const form = new FormData();
-form.append("file", new File([lectureDeckPdf()], "kirchhoff.pdf", { type: "application/pdf" }));
+form.append("file", new File([textDeckPdf(fixtures.lecture.slides.slides)], "kirchhoff.pdf", { type: "application/pdf" }));
 t = Date.now();
 await call(SlideDeck, "POST", `/api/sessions/${session.id}/slides`, form);
 const deck = await poll(() => call(SlideDeck, "GET", `/api/sessions/${session.id}/slides`), (d) => d.status === "READY" || d.status === "FAILED", 180_000);
@@ -292,30 +293,4 @@ async function speak(text: string): Promise<Uint8Array> {
   });
   if (!res.ok) throw new Error(`ElevenLabs TTS ${res.status}`);
   return new Uint8Array(await res.arrayBuffer());
-}
-
-/** The Kirchhoff deck as a real multi-page PDF (one page per fixture slide). */
-function lectureDeckPdf(): Uint8Array {
-  const esc = (s: string) => s.replace(/[\\()]/g, (c) => `\\${c}`).replace(/[^\x20-\x7e]/g, "-");
-  const slides = fixtures.lecture.slides.slides;
-  const objects: string[] = ["<< /Type /Catalog /Pages 2 0 R >>", "", "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"];
-  const kids: string[] = [];
-  for (const s of slides) {
-    const stream = [`BT /F1 32 Tf 60 520 Td (${esc(s.title)}) Tj /F1 18 Tf`, ...s.bullets.map((b) => `0 -40 Td (${esc(`- ${b}`)}) Tj`), "ET"].join(" ");
-    objects.push(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
-    const contents = objects.length;
-    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 600] /Resources << /Font << /F1 3 0 R >> >> /Contents ${contents} 0 R >>`);
-    kids.push(`${objects.length} 0 R`);
-  }
-  objects[1] = `<< /Type /Pages /Kids [${kids.join(" ")}] /Count ${kids.length} >>`;
-  let content = "%PDF-1.4\n";
-  const offsets: number[] = [];
-  for (const [i, o] of objects.entries()) {
-    offsets.push(content.length);
-    content += `${i + 1} 0 obj\n${o}\nendobj\n`;
-  }
-  const xref = content.length;
-  content += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`).join("")}`;
-  content += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
-  return new TextEncoder().encode(content);
 }

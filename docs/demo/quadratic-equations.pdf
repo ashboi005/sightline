@@ -1,0 +1,121 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [6 0 R 8 0 R 10 0 R 12 0 R 14 0 R 16 0 R] /Count 6 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Length 372 >>
+stream
+0.15 0.39 0.92 rg 0 586 960 14 re f
+0.06 0.09 0.16 rg
+BT /F1 34 Tf 60 500 Td (Quadratic Equations) Tj ET
+0.2 0.25 0.33 rg
+BT /F2 22 Tf 72 430 Td (-  What makes an equation quadratic) Tj 0 -46 Td (-  One formula for every root) Tj 0 -46 Td (-  How many roots, and what kind) Tj 0 -46 Td (-  What the graph looks like) Tj ET
+0.4 0.45 0.55 rg BT /F2 14 Tf 900 30 Td (1) Tj ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 600] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 5 0 R >>
+endobj
+7 0 obj
+<< /Length 337 >>
+stream
+0.15 0.39 0.92 rg 0 586 960 14 re f
+0.06 0.09 0.16 rg
+BT /F1 34 Tf 60 500 Td (Standard Form) Tj ET
+0.2 0.25 0.33 rg
+BT /F2 22 Tf 72 430 Td (-  ax^2 + bx + c = 0, with a not equal to 0) Tj 0 -46 Td (-  a, b and c are the coefficients) Tj 0 -46 Td (-  The solutions are called roots) Tj ET
+0.4 0.45 0.55 rg BT /F2 14 Tf 900 30 Td (2) Tj ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 600] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 7 0 R >>
+endobj
+9 0 obj
+<< /Length 349 >>
+stream
+0.15 0.39 0.92 rg 0 586 960 14 re f
+0.06 0.09 0.16 rg
+BT /F1 34 Tf 60 500 Td (Sridharacharya's Formula) Tj ET
+0.2 0.25 0.33 rg
+BT /F2 22 Tf 72 430 Td (-  x = \(-b +/- sqrt\(b^2 - 4ac\)\) / 2a) Tj 0 -46 Td (-  Also called the quadratic formula) Tj 0 -46 Td (-  Derived by completing the square) Tj ET
+0.4 0.45 0.55 rg BT /F2 14 Tf 900 30 Td (3) Tj ET
+endstream
+endobj
+10 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 600] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 9 0 R >>
+endobj
+11 0 obj
+<< /Length 377 >>
+stream
+0.15 0.39 0.92 rg 0 586 960 14 re f
+0.06 0.09 0.16 rg
+BT /F1 34 Tf 60 500 Td (The Discriminant) Tj ET
+0.2 0.25 0.33 rg
+BT /F2 22 Tf 72 430 Td (-  Delta = b^2 - 4ac) Tj 0 -46 Td (-  Delta > 0: two real and distinct roots) Tj 0 -46 Td (-  Delta = 0: real and equal roots) Tj 0 -46 Td (-  Delta < 0: complex conjugate roots) Tj ET
+0.4 0.45 0.55 rg BT /F2 14 Tf 900 30 Td (4) Tj ET
+endstream
+endobj
+12 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 600] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 11 0 R >>
+endobj
+13 0 obj
+<< /Length 324 >>
+stream
+0.15 0.39 0.92 rg 0 586 960 14 re f
+0.06 0.09 0.16 rg
+BT /F1 34 Tf 60 500 Td (Worked Example) Tj ET
+0.2 0.25 0.33 rg
+BT /F2 22 Tf 72 430 Td (-  x^2 - 5x + 6 = 0) Tj 0 -46 Td (-  a = 1, b = -5, c = 6) Tj 0 -46 Td (-  Delta = 25 - 24 = 1) Tj 0 -46 Td (-  x = 3 or x = 2) Tj ET
+0.4 0.45 0.55 rg BT /F2 14 Tf 900 30 Td (5) Tj ET
+endstream
+endobj
+14 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 600] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 13 0 R >>
+endobj
+15 0 obj
+<< /Length 365 >>
+stream
+0.15 0.39 0.92 rg 0 586 960 14 re f
+0.06 0.09 0.16 rg
+BT /F1 34 Tf 60 500 Td (Vieta's Formulas and the Parabola) Tj ET
+0.2 0.25 0.33 rg
+BT /F2 22 Tf 72 430 Td (-  Sum of roots = -b/a) Tj 0 -46 Td (-  Product of roots = c/a) Tj 0 -46 Td (-  y = ax^2 + bx + c is a parabola) Tj 0 -46 Td (-  Vertex at x = -b/2a) Tj ET
+0.4 0.45 0.55 rg BT /F2 14 Tf 900 30 Td (6) Tj ET
+endstream
+endobj
+16 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 960 600] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 15 0 R >>
+endobj
+xref
+0 17
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000149 00000 n 
+0000000224 00000 n 
+0000000294 00000 n 
+0000000717 00000 n 
+0000000853 00000 n 
+0000001241 00000 n 
+0000001377 00000 n 
+0000001777 00000 n 
+0000001914 00000 n 
+0000002343 00000 n 
+0000002481 00000 n 
+0000002857 00000 n 
+0000002995 00000 n 
+0000003412 00000 n 
+trailer
+<< /Size 17 /Root 1 0 R >>
+startxref
+3550
+%%EOF
