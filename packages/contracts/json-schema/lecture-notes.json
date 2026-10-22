@@ -1,0 +1,269 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "starts_with",
+      "pattern": "^nts_.*",
+      "description": "ID with \"nts_\" prefix"
+    },
+    "sessionId": {
+      "type": "string",
+      "format": "starts_with",
+      "pattern": "^ses_.*",
+      "description": "ID with \"ses_\" prefix"
+    },
+    "title": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "sections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "heading": {
+            "type": "string"
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "paragraph"
+                    },
+                    "text": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "text"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "bullets"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "items"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "definition"
+                    },
+                    "term": {
+                      "type": "string"
+                    },
+                    "definition": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "term",
+                    "definition"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "formula"
+                    },
+                    "latex": {
+                      "type": "string"
+                    },
+                    "caption": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "latex",
+                    "caption"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "const": "callout"
+                    },
+                    "variant": {
+                      "type": "string",
+                      "enum": [
+                        "TIP",
+                        "WARNING",
+                        "BOARD"
+                      ]
+                    },
+                    "text": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "variant",
+                    "text"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
+          "sourceSegmentIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "starts_with",
+              "pattern": "^seg_.*",
+              "description": "ID with \"seg_\" prefix"
+            }
+          },
+          "slideIndexes": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "boardFocus": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "isBoardHeavy": {
+                    "type": "boolean"
+                  },
+                  "awaySeconds": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "isBoardHeavy",
+                  "awaySeconds"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "heading",
+          "blocks",
+          "sourceSegmentIds",
+          "slideIndexes",
+          "boardFocus"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "keyTerms": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "term": {
+            "type": "string"
+          },
+          "definition": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "term",
+          "definition"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "formulas": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "latex": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "latex",
+          "description"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "takeaways": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "markdown": {
+      "type": "string"
+    },
+    "generatedAt": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991,
+      "description": "Unix epoch milliseconds"
+    }
+  },
+  "required": [
+    "id",
+    "sessionId",
+    "title",
+    "summary",
+    "sections",
+    "keyTerms",
+    "formulas",
+    "takeaways",
+    "markdown",
+    "generatedAt"
+  ],
+  "additionalProperties": false
+}

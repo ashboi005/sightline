@@ -1,0 +1,236 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "starts_with",
+      "pattern": "^seg_.*",
+      "description": "ID with \"seg_\" prefix"
+    },
+    "sessionId": {
+      "type": "string",
+      "format": "starts_with",
+      "pattern": "^ses_.*",
+      "description": "ID with \"ses_\" prefix"
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "INTERIM",
+        "FINAL",
+        "REFINED"
+      ]
+    },
+    "startMs": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991,
+      "description": "Milliseconds since session start"
+    },
+    "endMs": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991,
+      "description": "Milliseconds since session start"
+    },
+    "speaker": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "rawText": {
+      "type": "string"
+    },
+    "text": {
+      "type": "string"
+    },
+    "parts": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "text"
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "text"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "term"
+              },
+              "text": {
+                "type": "string"
+              },
+              "glossaryTermId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "starts_with",
+                    "pattern": "^trm_.*",
+                    "description": "ID with \"trm_\" prefix"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "original": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "type",
+              "text",
+              "glossaryTermId",
+              "original"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "formula"
+              },
+              "latex": {
+                "type": "string"
+              },
+              "spoken": {
+                "type": "string"
+              },
+              "display": {
+                "type": "string",
+                "enum": [
+                  "INLINE",
+                  "BLOCK"
+                ]
+              }
+            },
+            "required": [
+              "type",
+              "latex",
+              "spoken",
+              "display"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "corrections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "GLOSSARY",
+              "FORMULA",
+              "GRAMMAR",
+              "CONTEXT"
+            ]
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "slidePointer": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "slideIndex": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "bulletIndex": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          },
+          "required": [
+            "slideIndex",
+            "bulletIndex",
+            "confidence"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    }
+  },
+  "required": [
+    "id",
+    "sessionId",
+    "seq",
+    "status",
+    "startMs",
+    "endMs",
+    "speaker",
+    "rawText",
+    "text",
+    "parts",
+    "corrections",
+    "slidePointer",
+    "confidence"
+  ],
+  "additionalProperties": false
+}

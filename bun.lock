@@ -81,6 +81,17 @@
       "name": "@sightline/config",
       "version": "0.0.0",
     },
+    "packages/contracts": {
+      "name": "@sightline/contracts",
+      "dependencies": {
+        "zod": "catalog:",
+      },
+      "devDependencies": {
+        "@sightline/config": "workspace:*",
+        "@types/bun": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
     "packages/db": {
       "name": "@sightline/db",
       "dependencies": {
@@ -442,6 +453,8 @@
     "@sightline/auth": ["@sightline/auth@workspace:packages/auth"],
 
     "@sightline/config": ["@sightline/config@workspace:packages/config"],
+
+    "@sightline/contracts": ["@sightline/contracts@workspace:packages/contracts"],
 
     "@sightline/db": ["@sightline/db@workspace:packages/db"],
 

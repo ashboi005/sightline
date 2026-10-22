@@ -1,0 +1,214 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "service.ready"
+        },
+        "protocolVersion": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "vocabulary": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Unix epoch milliseconds"
+        }
+      },
+      "required": [
+        "type",
+        "protocolVersion",
+        "model",
+        "vocabulary",
+        "ts"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "hands.status"
+        },
+        "handsDetected": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2
+        },
+        "ts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Unix epoch milliseconds"
+        }
+      },
+      "required": [
+        "type",
+        "handsDetected",
+        "ts"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "sign.partial"
+        },
+        "gloss": {
+          "type": "string"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "ts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Unix epoch milliseconds"
+        }
+      },
+      "required": [
+        "type",
+        "gloss",
+        "confidence",
+        "ts"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "sign.token"
+        },
+        "token": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "starts_with",
+              "pattern": "^tok_.*",
+              "description": "ID with \"tok_\" prefix"
+            },
+            "gloss": {
+              "type": "string",
+              "minLength": 1
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "SIGN",
+                "FINGERSPELL",
+                "NUMBER"
+              ]
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "ts": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Unix epoch milliseconds"
+            }
+          },
+          "required": [
+            "id",
+            "gloss",
+            "kind",
+            "confidence",
+            "ts"
+          ],
+          "additionalProperties": false
+        },
+        "ts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Unix epoch milliseconds"
+        }
+      },
+      "required": [
+        "type",
+        "token",
+        "ts"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "phrase.end"
+        },
+        "tokenIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Unix epoch milliseconds"
+        }
+      },
+      "required": [
+        "type",
+        "tokenIds",
+        "ts"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "error"
+        },
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "ts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Unix epoch milliseconds"
+        }
+      },
+      "required": [
+        "type",
+        "code",
+        "message",
+        "ts"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

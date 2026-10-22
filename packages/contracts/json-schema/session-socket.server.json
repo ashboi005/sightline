@@ -1,0 +1,958 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "session.ready"
+        },
+        "session": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "starts_with",
+              "pattern": "^ses_.*",
+              "description": "ID with \"ses_\" prefix"
+            },
+            "title": {
+              "type": "string"
+            },
+            "subject": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "mode": {
+              "type": "string",
+              "enum": [
+                "HARD_OF_HEARING",
+                "DEAF"
+              ]
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "DRAFT",
+                "LIVE",
+                "ENDED"
+              ]
+            },
+            "contextStatus": {
+              "type": "string",
+              "enum": [
+                "EMPTY",
+                "PROCESSING",
+                "READY",
+                "FAILED"
+              ]
+            },
+            "slidesStatus": {
+              "type": "string",
+              "enum": [
+                "EMPTY",
+                "PROCESSING",
+                "READY",
+                "FAILED"
+              ]
+            },
+            "notesStatus": {
+              "type": "string",
+              "enum": [
+                "EMPTY",
+                "PROCESSING",
+                "READY",
+                "FAILED"
+              ]
+            },
+            "createdAt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Unix epoch milliseconds"
+            },
+            "startedAt": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Unix epoch milliseconds"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "endedAt": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Unix epoch milliseconds"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "title",
+            "subject",
+            "mode",
+            "status",
+            "contextStatus",
+            "slidesStatus",
+            "notesStatus",
+            "createdAt",
+            "startedAt",
+            "endedAt"
+          ],
+          "additionalProperties": false
+        },
+        "isReplay": {
+          "type": "boolean"
+        },
+        "ts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Unix epoch milliseconds"
+        }
+      },
+      "required": [
+        "type",
+        "session",
+        "isReplay",
+        "ts"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "session.status"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "DRAFT",
+            "LIVE",
+            "ENDED"
+          ]
+        },
+        "ts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Unix epoch milliseconds"
+        }
+      },
+      "required": [
+        "type",
+        "status",
+        "ts"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "caption.interim"
+        },
+        "segmentId": {
+          "type": "string",
+          "format": "starts_with",
+          "pattern": "^seg_.*",
+          "description": "ID with \"seg_\" prefix"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "text": {
+          "type": "string"
+        },
+        "startMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Milliseconds since session start"
+        },
+        "ts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Unix epoch milliseconds"
+        }
+      },
+      "required": [
+        "type",
+        "segmentId",
+        "seq",
+        "text",
+        "startMs",
+        "ts"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "caption.final"
+        },
+        "segment": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "starts_with",
+              "pattern": "^seg_.*",
+              "description": "ID with \"seg_\" prefix"
+            },
+            "sessionId": {
+              "type": "string",
+              "format": "starts_with",
+              "pattern": "^ses_.*",
+              "description": "ID with \"ses_\" prefix"
+            },
+            "seq": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "INTERIM",
+                "FINAL",
+                "REFINED"
+              ]
+            },
+            "startMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Milliseconds since session start"
+            },
+            "endMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Milliseconds since session start"
+            },
+            "speaker": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "rawText": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            },
+            "parts": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "text"
+                      },
+                      "text": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "text"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "term"
+                      },
+                      "text": {
+                        "type": "string"
+                      },
+                      "glossaryTermId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "starts_with",
+                            "pattern": "^trm_.*",
+                            "description": "ID with \"trm_\" prefix"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "original": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "text",
+                      "glossaryTermId",
+                      "original"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "formula"
+                      },
+                      "latex": {
+                        "type": "string"
+                      },
+                      "spoken": {
+                        "type": "string"
+                      },
+                      "display": {
+                        "type": "string",
+                        "enum": [
+                          "INLINE",
+                          "BLOCK"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "latex",
+                      "spoken",
+                      "display"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "corrections": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": "string"
+                  },
+                  "to": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "GLOSSARY",
+                      "FORMULA",
+                      "GRAMMAR",
+                      "CONTEXT"
+                    ]
+                  }
+                },
+                "required": [
+                  "from",
+                  "to",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "slidePointer": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "slideIndex": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "bulletIndex": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "slideIndex",
+                    "bulletIndex",
+                    "confidence"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          },
+          "required": [
+            "id",
+            "sessionId",
+            "seq",
+            "status",
+            "startMs",
+            "endMs",
+            "speaker",
+            "rawText",
+            "text",
+            "parts",
+            "corrections",
+            "slidePointer",
+            "confidence"
+          ],
+          "additionalProperties": false
+        },
+        "ts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Unix epoch milliseconds"
+        }
+      },
+      "required": [
+        "type",
+        "segment",
+        "ts"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "caption.refined"
+        },
+        "segment": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "starts_with",
+              "pattern": "^seg_.*",
+              "description": "ID with \"seg_\" prefix"
+            },
+            "sessionId": {
+              "type": "string",
+              "format": "starts_with",
+              "pattern": "^ses_.*",
+              "description": "ID with \"ses_\" prefix"
+            },
+            "seq": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "INTERIM",
+                "FINAL",
+                "REFINED"
+              ]
+            },
+            "startMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Milliseconds since session start"
+            },
+            "endMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Milliseconds since session start"
+            },
+            "speaker": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "rawText": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            },
+            "parts": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "text"
+                      },
+                      "text": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "text"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "term"
+                      },
+                      "text": {
+                        "type": "string"
+                      },
+                      "glossaryTermId": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "starts_with",
+                            "pattern": "^trm_.*",
+                            "description": "ID with \"trm_\" prefix"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "original": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "text",
+                      "glossaryTermId",
+                      "original"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "formula"
+                      },
+                      "latex": {
+                        "type": "string"
+                      },
+                      "spoken": {
+                        "type": "string"
+                      },
+                      "display": {
+                        "type": "string",
+                        "enum": [
+                          "INLINE",
+                          "BLOCK"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "latex",
+                      "spoken",
+                      "display"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "corrections": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": "string"
+                  },
+                  "to": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "GLOSSARY",
+                      "FORMULA",
+                      "GRAMMAR",
+                      "CONTEXT"
+                    ]
+                  }
+                },
+                "required": [
+                  "from",
+                  "to",
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "slidePointer": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "slideIndex": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "bulletIndex": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "slideIndex",
+                    "bulletIndex",
+                    "confidence"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          },
+          "required": [
+            "id",
+            "sessionId",
+            "seq",
+            "status",
+            "startMs",
+            "endMs",
+            "speaker",
+            "rawText",
+            "text",
+            "parts",
+            "corrections",
+            "slidePointer",
+            "confidence"
+          ],
+          "additionalProperties": false
+        },
+        "ts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Unix epoch milliseconds"
+        }
+      },
+      "required": [
+        "type",
+        "segment",
+        "ts"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "slide.pointer"
+        },
+        "pointer": {
+          "type": "object",
+          "properties": {
+            "slideIndex": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "bulletIndex": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          },
+          "required": [
+            "slideIndex",
+            "bulletIndex",
+            "confidence"
+          ],
+          "additionalProperties": false
+        },
+        "ts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Unix epoch milliseconds"
+        }
+      },
+      "required": [
+        "type",
+        "pointer",
+        "ts"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "sign.utterance"
+        },
+        "utterance": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "starts_with",
+              "pattern": "^utt_.*",
+              "description": "ID with \"utt_\" prefix"
+            },
+            "sessionId": {
+              "type": "string",
+              "format": "starts_with",
+              "pattern": "^ses_.*",
+              "description": "ID with \"ses_\" prefix"
+            },
+            "source": {
+              "type": "string",
+              "enum": [
+                "SELF",
+                "PEER"
+              ]
+            },
+            "gloss": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "text": {
+              "type": "string"
+            },
+            "alternatives": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "audioUrl": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "createdAt": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Unix epoch milliseconds"
+            }
+          },
+          "required": [
+            "id",
+            "sessionId",
+            "source",
+            "gloss",
+            "text",
+            "alternatives",
+            "audioUrl",
+            "confidence",
+            "createdAt"
+          ],
+          "additionalProperties": false
+        },
+        "ts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Unix epoch milliseconds"
+        }
+      },
+      "required": [
+        "type",
+        "utterance",
+        "ts"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "notes.status"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "EMPTY",
+            "PROCESSING",
+            "READY",
+            "FAILED"
+          ]
+        },
+        "notesId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "starts_with",
+              "pattern": "^nts_.*",
+              "description": "ID with \"nts_\" prefix"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Unix epoch milliseconds"
+        }
+      },
+      "required": [
+        "type",
+        "status",
+        "notesId",
+        "ts"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "pong"
+        },
+        "ts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Unix epoch milliseconds"
+        }
+      },
+      "required": [
+        "type",
+        "ts"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "error"
+        },
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "ts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Unix epoch milliseconds"
+        }
+      },
+      "required": [
+        "type",
+        "code",
+        "message",
+        "ts"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}
