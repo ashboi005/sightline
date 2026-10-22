@@ -149,7 +149,7 @@ describe.skipIf(!databaseUrl)("real Postgres and better-auth", () => {
     const store = new PostgresStore(database);
     await store.createSession(userA.id, { ...session, id: "ses_private" });
     expect(await store.getSession(userB.id, "ses_private")).toBeNull();
-    const live = createLiveModule({ store, assets: new MemoryAssetStore(store), knowledge: new MockKnowledgeEngine(), resolveUser: resolve, mockCaptions: true, tts: new MockTts(), stt: { name: "unused", isReplay: false, open: () => ({ push() {}, async close() {} }) }, assetUrl: (id) => id });
+    const live = createLiveModule({ store, assets: new MemoryAssetStore(store), knowledge: new MockKnowledgeEngine(), resolveUser: resolve, captions: { mock: true }, tts: new MockTts(), stt: { name: "unused", isReplay: false, open: () => ({ push() {}, async close() {} }) }, assetUrl: (id) => id });
     const app = new Elysia().use(errorHandler).use(live.socket).listen(0);
     const connect = (cookie: string) => new Promise<boolean>((done) => {
       const socket = new WebSocket(`ws://localhost:${app.server!.port}/ws/sessions/ses_private`, { headers: { cookie } });

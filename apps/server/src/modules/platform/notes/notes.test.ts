@@ -6,7 +6,7 @@ import { MockKnowledgeEngine } from "../knowledge/mock-knowledge-engine";
 import { emptyContext } from "../store/memory-store";
 import type { GenerateNotesInput } from "@sightline/contracts";
 
-const input: GenerateNotesInput = { session: { id: "ses_notes", title: "Circuits", subject: null, mode: "DEAF", status: "ENDED", contextStatus: "EMPTY", slidesStatus: "EMPTY", notesStatus: "EMPTY", createdAt: 0, startedAt: 0, endedAt: 600_000 }, context: emptyContext("ses_notes"), slides: [], transcript: [], awayWindows: [] };
+const input: GenerateNotesInput = { session: { id: "ses_notes", title: "Circuits", subject: null, mode: "DEAF", status: "ENDED", contextStatus: "EMPTY", slidesStatus: "EMPTY", notesStatus: "EMPTY", createdAt: 0, startedAt: 0, endedAt: 600_000 }, context: emptyContext("ses_notes"), slides: [], transcript: [], awayWindows: [], snapshots: [] };
 
 const segment = (id: string, startMs: number, endMs: number): CaptionSegment => ({ id, sessionId: "ses_notes", seq: startMs, startMs, endMs, status: "REFINED", speaker: null, rawText: "current", text: "Current is conserved.", parts: [], corrections: [], slidePointer: null, confidence: 1 });
 

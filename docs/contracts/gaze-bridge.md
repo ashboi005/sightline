@@ -30,7 +30,8 @@ All frames are JSON text. Protocol version: "1".
 | `device.status` | `protocolVersion, tracker: CONNECTED\|DISCONNECTED, calibrated, audioFocus: ACTIVE\|IDLE\|UNAVAILABLE, mode` | On connect + whenever any field changes |
 | `gaze.zone` | `zone, targetId, confidence, ts` | Immediately on change (debounced ~150 ms) **and** 1 Hz heartbeat |
 | `gaze.targets` | `targets: [{ id, label, kind: TEACHER\|PEER\|UNKNOWN, azimuthDeg }]` | On connect + when people appear/disappear |
-| `audio.focus` | `targetId, label, locked` | Whenever the isolated voice changes (HoH mode) |
+| `gaze.scene` | `x, y` (0..1 in the **scene camera** image), `valid, confidence` | ≤ 30 Hz while the tracker has a scene estimate. Feeds `createGazeTargetSelector` → [speaker service](speaker-service.md) |
+| `audio.focus` | `targetId, label, locked` | *Reserved*: with the speaker service, the web app owns target selection |
 | `gaze.point` | `x, y` (0..1, top-left origin) | Only for subscribed clients, zone SCREEN, ≤ 30 Hz |
 | `calibration.progress` | `step, totalSteps, instruction, target: {x,y} \| null` | During calibration; `target: null` = "look at the board" step |
 | `calibration.result` | `ok, quality, message` | End of calibration |

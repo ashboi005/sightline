@@ -5,7 +5,6 @@
 import {
   GenerateNotesInput,
   IngestContextInput,
-  LocateSlideInput,
   RetrieveContextInput,
   type KnowledgeEngine,
   type NotesEngine,
@@ -18,6 +17,5 @@ export const platformDevRoutes = (knowledge: KnowledgeEngine, notes: NotesEngine
     .post("/knowledge/ingest", ({ body }) => knowledge.ingestContext(body), { body: IngestContextInput })
     .get("/knowledge/glossary/:sessionId", ({ params }) => knowledge.getGlossary(params.sessionId))
     .post("/knowledge/retrieve", ({ body }) => knowledge.retrieveContext(body), { body: RetrieveContextInput })
-    .post("/knowledge/locate-slide", ({ body }) => knowledge.locateSlide(body), { body: LocateSlideInput })
     .get("/notes", () => ({ engine: notes.name }))
     .post("/notes", ({ body }) => notes.generateNotes(body), { body: GenerateNotesInput });

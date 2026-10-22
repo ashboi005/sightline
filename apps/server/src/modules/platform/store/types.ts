@@ -9,6 +9,7 @@ import type {
   Session,
   SignUtterance,
   SlideDeck,
+  Snapshot,
 } from "@sightline/contracts";
 
 export interface SessionStore {
@@ -42,6 +43,10 @@ export interface SessionStore {
 
   addUtterance(utterance: SignUtterance): Promise<void>;
   listUtterances(sessionId: string): Promise<SignUtterance[]>;
+
+  /** Board/diagram snapshots (written by Ashwath's live module, read by the notes job). Insert or replace by id. */
+  upsertSnapshot(snapshot: Snapshot): Promise<void>;
+  listSnapshots(sessionId: string): Promise<Snapshot[]>;
 
   getNotes(sessionId: string): Promise<LectureNotes | null>;
   saveNotes(notes: LectureNotes): Promise<void>;

@@ -13,6 +13,7 @@ import { SlidePointer } from "../domain/context";
 import { GazeTransition } from "../domain/gaze";
 import { ProcessingStatus, Session, SessionStatus } from "../domain/session";
 import { SignUtterance } from "../domain/sign";
+import { Snapshot, SnapshotTrigger } from "../domain/snapshots";
 
 export const SESSION_SOCKET_PATH = "/ws/sessions/:sessionId";
 
@@ -68,6 +69,16 @@ export const SessionServerMessage = z.discriminatedUnion("type", [
   z.object({ type: z.literal("slide.pointer"), pointer: SlidePointer, ts: Timestamp }),
   /** A sign utterance was created (by this client or another tab) — show it and play audio if SELF. */
   z.object({ type: z.literal("sign.utterance"), utterance: SignUtterance, ts: Timestamp }),
+  /** The server heard a visual cue: grab the current scene frame and POST it to /snapshots with this trigger. */
+  z.object({
+    type: z.literal("snapshot.request"),
+    trigger: SnapshotTrigger,
+    reason: z.string(),
+    segmentId: SegmentId.nullable(),
+    ts: Timestamp,
+  }),
+  /** A snapshot was stored (sent again when its description arrives). */
+  z.object({ type: z.literal("snapshot.captured"), snapshot: Snapshot, ts: Timestamp }),
   z.object({
     type: z.literal("notes.status"),
     status: ProcessingStatus,

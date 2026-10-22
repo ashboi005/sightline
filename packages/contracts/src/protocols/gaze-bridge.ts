@@ -47,9 +47,24 @@ export const GazeBridgeMessage = z.discriminatedUnion("type", [
     y: z.number().min(0).max(1),
     ts: Timestamp,
   }),
+  /**
+   * Gaze in the *scene camera* image (normalised, same orientation as the frames sent to the speaker service).
+   * ≤ 30 Hz while the tracker has a scene estimate. Feed it to `createGazeTargetSelector` for look-to-hear.
+   */
+  z.object({
+    type: z.literal("gaze.scene"),
+    x: z.number(),
+    y: z.number(),
+    valid: z.boolean(),
+    confidence: Confidence,
+    ts: Timestamp,
+  }),
   /** People/sources the bridge currently knows about. */
   z.object({ type: z.literal("gaze.targets"), targets: z.array(FocusTarget), ts: Timestamp }),
-  /** Which voice is being isolated into the earphones right now (HARD_OF_HEARING mode). */
+  /**
+   * Reserved. With the speaker service, the web app picks the target (gaze.scene → face) and knows the focus
+   * itself; a bridge may still emit this if it ever does isolation on-device.
+   */
   z.object({
     type: z.literal("audio.focus"),
     targetId: z.string().nullable(),

@@ -14,6 +14,7 @@ import { z } from "zod";
 
 import { CaptionCorrection, CaptionPart, CaptionSegment, RawTranscriptSegment } from "../domain/captions";
 import { Confidence, SessionId } from "../domain/common";
+import { SlidePointer } from "../domain/context";
 import { SignSource, SignToken } from "../domain/sign";
 
 export const RefineCaptionInput = z.object({
@@ -47,6 +48,22 @@ export const ComposeSentenceResult = z.object({
   confidence: Confidence,
 });
 export type ComposeSentenceResult = z.infer<typeof ComposeSentenceResult>;
+
+// --- slide pointer (P1) — Ashwath ---------------------------------------------
+
+export const LocateSlideInput = z.object({
+  sessionId: SessionId,
+  text: z.string(),
+  currentSlideIndex: z.number().int().nonnegative().nullable(),
+});
+export type LocateSlideInput = z.infer<typeof LocateSlideInput>;
+
+/** Which slide/bullet the teacher is on, from the refined caption text + the deck's extracted text. */
+export interface SlideLocator {
+  readonly name: string;
+  /** Null when unsure or there is no READY deck. Must be fast (< 50 ms): runs on every refined segment. */
+  locate(input: LocateSlideInput): Promise<SlidePointer | null>;
+}
 
 export interface CaptionEngine {
   /** "mock" or "mastra" — surfaced in logs. */

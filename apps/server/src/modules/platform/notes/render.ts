@@ -24,6 +24,7 @@ function renderBlock(block: NoteBlock): string {
     case "bullets": return block.items.map((item) => `- ${item}`).join("\n");
     case "definition": return `**${block.term}:** ${block.definition}`;
     case "formula": return `$$\n${block.latex}\n$$${block.caption ? `\n\n${block.caption}` : ""}`;
+    case "image": return `![${(block.caption ?? "Board snapshot").replace(/[\[\]]/g, "")}](${block.url})`;
     case "callout": return `> **${block.variant}:** ${block.text.replace(/\n/g, "\n> ")}`;
   }
 }

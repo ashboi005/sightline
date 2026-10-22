@@ -17,11 +17,14 @@ const schemas: Record<string, z.ZodType> = {
   "gaze-bridge.command": c.GazeBridgeCommand,
   "sign-service.message": c.SignServiceMessage,
   "sign-service.command": c.SignServiceCommand,
+  "speaker-service.message": c.SpeakerServiceMessage,
+  "speaker-service.command": c.SpeakerServiceCommand,
   "session-socket.client": c.SessionClientMessage,
   "session-socket.server": c.SessionServerMessage,
   "sign-token": c.SignToken,
   "caption-segment": c.CaptionSegment,
   "lecture-notes": c.LectureNotes,
+  snapshot: c.Snapshot,
 };
 
 await mkdir(OUT_DIR, { recursive: true });

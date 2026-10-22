@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "starts_with",
+      "pattern": "^snp_.*"
+    },
+    "sessionId": {
+      "type": "string",
+      "format": "starts_with",
+      "pattern": "^ses_.*",
+      "description": "ID with \"ses_\" prefix"
+    },
+    "imageUrl": {
+      "type": "string"
+    },
+    "trigger": {
+      "type": "string",
+      "enum": [
+        "SPEECH_CUE",
+        "BOARD_DWELL",
+        "VISUAL_CHANGE",
+        "POINTING",
+        "MANUAL"
+      ]
+    },
+    "reason": {
+      "type": "string"
+    },
+    "capturedAt": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991,
+      "description": "Unix epoch milliseconds"
+    },
+    "atMs": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991,
+      "description": "Milliseconds since session start"
+    },
+    "segmentIds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "starts_with",
+        "pattern": "^seg_.*",
+        "description": "ID with \"seg_\" prefix"
+      }
+    },
+    "description": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "id",
+    "sessionId",
+    "imageUrl",
+    "trigger",
+    "reason",
+    "capturedAt",
+    "atMs",
+    "segmentIds",
+    "description"
+  ],
+  "additionalProperties": false
+}

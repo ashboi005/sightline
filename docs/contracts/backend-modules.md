@@ -17,7 +17,6 @@ apps/server/src/
                      ┌──────────────── Tushar (platform) ────────────────┐
                      │ SessionStore · AssetStore · UserResolver           │
  Ashwath (live) ────►│ KnowledgeEngine: getGlossary, retrieveContext,     │
-                     │                  locateSlide                       │
                      └────────────────────────────────────────────────────┘
                      ┌──────────────── Ashwath (live) ───────────────────┐
  Tushar (platform) ─►│ SessionLifecycle: onSessionStarted / Ended / Deleted│
@@ -35,7 +34,12 @@ apps/server/src/
 | `refineCaption({ sessionId, segment, previous })` → `{ text, parts, corrections, confidence }` | every FINAL segment | **< 1.5 s p95** |
 | `composeSignSentence({ sessionId, tokens, source, recentCaptions })` → `{ text, alternatives, confidence }` | `POST /sign/utterances` | < 2 s |
 
-The implementation gets a `KnowledgeEngine` by constructor injection, for the glossary and for retrieval grounding.
+The implementation gets a `KnowledgeEngine` by constructor injection. `getGlossary` is used on every segment; `retrieveContext` only when `CAPTIONS_USE_RAG=true` (300 ms budget, failures ignored). Real engine: Mastra agents through **Merge Gateway** (`CAPTION_MODEL`, `SIGN_MODEL`, default `zai/glm-5.3-flash`) under `CAPTION_TIMEOUT_MS`, with a glossary-only fallback. Hinglish/Devanagari is kept as spoken.
+
+### `SlideLocator` — Ashwath · [`captions.ts`](../../packages/contracts/src/services/captions.ts)
+
+`locate({ sessionId, text, currentSlideIndex })` → `SlidePointer | null`, called after each refinement (< 50 ms).
+It uses lexical TF-IDF over the deck from `SessionStore.getSlideDeck` with hysteresis; no RAG.
 
 ### `KnowledgeEngine` — Tushar · [`knowledge.ts`](../../packages/contracts/src/services/knowledge.ts) · flag `MOCK_KNOWLEDGE`
 
@@ -44,14 +48,13 @@ The implementation gets a `KnowledgeEngine` by constructor injection, for the gl
 | `ingestContext({ sessionId, title, subject, text, slides })` → `{ glossary, topics, chunkCount, sttKeyterms }` | platform, after context text / slides READY | < 20 s |
 | `getGlossary(sessionId)` → `GlossaryTerm[]` | **Ashwath's hot path** (STT keyterms, fast corrections) — cache it | < 50 ms |
 | `retrieveContext({ sessionId, query, limit })` → `ContextChunk[]` | Ashwath's refiner / sign composer, Tushar's notes | < 300 ms p95 |
-| `locateSlide({ sessionId, text, currentSlideIndex })` → `SlidePointer \| null` (P1) | Ashwath's live pipeline after each refinement | < 500 ms |
 | `dropSession(sessionId)` | platform on delete | – |
 
 ### `NotesEngine` — Tushar · [`notes.ts`](../../packages/contracts/src/services/notes.ts) · flag `MOCK_NOTES`
 
 | Method | Called by | Budget |
 | --- | --- | --- |
-| `generateNotes({ session, context, slides, transcript, awayWindows })` → `NotesDraft` | platform job after `end` / regenerate | < 60 s |
+| `generateNotes({ session, context, slides, transcript, awayWindows, snapshots })` → `NotesDraft` | platform job after `end` / regenerate | < 60 s |
 
 ## Rules
 
@@ -67,8 +70,9 @@ The implementation gets a `KnowledgeEngine` by constructor injection, for the gl
 
 ```
 Ashwath:  GET  /api/dev/captions                 POST /api/dev/captions/refine          POST /api/dev/captions/compose-sign
+          POST /api/dev/captions/locate-slide
 Tushar:   GET  /api/dev/knowledge                POST /api/dev/knowledge/ingest         GET  /api/dev/knowledge/glossary/:id
-          POST /api/dev/knowledge/retrieve       POST /api/dev/knowledge/locate-slide
+          POST /api/dev/knowledge/retrieve
           GET  /api/dev/notes                    POST /api/dev/notes
 ```
 

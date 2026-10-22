@@ -1,10 +1,10 @@
-import type { CaptionSegment, ContextState, GazeTransition, LectureNotes, Session, SignUtterance, SlideDeck } from "@sightline/contracts";
+import type { CaptionSegment, ContextState, GazeTransition, LectureNotes, Session, Snapshot, SignUtterance, SlideDeck } from "@sightline/contracts";
 import type { Database } from "@sightline/db";
 import { user } from "@sightline/db/schema/auth";
 import { captionSegment, gazeTransition, lectureContext, lectureNotes, lectureSession, signUtterance, slideDeck } from "@sightline/db/schema/sightline";
 import { and, count, desc, eq, sql } from "drizzle-orm";
 
-import { notFound } from "../../../lib/errors";
+import { notImplemented, notFound } from "../../../lib/errors";
 import { emptyContext } from "./memory-store";
 import type { SessionStore } from "./types";
 
@@ -88,6 +88,12 @@ export class PostgresStore implements SessionStore {
   }
   async listUtterances(sessionId: string) {
     return this.db.select().from(signUtterance).where(eq(signUtterance.sessionId, sessionId)).orderBy(signUtterance.createdAt, signUtterance.id);
+  }
+  async upsertSnapshot(_snapshot: Snapshot): Promise<void> {
+    throw notImplemented("PostgresStore.upsertSnapshot", "Tushar");
+  }
+  async listSnapshots(_sessionId: string): Promise<Snapshot[]> {
+    throw notImplemented("PostgresStore.listSnapshots", "Tushar");
   }
   async getNotes(sessionId: string): Promise<LectureNotes | null> {
     const [row] = await this.db.select().from(lectureNotes).where(eq(lectureNotes.sessionId, sessionId));

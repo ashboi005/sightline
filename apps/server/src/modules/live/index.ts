@@ -4,7 +4,9 @@
  */
 import type { KnowledgeEngine } from "@sightline/contracts";
 
+import type { GatewayConfig } from "../../lib/llm-gateway";
 import type { AssetStore, SessionLifecycle, SessionStore, UserResolver } from "../../shared/ports";
+import { createMastraGenerate } from "./captions/llm";
 import { MastraCaptionEngine } from "./captions/mastra-caption-engine";
 import { MockCaptionEngine } from "./captions/mock-caption-engine";
 import { captionDevRoutes } from "./dev-routes";
@@ -13,10 +15,26 @@ import { LiveCaptions } from "./realtime/live-captions";
 import { sessionSocket } from "./realtime/socket";
 import { liveRoutes } from "./routes";
 import { SignUtterances } from "./sign-utterances";
+import { LexicalSlideLocator } from "./slides/slide-locator";
+import { SnapshotService } from "./snapshots/snapshot-service";
+import { GatewayVisionDescriber, MockVisionDescriber } from "./snapshots/vision";
 import type { SpeechToText, TextToSpeech } from "./speech/types";
 
+export type CaptionConfig =
+  | { mock: true }
+  | {
+      mock: false;
+      gateway: GatewayConfig;
+      captionModel: string;
+      signModel: string;
+      signLanguage: "english" | "hinglish";
+      visionModel: string;
+      timeoutMs: number;
+      useRag: boolean;
+    };
+
 export function createLiveModule(deps: {
-  mockCaptions: boolean;
+  captions: CaptionConfig;
   stt: SpeechToText;
   tts: TextToSpeech;
   store: SessionStore;
@@ -27,8 +45,20 @@ export function createLiveModule(deps: {
 }) {
   const { store, knowledge, resolveUser } = deps;
   const hub = new SessionHub();
-  const captions = deps.mockCaptions ? new MockCaptionEngine(knowledge) : new MastraCaptionEngine(knowledge);
-  const live = new LiveCaptions({ store, stt: deps.stt, captions, knowledge, events: hub });
+  const captions = deps.captions.mock
+    ? new MockCaptionEngine(knowledge)
+    : new MastraCaptionEngine({
+        generate: createMastraGenerate(deps.captions),
+        knowledge,
+        captionTimeoutMs: deps.captions.timeoutMs,
+        useRag: deps.captions.useRag,
+      });
+  const slides = new LexicalSlideLocator(store);
+  const live = new LiveCaptions({ store, stt: deps.stt, captions, knowledge, slides, events: hub });
+  const vision = deps.captions.mock
+    ? new MockVisionDescriber()
+    : new GatewayVisionDescriber(deps.captions.gateway, deps.captions.visionModel);
+  const snapshots = new SnapshotService({ store, assets: deps.assets, events: hub, vision, assetUrl: deps.assetUrl });
   const sign = new SignUtterances({ store, captions, tts: deps.tts, assets: deps.assets, events: hub, assetUrl: deps.assetUrl });
 
   const lifecycle: SessionLifecycle = {
@@ -44,8 +74,9 @@ export function createLiveModule(deps: {
     captions,
     events: hub,
     lifecycle,
-    routes: liveRoutes({ store, resolveUser, sign }),
+    snapshots,
+    routes: liveRoutes({ store, resolveUser, sign, snapshots }),
     socket: sessionSocket({ store, hub, live, resolveUser }),
-    devRoutes: captionDevRoutes(captions),
+    devRoutes: captionDevRoutes(captions, slides),
   };
 }

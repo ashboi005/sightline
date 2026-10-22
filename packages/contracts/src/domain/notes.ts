@@ -8,6 +8,13 @@ export const NoteBlock = z.discriminatedUnion("type", [
   z.object({ type: z.literal("bullets"), items: z.array(z.string()) }),
   z.object({ type: z.literal("definition"), term: z.string(), definition: z.string() }),
   z.object({ type: z.literal("formula"), latex: z.string(), caption: z.string().nullable() }),
+  /** A board/diagram snapshot captured during the lecture (see domain/snapshots.ts). */
+  z.object({
+    type: z.literal("image"),
+    snapshotId: z.string(),
+    url: z.string(),
+    caption: z.string().nullable(),
+  }),
   z.object({
     type: z.literal("callout"),
     variant: z.enum(["TIP", "WARNING", "BOARD"]),

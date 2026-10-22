@@ -15,6 +15,7 @@ import type {
 import { fixtures } from "@sightline/mocks";
 
 import { refineWithGlossary } from "./glossary-refiner";
+import { glossFallback } from "./sign-fallback";
 
 const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
 const scriptByRaw = new Map(fixtures.lecture.script.segments.map((s) => [normalize(s.raw), s]));
@@ -38,14 +39,6 @@ export class MockCaptionEngine implements CaptionEngine {
     const key = input.tokens.map((t) => t.gloss).join(" ");
     const phrase = fixtures.sign.phrases.find((p) => p.tokens.map((t) => t.gloss).join(" ") === key);
     if (phrase) return { text: phrase.text, alternatives: phrase.alternatives, confidence: 0.9 };
-
-    const words = input.tokens.map((t) => (t.kind === "FINGERSPELL" ? t.gloss : t.gloss.toLowerCase().replace(/-/g, " ")));
-    const sentence = words.join(" ");
-    const isQuestion = input.tokens.some((t) => ["QUESTION", "WHAT", "WHY", "HOW", "WHERE"].includes(t.gloss));
-    return {
-      text: `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}${isQuestion ? "?" : "."}`,
-      alternatives: [],
-      confidence: 0.4,
-    };
+    return glossFallback(input.tokens);
   }
 }

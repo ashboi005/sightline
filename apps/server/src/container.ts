@@ -11,8 +11,9 @@ import { config } from "./config";
 import { ENV } from "./env.server";
 import { createLiveModule } from "./modules/live";
 import { DeepgramStt } from "./modules/live/speech/deepgram-stt";
+import { SarvamStt } from "./modules/live/speech/sarvam-stt";
 import { MockReplayStt } from "./modules/live/speech/mock-stt";
-import { MockTts, ProviderTts } from "./modules/live/speech/tts";
+import { CachedTts, ElevenLabsTts, MockTts, SarvamTts } from "./modules/live/speech/tts";
 import { DiskAssetStore, MemoryAssetStore } from "./modules/platform/assets/asset-store";
 import { createUserResolver } from "./modules/platform/auth";
 import { MockKnowledgeEngine } from "./modules/platform/knowledge/mock-knowledge-engine";
@@ -31,6 +32,7 @@ import { JobRunner } from "./modules/platform/jobs/runner";
 
 export function createContainer() {
   const { mocks } = config;
+  const llmGateway = { url: ENV.LLM_GATEWAY_URL, apiKey: ENV.MERGE_GATEWAY_API_KEY };
   const assetUrl = (assetId: string) => `${config.publicUrl}/api/assets/${assetId}`;
 
   // --- surrounding (Tushar) ------------------------------------------------
@@ -45,15 +47,51 @@ export function createContainer() {
   const resolveUser = createUserResolver({ mock: mocks.auth, auth });
 
   // --- core (Ashwath) ------------------------------------------------------
-  const stt = mocks.speech ? new MockReplayStt(config.mockReplaySpeed) : new DeepgramStt(ENV.DEEPGRAM_API_KEY, ENV.DEEPGRAM_MODEL);
+  const stt = mocks.speech
+    ? new MockReplayStt(config.mockReplaySpeed)
+    : ENV.STT_PROVIDER === "sarvam"
+      ? new SarvamStt({
+          apiKey: ENV.SARVAM_API_KEY,
+          model: ENV.SARVAM_STT_MODEL,
+          mode: ENV.SARVAM_STT_MODE,
+          language: ENV.SARVAM_STT_LANGUAGE,
+          baseUrl: ENV.SARVAM_STT_URL || undefined,
+        })
+      : new DeepgramStt({
+          apiKey: ENV.DEEPGRAM_API_KEY,
+          model: ENV.DEEPGRAM_MODEL,
+          language: ENV.DEEPGRAM_LANGUAGE,
+          baseUrl: ENV.DEEPGRAM_URL || undefined,
+        });
   const tts = mocks.speech
     ? new MockTts()
-    : new ProviderTts(
-        ENV.TTS_PROVIDER,
-        ENV.TTS_PROVIDER === "sarvam" ? ENV.SARVAM_API_KEY : ENV.ELEVENLABS_API_KEY,
-        ENV.ELEVENLABS_VOICE_ID,
+    : new CachedTts(
+        ENV.TTS_PROVIDER === "sarvam"
+          ? new SarvamTts({
+              apiKey: ENV.SARVAM_API_KEY,
+              model: ENV.SARVAM_TTS_MODEL,
+              speaker: ENV.SARVAM_SPEAKER,
+              language: ENV.SARVAM_LANGUAGE,
+            })
+          : new ElevenLabsTts({
+              apiKey: ENV.ELEVENLABS_API_KEY,
+              voiceId: ENV.ELEVENLABS_VOICE_ID,
+              modelId: ENV.ELEVENLABS_MODEL_ID,
+            }),
       );
-  const live = createLiveModule({ mockCaptions: mocks.captions, stt, tts, store, assets, knowledge, resolveUser, assetUrl });
+  const captions = mocks.captions
+    ? ({ mock: true } as const)
+    : {
+        mock: false as const,
+        gateway: llmGateway,
+        captionModel: ENV.CAPTION_MODEL,
+        signModel: ENV.SIGN_MODEL,
+        signLanguage: ENV.SIGN_OUTPUT_LANGUAGE,
+        visionModel: ENV.VISION_MODEL,
+        timeoutMs: ENV.CAPTION_TIMEOUT_MS,
+        useRag: ENV.CAPTIONS_USE_RAG,
+      };
+  const live = createLiveModule({ captions, stt, tts, store, assets, knowledge, resolveUser, assetUrl });
 
   // --- platform uses the live module only via lifecycle + events -----------
   const jobs = mocks.persistence ? new MemoryJobs(store) : new PostgresJobs(db);
@@ -72,7 +110,7 @@ export function createContainer() {
   const health = (): HealthResponse => ({ status: "ok", version: "0.1.0", mocks: { ...mocks }, ts: Date.now() });
   const engines = { captions: live.captions.name, stt: stt.name, tts: tts.name, knowledge: knowledge.name, notes: notes.name, store: store.name };
 
-  return { store, assets, slides, knowledge, notes, resolveUser, live, platform, jobs, runner, initialize, health, engines };
+  return { store, assets, assetUrl, slides, knowledge, notes, resolveUser, live, platform, jobs, runner, initialize, health, engines };
 }
 
 export type Container = ReturnType<typeof createContainer>;

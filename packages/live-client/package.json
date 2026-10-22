@@ -1,0 +1,21 @@
+{
+  "name": "@sightline/live-client",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./pcm": "./src/pcm.ts",
+    "./controller": "./src/look-to-hear-controller.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "test": "bun test src"
+  },
+  "dependencies": {
+    "@sightline/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@sightline/config": "workspace:*",
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  }
+}

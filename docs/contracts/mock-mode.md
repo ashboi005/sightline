@@ -9,12 +9,14 @@ Goal: **nobody waits on anybody.** Every boundary has a mock that speaks the rea
 | `USE_MOCK_DATA` | `true` | Master switch; every flag below inherits it when left empty | – |
 | `MOCK_CAPTIONS` | ← master | `MockCaptionEngine`: golden refinements for known lines, glossary fast path for anything else, fixture sign sentences | Ashwath |
 | `MOCK_SPEECH` | ← master | `MockReplayStt` replays the Kirchhoff lecture on session start (mic not needed) + `MockTts` chime WAV | Ashwath |
-| `MOCK_KNOWLEDGE` | ← master | `MockKnowledgeEngine`: fixture glossary/topics, word-overlap retrieval, fixture slide pointers | Tushar |
+| `MOCK_KNOWLEDGE` | ← master | `MockKnowledgeEngine`: fixture glossary/topics, word-overlap retrieval (slide pointer is Ashwath's real locator in every mode) | Tushar |
 | `MOCK_NOTES` | ← master | `MockNotesEngine`: fixture notes linked to the real transcript + board markers | Tushar |
 | `MOCK_PERSISTENCE` | ← master | In-memory store + in-memory assets (lost on restart) | Tushar |
 | `MOCK_SLIDES` | ← master | Any upload → the fixture deck rendered as SVG slides | Tushar |
 | `MOCK_AUTH` | ← master | `/api` + `/ws` act as `usr_demo` (better-auth routes still work) | Tushar |
 | `MOCK_REPLAY_SPEED` | `1` | Replay speed multiplier (`4` = 4× faster for UI work) | – |
+
+Related (real mode): `CAPTIONS_USE_RAG` (default `false`) keeps Tushar's RAG out of the live path until it's ready; `DEEPGRAM_URL` points STT at a fake/regional endpoint (used by `check:pipeline`).
 
 `GET /api/health` reports what is mocked; the server also prints it on boot:
 
@@ -32,7 +34,7 @@ flip the matching flag to `true` to keep working.
 
 | Who | Flags | Also run |
 | --- | --- | --- |
-| Sahil (frontend) | `USE_MOCK_DATA=true`, `MOCK_REPLAY_SPEED=2` | `bun run mock:gaze`, `bun run mock:sign` |
+| Sahil (frontend) | `USE_MOCK_DATA=true`, `MOCK_REPLAY_SPEED=2` | `bun run mock:gaze`, `bun run mock:sign`, `bun run mock:speaker` |
 | Ashwath (core) | `USE_MOCK_DATA=true`, `MOCK_CAPTIONS=false`, later `MOCK_SPEECH=false` | gaze bridge on :7777 |
 | Tushar (surrounding) | `USE_MOCK_DATA=true`, `MOCK_KNOWLEDGE=false`, `MOCK_NOTES=false`, later `MOCK_PERSISTENCE=false` | `bun run infra:up` (local Qdrant + Postgres) |
 | Harnoor (sign) | – | her service on :7788 + web app |
@@ -56,6 +58,7 @@ Validated against the contracts on import (`bun run mock:validate`). Plain JSON 
 ```bash
 bun run mock:gaze     # ws://localhost:7777 — auto timeline; keys: s b p a u (manual), m (auto), q
 bun run mock:sign     # ws://localhost:7788/ws — recognises scripted phrases while frames stream in
+bun run mock:speaker  # ws://127.0.0.1:7799/live — 2 fixed faces; echoes mic PCM as "focused" after 600 ms
 MOCK_SIGN_AUTO=1 bun run mock:sign   # …or on a timer without any frames
 ```
 

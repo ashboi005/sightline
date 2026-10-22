@@ -10,6 +10,7 @@ import type {
   LectureNotes,
   Slide,
   SlidePointer,
+  SnapshotTrigger,
 } from "@sightline/contracts";
 import { bigint, index, integer, jsonb, pgTable, real, text } from "drizzle-orm/pg-core";
 
@@ -153,3 +154,21 @@ export const platformAsset = pgTable("platform_asset", {
   sessionId: text("session_id").notNull(),
   contentType: text("content_type").notNull(),
 }, (table) => [index("platform_asset_session_idx").on(table.sessionId)]);
+/** Board/diagram snapshots (rows written by Ashwath's live module; the image itself is an asset). */
+export const snapshot = pgTable(
+  "snapshot",
+  {
+    id: text("id").primaryKey(),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => lectureSession.id, { onDelete: "cascade" }),
+    imageUrl: text("image_url").notNull(),
+    trigger: text("trigger").$type<SnapshotTrigger>().notNull(),
+    reason: text("reason").notNull(),
+    capturedAt: epochMs("captured_at").notNull(),
+    atMs: integer("at_ms").notNull(),
+    segmentIds: jsonb("segment_ids").$type<string[]>().notNull().default([]),
+    description: text("description"),
+  },
+  (t) => [index("snapshot_session_idx").on(t.sessionId, t.capturedAt)],
+);

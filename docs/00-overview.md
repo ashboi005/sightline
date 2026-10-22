@@ -18,10 +18,12 @@ This file is the **entry point**. It explains the whole system, who owns what, a
 | [`owners/tushar.md`](owners/tushar.md) | Tushar — **surrounding**: sessions + persistence, slides, knowledge (RAG/Qdrant), post-lecture notes, auth |
 | [`contracts/rest-api.md`](contracts/rest-api.md) | HTTP API (frontend ↔ server) |
 | [`contracts/realtime-ws.md`](contracts/realtime-ws.md) | Session WebSocket (frontend ↔ server): audio up, captions down |
-| [`contracts/gaze-bridge.md`](contracts/gaze-bridge.md) | Local gaze bridge protocol (gaze/audio-focus daemon ↔ frontend) |
+| [`contracts/gaze-bridge.md`](contracts/gaze-bridge.md) | Local gaze bridge protocol (eye tracker → zones + scene gaze ↔ frontend) |
+| [`contracts/speaker-service.md`](contracts/speaker-service.md) | Local look-to-hear speaker service (scene frames + room mic → the looked-at person's voice) |
 | [`contracts/sign-service.md`](contracts/sign-service.md) | Sign service protocol (Harnoor ↔ frontend) |
 | [`contracts/backend-modules.md`](contracts/backend-modules.md) | In-process interfaces between Ashwath's core and Tushar's surrounding modules |
 | [`contracts/mock-mode.md`](contracts/mock-mode.md) | `USE_MOCK_DATA`, fixtures, and the mock services everyone can run today |
+| [`deploy.md`](deploy.md) | Coolify deployment: server, web, Postgres, Qdrant; what runs on the student laptop |
 
 **Source of truth for every shape is code:** [`packages/contracts`](../packages/contracts) (zod schemas + TS
 types). The markdown docs explain intent; if a doc and a schema disagree, the schema wins and the doc is a bug.
@@ -37,7 +39,9 @@ types). The markdown docs explain intent; if a doc and a schema disagree, the sc
 | 3 | **Context-Locked Smart Subtitles + Formula Rendering** | STT mangles jargon ("kerchief law") and spoken maths | Slides/PDF or typed context feed a RAG glossary; captions are corrected and spoken formulas render as LaTeX blocks inline | P0 |
 | 4 | **Two-Way Sign Interpreter** | Captions are one-way; the student can't ask back | Webcam signs → gloss → fluent sentence on screen → spoken aloud via TTS. Also translates a peer signing at the camera | P0 |
 | 5 | **Context-Linked Lecture Notes** | No time to take notes while reading captions | On "End Lecture", transcript + formulas + context → structured notes (headings, definitions, formulas, takeaways) | P0 |
-| — | Live Slide Auto-Pointer | Student loses place in the deck | Captions are matched to the slide + bullet being explained; preview flips & highlights | P1 |
+| — | Live Slide Auto-Pointer | Student loses place in the deck | Captions are matched to the slide + bullet being explained; preview flips & highlights (✅ built, Ashwath) | P1 |
+| — | Smart Board Snapshots | Diagrams drawn on the board never make it into notes | When the teacher says "look at this diagram", the student keeps looking at the board, or the board changes and settles, the scene frame is captured, described by a vision model and placed in the right notes section (✅ built, Ashwath; pointing-gesture trigger is next) | P1 |
+| — | Hinglish | Indian classrooms mix Hindi and English | Sarvam streaming STT in code-mix mode keeps Hindi + English as spoken; sign replies can be spoken in Hinglish (✅ built, Ashwath) | P0 |
 | — | Board-Gaze Markers in Notes | Exam revision | Note sections where the student looked at the board longest are tagged | P1 |
 
 ## 2. User flow → which system handles it
@@ -64,8 +68,8 @@ types). The markdown docs explain intent; if a doc and a schema disagree, the sc
 │                                                          │        │ server  (Bun + Elysia)  :3000         │
 │  Eye tracker ─USB─► gaze-bridge (Python) :7777           │        │ ┌──────────────────────────────────┐ │
 │  (Arunya hw) │       • gaze → zone / person target       │        │ │ live/   (Ashwath — core)         │ │
-│  Mic array  ─────►   • isolate focused voice → earbuds   │        │ │  WS gateway · Deepgram STT       │ │
-│  Earphones  ◄─────   (bridge software: Ashwath)          │        │ │  CaptionEngine (Mastra):         │ │
+│  scene cam + mic ─► speaker-service (Python) :7799       │        │ │  WS gateway · Deepgram STT       │ │
+│  Earphones ◄── focused voice of the face you look at     │        │ │  CaptionEngine (Mastra):         │ │
 │                         │ ws (gaze.zone, audio.focus…)   │        │ │   jargon fix · formulas → LaTeX  │ │
 │                         ▼                                │  REST  │ │  sign sentence · TTS             │ │
 │  web (Sahil, Next.js in the browser) ────────────────────┼───────►│ └──────┬─────────────────▲─────────┘ │
@@ -86,8 +90,10 @@ Key decisions:
 1. **The gaze bridge runs locally** next to the hardware and talks straight to the browser
    (`ws://localhost:7777`). Caption pausing must react in < 100 ms; a VPS round-trip is not needed for that.
    The browser forwards *transitions* (not raw samples) to the server only for persistence/notes.
-2. **Voice isolation is fully local** (gaze bridge → earphones). The server never touches that audio.
-   Hardware + gaze estimation: Arunya. Bridge software + look→hear: Ashwath.
+2. **Look → hear is fully local.** The gaze bridge gives the scene-camera gaze point. The web app turns it into a
+   face (dwell + hysteresis) and tells the local **speaker service** (`:7799`). That service extracts the face's
+   voice from the room mic with an audio-visual model (RTFS-Net), and the browser plays it into the earphones.
+   The server never touches that audio. Hardware + gaze estimation: Arunya. Bridge + speaker service: Ashwath.
    Captions are transcribed from the browser mic. (Stretch: bridge can expose the isolated stream for STT.)
 3. **Sign recognition is its own service** so Harnoor can use Python/MediaPipe freely. It returns *gloss
    tokens only*; turning gloss into a fluent sentence and speaking it are both Ashwath's (core) job.
@@ -105,7 +111,7 @@ Key decisions:
 | --- | --- | --- | --- | --- |
 | Eye tracker hardware, firmware, gaze estimation | **Arunya** | (hardware) | — | — |
 | Gaze bridge software (zones, targets, calibration flow) | **Ashwath** | `apps/gaze-bridge` | tracker output | fake tracker in the bridge |
-| Gaze-directed voice isolation (look → hear) | **Ashwath** | `apps/gaze-bridge` | tracker output | fake tracker |
+| Gaze-directed voice isolation (look → hear) | **Ashwath** | `apps/speaker-service` + `createGazeTargetSelector` | scene gaze (`gaze.scene`) | `bun run mock:speaker` |
 | Sign recognition (frames → gloss tokens) | **Harnoor** | `apps/sign-service` | contracts | — |
 | Landing, auth screens, dashboard, setup, workspace, sign panel, notes UI | **Sahil** | `apps/web` | REST, WS, local sockets | mock server + `bun run mock:gaze` / `mock:sign` |
 | Live WS gateway, Deepgram STT, caption pipeline | **Ashwath** | `apps/server/src/modules/live` | `KnowledgeEngine`, `SessionStore` | `MOCK_KNOWLEDGE`, `MOCK_PERSISTENCE` |
@@ -115,7 +121,8 @@ Key decisions:
 | Sessions, auth guard, DB schema, persistence | **Tushar** | `apps/server/src/modules/platform` + `packages/db` | `SessionLifecycle` | `MOCK_SPEECH` replay |
 | Uploads, PDF/PPT → slide images + text | **Tushar** | same | — | mock slides |
 | KnowledgeEngine: RAG over context (Qdrant), glossary | **Tushar** | same | — | local Qdrant |
-| NotesEngine + notes job, export; P1 slide pointer + board markers | **Tushar** | same | transcript via `SessionStore` | replay lecture (`MOCK_CAPTIONS`) |
+| NotesEngine + notes job, export; board markers; placing snapshot images | **Tushar** | same | transcript + snapshots via `SessionStore` | replay lecture (`MOCK_CAPTIONS`) |
+| Slide auto-pointer, smart snapshots (capture, vision description) | **Ashwath** | `apps/server/src/modules/live` + `packages/live-client` | deck via `SessionStore` | mock slides |
 | `@sightline/contracts` | **Everyone (PR-reviewed)** | `packages/contracts` | — | — |
 
 ### Who relies on whom
@@ -168,11 +175,13 @@ sightline/
 │   │       ├── modules/platform/      Tushar (surrounding)
 │   │       ├── shared/ports.ts        the seams between the two
 │   │       └── container.ts           picks real vs mock implementations from the MOCK_* flags
-│   ├── gaze-bridge/          Ashwath — Python, local gaze + audio-focus daemon (tracker hw: Arunya)
+│   ├── gaze-bridge/          Ashwath — Python, local gaze daemon (tracker hw: Arunya)
+│   ├── speaker-service/      Ashwath — Python, local look-to-hear voice extraction (RTFS-Net)
 │   └── sign-service/         Harnoor — Python service (skeleton speaks the protocol)
 ├── packages/
 │   ├── contracts/            Everyone — zod schemas, TS types, JSON Schema export, typed clients
-│   ├── mocks/                Fixtures (Kirchhoff lecture) + mock gaze/sign servers
+│   ├── mocks/                Fixtures (Kirchhoff lecture) + mock gaze/sign/speaker servers
+│   ├── live-client/          Ashwath — browser mic, caption streaming, look-to-hear client
 │   ├── db/ auth/ ui/ config/ (scaffold)
 └── docs/                     This file, owner briefs, contract docs
 ```
@@ -207,5 +216,5 @@ sightline/
 ## 9. Tech stack
 
 Bun · Elysia · Next.js 16 · better-auth · Postgres + Drizzle · Mastra · Qdrant (self-hosted) · Deepgram
-(streaming STT, keyterm prompting) · ElevenLabs / Sarvam (TTS) · KaTeX (formula rendering) · Python
+(streaming STT, keyterm prompting) · Sarvam (Hinglish STT + TTS) · ElevenLabs (TTS) · Merge Gateway → GLM 5.3 Flash / GLM 4.5V (LLM + vision) · KaTeX (formula rendering) · Python
 (gaze bridge, sign service: OpenCV / MediaPipe) · Docker → Coolify on our VPS.

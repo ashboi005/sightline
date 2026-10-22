@@ -35,6 +35,8 @@ Ashwath's bridge reads your tracker output. Agree on one small interface and kee
 | --- | --- | --- |
 | On-screen gaze point | normalised `x, y` (0..1) + `valid` flag | ≥ 30 Hz |
 | Gaze direction in the room | yaw/azimuth (deg, −90 left … +90 right), pitch (deg) | ≥ 30 Hz |
+| **Scene-camera gaze point** (look → hear) | normalised `x, y` in the scene camera image + `valid` + confidence | ≥ 15 Hz |
+| Scene camera frames | the forward-facing camera's frames (or its stream URL) | 15–25 fps |
 | Eye state | open / blink / lost | per frame |
 | Calibration hooks | start, capture point, result quality | on demand |
 

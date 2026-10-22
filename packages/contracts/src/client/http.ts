@@ -4,6 +4,7 @@ import { ApiError } from "../domain/common";
 import { buildPath, routes, type RouteName } from "../api";
 import type { CreateSessionInput, UpdateSessionInput } from "../domain/session";
 import type { CreateSignUtteranceInput } from "../domain/sign";
+import type { SnapshotTrigger } from "../domain/snapshots";
 
 type Infer<N extends RouteName> = (typeof routes)[N]["response"] extends z.ZodType
   ? z.infer<(typeof routes)[N]["response"]>
@@ -93,6 +94,19 @@ export function createSightlineApi(options: SightlineApiOptions) {
     createSignUtterance: (sessionId: string, body: z.input<typeof CreateSignUtteranceInput>) =>
       request("createSignUtterance", { ...s(sessionId), body }),
     listSignUtterances: (sessionId: string) => request("listSignUtterances", s(sessionId)),
+    uploadSnapshot: (
+      sessionId: string,
+      image: Blob,
+      fields: { trigger: SnapshotTrigger; reason?: string; capturedAt?: number },
+    ) => {
+      const body = new FormData();
+      body.append("file", image, image.type === "image/png" ? "snapshot.png" : "snapshot.jpg");
+      body.append("trigger", fields.trigger);
+      if (fields.reason) body.append("reason", fields.reason);
+      if (fields.capturedAt) body.append("capturedAt", String(fields.capturedAt));
+      return request("createSnapshot", { ...s(sessionId), body });
+    },
+    listSnapshots: (sessionId: string) => request("listSnapshots", s(sessionId)),
 
     getNotes: (sessionId: string) => request("getNotes", s(sessionId)),
     regenerateNotes: (sessionId: string) => request("regenerateNotes", s(sessionId)),

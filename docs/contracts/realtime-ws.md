@@ -52,6 +52,8 @@ web                                   server
 | `caption.refined` | `segment` (status REFINED, `parts` with terms/formulas) | Replace the segment with the same `id`. Can arrive after later finals |
 | `slide.pointer` | `pointer: { slideIndex, bulletIndex, confidence }` | P1: flip preview + highlight bullet |
 | `sign.utterance` | `utterance` | Add to the conversation panel; play `audioUrl` if `source = SELF` |
+| `snapshot.request` | `trigger`, `reason`, `segmentId` | The teacher referred to something visual: grab the scene frame and POST it to `/snapshots` (`startSmartSnapshots` does this) |
+| `snapshot.captured` | `snapshot` | A board snapshot was stored; sent again with `description` once the vision model answers |
 | `notes.status` | `status`, `notesId` | Show progress; fetch notes on READY |
 | `pong` | `ts` | |
 | `error` | `code`, `message` | Show toast / log. Codes: `BAD_JSON`, `VALIDATION_ERROR`, `NOT_LIVE`, `STT_ERROR` |

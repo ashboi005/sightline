@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { QdrantClient } from "@qdrant/js-client-rest";
-import { GlossaryTerm, IngestContextResult, type ContextChunk, type ContextState, type IngestContextInput, type KnowledgeEngine, type LocateSlideInput, type RetrieveContextInput, type SlidePointer } from "@sightline/contracts";
+import { GlossaryTerm, IngestContextResult, type ContextChunk, type ContextState, type IngestContextInput, type KnowledgeEngine, type RetrieveContextInput, type SlidePointer } from "@sightline/contracts";
 import { z } from "zod";
 import { AppError } from "../../../lib/errors";
 import type { Embeddings, StructuredModel } from "../ai/structured-model";
 import { BoundedCache, chunkContext } from "./chunks";
+
+type LocateSlideInput = { sessionId: string; text: string; currentSlideIndex: number | null };
 
 const GlossaryDraft = z.object({ glossary: z.array(GlossaryTerm.omit({ id: true })).max(200), topics: z.array(z.string()).max(50) });
 type SearchHit = { id: string | number; score: number; payload?: Record<string, unknown> | null };

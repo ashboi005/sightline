@@ -9,10 +9,12 @@ import type {
   CaptionSegment,
   KnowledgeEngine,
   RawTranscriptSegment,
+  SlideLocator,
   SlidePointer,
 } from "@sightline/contracts";
 
 import type { SessionEvents, SessionStore } from "../../../shared/ports";
+import { CueCooldown, detectVisualCue } from "../snapshots/visual-cues";
 import type { SpeechToText, SttStream } from "../speech/types";
 
 const REPLAY_FORMAT: AudioFormat = { encoding: "LINEAR16", sampleRate: 16000, channels: 1 };
@@ -21,6 +23,7 @@ type LiveState = { stream: SttStream; nextSeq: number; pointer: SlidePointer | n
 
 export class LiveCaptions {
   private readonly live = new Map<string, LiveState>();
+  private readonly cueCooldown = new CueCooldown();
 
   constructor(
     private readonly deps: {
@@ -28,6 +31,7 @@ export class LiveCaptions {
       stt: SpeechToText;
       captions: CaptionEngine;
       knowledge: KnowledgeEngine;
+      slides: SlideLocator;
       events: SessionEvents;
     },
   ) {}
@@ -50,7 +54,25 @@ export class LiveCaptions {
     };
     this.live.set(sessionId, state);
 
-    state.stream = stt.open({
+    try {
+      state.stream = this.openStream(stt, sessionId, format, keyterms, startedAt, state);
+    } catch (error) {
+      this.live.delete(sessionId);
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[live] could not open STT for ${sessionId}: ${message}`);
+      this.deps.events.publish(sessionId, { type: "error", code: "STT_ERROR", message, ts: Date.now() });
+    }
+  }
+
+  private openStream(
+    stt: SpeechToText,
+    sessionId: string,
+    format: AudioFormat,
+    keyterms: string[],
+    startedAt: number,
+    state: LiveState,
+  ): SttStream {
+    return stt.open({
       sessionId,
       format,
       keyterms,
@@ -78,7 +100,7 @@ export class LiveCaptions {
   }
 
   private async handleSegment(raw: RawTranscriptSegment): Promise<void> {
-    const { store, events, captions, knowledge } = this.deps;
+    const { store, events, captions, slides } = this.deps;
     const sessionId = raw.sessionId;
 
     if (!raw.isFinal) {
@@ -115,18 +137,26 @@ export class LiveCaptions {
       const previous = (await store.listSegments(sessionId)).filter((s) => s.status === "REFINED").slice(-5);
       const refined = await captions.refineCaption({ sessionId, segment: raw, previous });
 
-      const deck = await store.getSlideDeck(sessionId);
       const state = this.live.get(sessionId);
-      const pointer =
-        deck?.status === "READY"
-          ? await knowledge
-              .locateSlide({ sessionId, text: refined.text, currentSlideIndex: state?.pointer?.slideIndex ?? null })
-              .catch(() => null)
-          : null;
+      const pointer = await slides
+        .locate({ sessionId, text: refined.text, currentSlideIndex: state?.pointer?.slideIndex ?? null })
+        .catch(() => null);
 
       const refinedSegment: CaptionSegment = { ...finalSegment, ...refined, status: "REFINED", slidePointer: pointer };
       await store.upsertSegment(refinedSegment);
       events.publish(sessionId, { type: "caption.refined", segment: refinedSegment, ts: Date.now() });
+
+      // Teacher referring to something visual → ask the web app to grab the scene frame for the notes.
+      const cue = detectVisualCue(refined.text) ?? detectVisualCue(raw.text);
+      if (cue && this.cueCooldown.allow(sessionId)) {
+        events.publish(sessionId, {
+          type: "snapshot.request",
+          trigger: "SPEECH_CUE",
+          reason: `Teacher: "${refined.text.slice(0, 160)}"`,
+          segmentId: refinedSegment.id,
+          ts: Date.now(),
+        });
+      }
 
       if (pointer && state && (pointer.slideIndex !== state.pointer?.slideIndex || pointer.bulletIndex !== state.pointer?.bulletIndex)) {
         state.pointer = pointer;

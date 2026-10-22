@@ -131,7 +131,7 @@ export class PlatformService {
         change = { context: { ...context, source, status: "READY", glossary: result.glossary, topics: result.topics, chunkCount: result.chunkCount, error: null, updatedAt: Date.now() }, session: { contextStatus: "READY" } };
       } else {
         const transcript = await store.listSegments(job.sessionId);
-        const draft = await this.deps.notes.generateNotes({ session, context: await store.getContext(job.sessionId), slides: (await store.getSlideDeck(job.sessionId))?.slides ?? [], transcript,
+        const draft = await this.deps.notes.generateNotes({ session, context: await store.getContext(job.sessionId), slides: (await store.getSlideDeck(job.sessionId))?.slides ?? [], transcript, snapshots: await store.listSnapshots(job.sessionId),
           awayWindows: deriveAwayWindows(await store.listGazeTransitions(job.sessionId), transcript, session.startedAt ?? session.createdAt, session.endedAt ?? Date.now()) });
         change = { notes: { ...draft, id: newId("nts"), sessionId: job.sessionId, generatedAt: Date.now() }, session: { notesStatus: "READY" }, notesError: null };
       }
