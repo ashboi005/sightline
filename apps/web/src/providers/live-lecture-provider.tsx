@@ -12,24 +12,24 @@ import { useVoiceFocus } from "@/hooks/live/use-voice-focus";
 import { useHealth } from "@/hooks/use-lecture-data";
 import { useSessionSocket } from "@/hooks/use-session-socket";
 import { useEndSession, useSession, useStartSession, useUpdateSession } from "@/hooks/use-sessions";
+import { ACTIVE_LECTURE_KEY } from "@/lib/account-state";
 import { api, errorMessage } from "@/lib/api";
 import { LIVE, pauseReducer } from "@/lib/live/gaze-pause";
 
 import { useGaze } from "./gaze-provider";
 
-const ACTIVE_KEY = "sightline.active-lecture";
 
 const readActive = () => {
   try {
-    return localStorage.getItem(ACTIVE_KEY);
+    return localStorage.getItem(ACTIVE_LECTURE_KEY);
   } catch {
     return null;
   }
 };
 const writeActive = (id: string | null) => {
   try {
-    if (id) localStorage.setItem(ACTIVE_KEY, id);
-    else localStorage.removeItem(ACTIVE_KEY);
+    if (id) localStorage.setItem(ACTIVE_LECTURE_KEY, id);
+    else localStorage.removeItem(ACTIVE_LECTURE_KEY);
   } catch {
     // storage blocked: the lecture is still tracked until reload
   }
