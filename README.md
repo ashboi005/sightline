@@ -5,7 +5,7 @@ tracker for gaze-directed audio focus and gaze-paused captions. It also has cont
 that render spoken formulas, a two-way sign-language interpreter, and automatic lecture notes.
 
 **Start here → [`docs/00-overview.md`](docs/00-overview.md)** for the architecture, who owns what, and links
-to every contract and owner brief.
+to every contract and owner brief. Deploying: [`docs/deploy.md`](docs/deploy.md).
 
 | Owner | Brief |
 | --- | --- |
@@ -39,7 +39,8 @@ apps/gaze-bridge    Python local gaze + audio-focus daemon (Ashwath; tracker har
 apps/sign-service   Python recogniser                     (Harnoor)
 apps/speaker-service Python look-to-hear voice extraction (Ashwath) — see its README
 packages/contracts  zod schemas, types, JSON Schema, typed clients  ← source of truth for every boundary
-packages/mocks      fixtures + mock gaze/sign servers
+packages/mocks      fixtures + mock gaze/sign/speaker servers
+packages/live-client browser mic, caption streaming, look-to-hear client (Ashwath)
 packages/db         Drizzle schema (better-auth + Sightline tables)
 packages/auth, ui, config
 docs/               overview, owner briefs, contract references
@@ -52,6 +53,8 @@ docs/               overview, owner briefs, contract references
 | `bun run dev` / `dev:web` / `dev:server` | Run apps |
 | `bun run mock:gaze` / `mock:sign` / `mock:speaker` | Mock device services |
 | `bun run speaker:setup` / `speaker:dev` / `speaker:test` | Real look-to-hear service (uv + PyTorch, downloads pinned weights once) |
+| `bun run gaze:dev` / `gaze:test` | Gaze bridge (fake tracker until the hardware is plugged in) |
+| `bun run --filter server test` / `check:pipeline` / `eval:captions` | Server unit tests · keyless end-to-end caption pipeline · LLM golden-set eval (needs key) |
 | `bun run mock:validate` | Validate fixtures against contracts |
 | `bun run --filter server smoke` | End-to-end contract check against a running server |
 | `bun run contracts:json-schema` | Regenerate JSON Schemas for the Python services |

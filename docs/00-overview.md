@@ -23,6 +23,7 @@ This file is the **entry point**. It explains the whole system, who owns what, a
 | [`contracts/sign-service.md`](contracts/sign-service.md) | Sign service protocol (Harnoor ↔ frontend) |
 | [`contracts/backend-modules.md`](contracts/backend-modules.md) | In-process interfaces between Ashwath's core and Tushar's surrounding modules |
 | [`contracts/mock-mode.md`](contracts/mock-mode.md) | `USE_MOCK_DATA`, fixtures, and the mock services everyone can run today |
+| [`deploy.md`](deploy.md) | Coolify deployment: server, web, Postgres, Qdrant; what runs on the student laptop |
 
 **Source of truth for every shape is code:** [`packages/contracts`](../packages/contracts) (zod schemas + TS
 types). The markdown docs explain intent; if a doc and a schema disagree, the schema wins and the doc is a bug.
@@ -176,7 +177,8 @@ sightline/
 │   └── sign-service/         Harnoor — Python service (skeleton speaks the protocol)
 ├── packages/
 │   ├── contracts/            Everyone — zod schemas, TS types, JSON Schema export, typed clients
-│   ├── mocks/                Fixtures (Kirchhoff lecture) + mock gaze/sign servers
+│   ├── mocks/                Fixtures (Kirchhoff lecture) + mock gaze/sign/speaker servers
+│   ├── live-client/          Ashwath — browser mic, caption streaming, look-to-hear client
 │   ├── db/ auth/ ui/ config/ (scaffold)
 └── docs/                     This file, owner briefs, contract docs
 ```

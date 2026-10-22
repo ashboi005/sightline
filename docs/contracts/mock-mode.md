@@ -16,6 +16,8 @@ Goal: **nobody waits on anybody.** Every boundary has a mock that speaks the rea
 | `MOCK_AUTH` | ← master | `/api` + `/ws` act as `usr_demo` (better-auth routes still work) | Tushar |
 | `MOCK_REPLAY_SPEED` | `1` | Replay speed multiplier (`4` = 4× faster for UI work) | – |
 
+Related (real mode): `CAPTIONS_USE_RAG` (default `false`) keeps Tushar's RAG out of the live path until it's ready; `DEEPGRAM_URL` points STT at a fake/regional endpoint (used by `check:pipeline`).
+
 `GET /api/health` reports what is mocked; the server also prints it on boot:
 
 ```

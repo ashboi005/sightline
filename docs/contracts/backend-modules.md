@@ -35,7 +35,7 @@ apps/server/src/
 | `refineCaption({ sessionId, segment, previous })` → `{ text, parts, corrections, confidence }` | every FINAL segment | **< 1.5 s p95** |
 | `composeSignSentence({ sessionId, tokens, source, recentCaptions })` → `{ text, alternatives, confidence }` | `POST /sign/utterances` | < 2 s |
 
-The implementation gets a `KnowledgeEngine` by constructor injection, for the glossary and for retrieval grounding.
+The implementation gets a `KnowledgeEngine` by constructor injection. `getGlossary` is used on every segment; `retrieveContext` only when `CAPTIONS_USE_RAG=true` (300 ms budget, failures ignored). Real engine: Mastra agents (`CAPTION_MODEL`, `SIGN_MODEL`) under `CAPTION_TIMEOUT_MS`, with a glossary-only fallback.
 
 ### `KnowledgeEngine` — Tushar · [`knowledge.ts`](../../packages/contracts/src/services/knowledge.ts) · flag `MOCK_KNOWLEDGE`
 

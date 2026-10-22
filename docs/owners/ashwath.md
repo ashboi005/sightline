@@ -20,12 +20,13 @@ You own the **core of the problem**: what the student hears and reads, live.
 | Session WebSocket + hub | `apps/server/src/modules/live/realtime/` | ✅ working |
 | Live caption pipeline (STT → final → refine → refined → slide pointer) | `…/live/realtime/live-captions.ts` | ✅ working |
 | Transcript + sign utterance routes | `…/live/routes.ts`, `sign-utterances.ts` | ✅ working |
-| **CaptionEngine (Mastra)** | `…/live/captions/mastra-caption-engine.ts` | ⛔ stub (mock + glossary fast path exist) |
-| **Deepgram streaming STT** | `…/live/speech/deepgram-stt.ts` | ⛔ stub (replay mock exists) |
-| **ElevenLabs / Sarvam TTS** | `…/live/speech/tts.ts` (`ProviderTts`) | ⛔ stub (chime mock exists) |
+| **CaptionEngine (Mastra)** | `…/live/captions/mastra-caption-engine.ts` (+ `llm.ts`, `prompts.ts`) | ✅ built; glossary fast path + LLM under a 1.5 s deadline, KaTeX-validated; needs an LLM key to go live |
+| **Deepgram streaming STT** | `…/live/speech/deepgram-stt.ts` | ✅ built + tested against a fake Deepgram; needs `DEEPGRAM_API_KEY` |
+| **ElevenLabs / Sarvam TTS** | `…/live/speech/tts.ts` | ✅ built (cached) + tested with fake HTTP; needs a key |
+| **Browser live client** (mic, caption streaming, look-to-hear, player) | `packages/live-client` | ✅ built; controller verified against the real speaker service |
 | **Look-to-hear speaker service** | `apps/speaker-service/` + `protocols/speaker-service.ts` | ✅ working with the real model (see its README for measurements) |
-| **Gaze bridge** (zones + `gaze.scene`) | `apps/gaze-bridge/` | skeleton speaks the protocol; plug in Arunya's tracker output |
-| Deploy (Coolify, compose, Dockerfiles, VPS Qdrant/Postgres) | repo root | todo |
+| **Gaze bridge** (zones + `gaze.scene`) | `apps/gaze-bridge/` | ✅ classifier + protocol tested (fake tracker); plug Arunya's device into `tracker.py` |
+| Deploy (Coolify, Dockerfiles, VPS Postgres + Qdrant) | [`docs/deploy.md`](../deploy.md) | guide ready; server bundle verified; run it once keys/VPS are ready |
 
 ## You do NOT own
 
@@ -36,27 +37,31 @@ Sessions/DB/auth, slides, the RAG index, or notes; those are Tushar's. You use t
 ## How you work without anyone else
 
 ```bash
-# apps/server/.env
-USE_MOCK_DATA=true          # Tushar's side mocked (knowledge/notes/store/slides/auth)
-MOCK_CAPTIONS=false         # your real CaptionEngine
-MOCK_SPEECH=true            # replay lecture (no mic) — set false when Deepgram is wired
+# apps/server/.env — your side real, Tushar's side mocked
+USE_MOCK_DATA=true
+MOCK_CAPTIONS=false          # real Mastra caption engine (needs the key for CAPTION_MODEL)
+MOCK_SPEECH=false            # real Deepgram + TTS (needs DEEPGRAM_API_KEY + ELEVENLABS/SARVAM key)
+CAPTIONS_USE_RAG=false       # glossary only until Tushar's RAG is real
 bun run dev:server
-curl -XPOST localhost:3000/api/dev/captions/refine -H 'content-type: application/json' -d '{
-  "sessionId":"ses_test","previous":[],
-  "segment":{"id":"seg_1","sessionId":"ses_test","seq":0,"startMs":0,"endMs":4000,
-             "text":"the summation of i k from k equals one to n equals zero","isFinal":true,"speaker":null,"confidence":0.9}}'
 ```
 
-The replay lecture runs through **your real engine** in the full app, so you see corrections live in the UI.
-The mock KnowledgeEngine gives you the Kirchhoff glossary and a naive `retrieveContext`.
-
-Deps to add as you go: `bun add --cwd apps/server @mastra/core @deepgram/sdk` (+ the AI SDK provider for your model).
+| Check | Command | Needs keys? |
+| --- | --- | --- |
+| Unit tests (TTS, Deepgram, caption engine) | `bun run --filter server test` | no |
+| Whole caption pipeline with a fake Deepgram | `bun run --filter server check:pipeline` | no |
+| Golden-set quality + latency of the real LLM | `bun run --filter server eval:captions` | LLM key |
+| Live client | `bun run --filter @sightline/live-client test` | no |
+| Gaze bridge | `bun run gaze:test` | no |
+| Speaker service | `bun run speaker:test` (`SPEAKER_MODEL_TESTS=1` for real-model tests) | no |
+| Contract smoke (REST + WS) | `bun run --filter server smoke` (server with `MOCK_SPEECH=true`) | no |
 
 ## Implementation notes
 
-- **CaptionEngine.refineCaption:** pass 1 is `refineWithGlossary` (`live/captions/glossary-refiner.ts`, instant).
-  Pass 2 is a fast LLM with structured output `CaptionPart[]`, grounded with `knowledge.retrieveContext` and the
-  previous segments. Spoken maths becomes KaTeX LaTeX. The golden set is `kirchhoff.script.json` (raw → refined).
+- **CaptionEngine.refineCaption:** pass 1 is `refineWithGlossary` (instant, always computed). Pass 2 is a Mastra
+  agent (`CAPTION_MODEL`) with flat structured output, under `CAPTION_TIMEOUT_MS`. The output is validated:
+  formulas must render in KaTeX, terms are linked to glossary ids, corrections are derived, and an output that
+  drops, summarises or pads the transcript is rejected. Any failure returns pass 1. RAG grounding is off until
+  `CAPTIONS_USE_RAG=true`. Tune prompts in `prompts.ts` and measure with `eval:captions`.
 - **DeepgramStt:** live websocket with `linear16`, `interim_results`, `smart_format`, and `keyterm` set from the
   glossary (already passed in `SttStreamOptions.keyterms`). Use one segment id per utterance for its interims and
   final, and send keep-alives during silence.

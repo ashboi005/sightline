@@ -22,6 +22,19 @@ Everything around the live core: session lifecycle and storage, slide uploads, t
 | **PDF/PPTX → slide images + text** | `…/platform/slides/slide-processor.ts` (`FileSlideProcessor`) | ⛔ stub (SVG mock exists) |
 | P1: slide auto-pointer (`locateSlide`), board-heavy note markers | KnowledgeEngine / NotesEngine | stretch |
 
+## ✅ Ready for you to use (from Ashwath's side)
+
+The live core is wired with real providers behind the same interfaces, so nothing on your side has to change:
+
+| What | Where | How you consume it |
+| --- | --- | --- |
+| **STT (Deepgram)** → captions | `modules/live/speech/deepgram-stt.ts` → `live-captions.ts` | Every FINAL/REFINED `CaptionSegment` is written through **your** `SessionStore.upsertSegment`. Read the transcript for notes with `store.listSegments(sessionId)` |
+| **Caption refinement** (glossary terms + KaTeX formulas) | `modules/live/captions/` | Uses **your** `KnowledgeEngine.getGlossary` on every segment (STT keyterms + fixes). `retrieveContext` is only called when `CAPTIONS_USE_RAG=true` (off until your RAG is real). Keep `getGlossary` cached and fast |
+| **TTS (ElevenLabs / Sarvam)** | `modules/live/speech/tts.ts` (`TextToSpeech`) | Need speech for something (e.g. reading notes aloud)? Take a `TextToSpeech` in your constructor; it's created in `container.ts` |
+| Gaze away-windows | socket → `store.addGazeTransition` | Already feeds `deriveAwayWindows` for your notes (P1 board markers) |
+
+Flip `MOCK_SPEECH=false` / `MOCK_CAPTIONS=false` (with keys) and the replay lecture is replaced by real mic audio.
+
 ## You do NOT own
 
 The live pipeline, STT/TTS, the WebSocket, caption refinement, sign sentences, the gaze software, or deployment.

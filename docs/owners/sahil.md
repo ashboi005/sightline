@@ -51,6 +51,23 @@ const gaze = connectGazeBridge(process.env.NEXT_PUBLIC_GAZE_BRIDGE_URL!, {
 });
 ```
 
+For the **mic, live captions and look-to-hear**, don't touch Web Audio yourself. Use `@sightline/live-client` (Ashwath's):
+
+```ts
+import { startMicCapture, streamMicToSession, startLookToHear } from "@sightline/live-client";
+
+const mic = await startMicCapture();                         // after a user gesture (button)
+const captions = streamMicToSession(socket, mic);            // Deepgram captions via the session socket
+const lth = await startLookToHear({
+  mic, sceneVideo: videoEl,                                  // <video> showing the scene camera
+  speakerUrl: process.env.NEXT_PUBLIC_SPEAKER_SERVICE_URL!,
+  gazeBridgeUrl: process.env.NEXT_PUBLIC_GAZE_BRIDGE_URL!,
+  onState: (s) => setLookToHear(s),                          // faces, targetId, status, playbackDelay
+});
+lth.select("face_id");                                       // click-to-select fallback
+await lth.stop(); captions.stop(); await mic.stop();
+```
+
 All incoming messages are zod-validated; types are exhaustive discriminated unions. `@sightline/contracts` is
 already a dependency of `apps/web`; add `katex` for formulas.
 
