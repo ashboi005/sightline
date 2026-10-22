@@ -1,8 +1,11 @@
 import { Check, Ear, Eye } from "lucide-react";
 
+import { IconTile } from "@/components/clay/clay";
+
 const MODES = [
   {
     icon: Ear,
+    tone: "sage" as const,
     name: "Hard-of-hearing mode",
     lead: "For when you hear part of the lecture and want more of the right voice.",
     points: [
@@ -13,6 +16,7 @@ const MODES = [
   },
   {
     icon: Eye,
+    tone: "lilac" as const,
     name: "Deaf mode",
     lead: "For when you read the lecture rather than hear it.",
     points: [
@@ -25,7 +29,7 @@ const MODES = [
 
 export function Modes() {
   return (
-    <section id="modes" className="scroll-mt-20 border-t">
+    <section id="modes" className="scroll-mt-28">
       <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 lg:py-28">
         <h2 className="max-w-2xl text-[clamp(2rem,1.5rem+2vw,3rem)] leading-[1.08] font-bold tracking-[-0.025em] text-balance">
           Two ways to follow a lecture
@@ -36,12 +40,12 @@ export function Modes() {
         </p>
 
         <div className="mt-12 grid gap-5 md:grid-cols-2">
-          {MODES.map(({ icon: Icon, name, lead, points }) => (
-            <article key={name} className="rounded-2xl border bg-card p-7 sm:p-9">
-              <Icon className="size-7 text-marigold-ink" aria-hidden="true" />
+          {MODES.map(({ icon, tone, name, lead, points }) => (
+            <article key={name} className={`rounded-[2rem] p-7 sm:p-9 ${tone === "sage" ? "clay-sage" : "clay-lilac"}`}>
+              <IconTile icon={icon} tone={tone} size="lg" />
               <h3 className="mt-5 text-2xl font-bold tracking-tight">{name}</h3>
-              <p className="mt-2 text-lg leading-relaxed text-muted-foreground">{lead}</p>
-              <ul className="mt-7 space-y-3.5">
+              <p className="mt-3 text-lg leading-relaxed text-foreground">{lead}</p>
+              <ul className="mt-7 space-y-3.5 rounded-[1.5rem] bg-card p-5">
                 {points.map((p) => (
                   <li key={p} className="flex gap-3 text-base leading-snug">
                     <Check className="mt-0.5 size-5 shrink-0 text-marigold-ink" aria-hidden="true" />

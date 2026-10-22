@@ -36,7 +36,6 @@ export function SignWorkspace() {
         icon={Hand}
         tone="lilac"
         title="Sign language"
-        description="Sign a question at your webcam. Sightline writes it as a sentence and can say it out loud for the room."
       />
 
       {sessions.isSuccess && lectures.length === 0 ? (

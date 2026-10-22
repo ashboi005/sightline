@@ -50,7 +50,7 @@ export function LectureFlow() {
   }, []);
 
   return (
-    <section id="how-it-works" className="scroll-mt-20 border-t bg-muted/50">
+    <section id="how-it-works" className="scroll-mt-28">
       <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 lg:py-28">
         <h2 className="max-w-2xl text-[clamp(2rem,1.5rem+2vw,3rem)] leading-[1.08] font-bold tracking-[-0.025em] text-balance">
           One lecture, start to finish
@@ -65,11 +65,11 @@ export function LectureFlow() {
             className="sl-draw absolute top-[1.125rem] right-[12.5%] left-[12.5%] hidden h-0.5 rounded-full bg-marigold lg:block"
           />
           {STEPS.map((step, i) => (
-            <li key={step.title} className="relative flex flex-col">
-              <span className="relative z-10 flex size-9 items-center justify-center self-start rounded-full border-2 border-marigold bg-background text-sm font-bold tabular-nums lg:self-center">
+            <li key={step.title} className="relative flex min-w-0 flex-col rounded-[1.75rem] clay p-5">
+              <span className="relative z-10 flex size-11 items-center justify-center self-start rounded-2xl clay-marigold text-base font-bold tabular-nums">
                 {i + 1}
               </span>
-              <div className="mt-6 flex h-44 items-center justify-center overflow-hidden rounded-xl border bg-card p-4">
+              <div className="mt-5 flex h-44 items-center justify-center overflow-hidden rounded-2xl bg-card p-3 shadow-[var(--clay-sunken)]">
                 {step.visual}
               </div>
               <h3 className="mt-6 text-xl font-bold tracking-tight">{step.title}</h3>
