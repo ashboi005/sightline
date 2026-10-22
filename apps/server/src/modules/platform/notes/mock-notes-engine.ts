@@ -4,6 +4,7 @@
  */
 import type { GenerateNotesInput, NotesDraft, NotesEngine } from "@sightline/contracts";
 import { fixtures } from "@sightline/mocks";
+import { boardFocus, renderNotes } from "./render";
 
 export class MockNotesEngine implements NotesEngine {
   readonly name = "mock";
@@ -14,15 +15,13 @@ export class MockNotesEngine implements NotesEngine {
     const sections = fixtures.lecture.notes.sections.map((section) => {
       const segs = transcript.filter((s) => s.slidePointer && section.slideIndexes.includes(s.slidePointer.slideIndex));
       const segIds = new Set(segs.map((s) => s.id));
-      const awaySeconds = awayWindows
-        .filter((w) => w.zone === "BOARD" && w.missedSegmentIds.some((id) => segIds.has(id)))
-        .reduce((sum, w) => sum + (w.endedAt - w.startedAt) / 1000, 0);
       return {
         ...section,
         sourceSegmentIds: [...segIds],
-        boardFocus: awaySeconds > 0 ? { isBoardHeavy: awaySeconds >= 10, awaySeconds: Math.round(awaySeconds) } : section.boardFocus,
+        boardFocus: boardFocus(segs, awayWindows, input.session.startedAt ?? input.session.createdAt),
       };
     });
-    return { ...fixtures.lecture.notes, sessionId: input.session.id, title: `${input.session.title} — Notes`, sections };
+    const notes = { ...fixtures.lecture.notes, sessionId: input.session.id, title: `${input.session.title} — Notes`, sections };
+    return { ...notes, markdown: renderNotes(notes) };
   }
 }

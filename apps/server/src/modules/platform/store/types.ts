@@ -14,6 +14,10 @@ import type {
 export interface SessionStore {
   readonly name: string;
 
+  listReadyContexts(): Promise<ContextState[]>;
+  getNotesError(sessionId: string): Promise<string | null>;
+  setNotesError(sessionId: string, error: string | null): Promise<void>;
+
   createSession(userId: string, session: Session): Promise<Session>;
   listSessions(userId: string, page: number, pageSize: number): Promise<{ items: Session[]; total: number }>;
   /** Returns null when missing OR owned by another user. */

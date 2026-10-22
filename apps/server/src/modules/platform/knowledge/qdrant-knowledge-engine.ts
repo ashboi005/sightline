@@ -1,54 +1,116 @@
-/**
- * OWNER: Tushar — the real KnowledgeEngine (Qdrant + embeddings + Mastra glossary agent).
- * Until done, run with MOCK_KNOWLEDGE=true. Local Qdrant: `bun run infra:up` (http://localhost:6333).
- */
-import type {
-  ContextChunk,
-  GlossaryTerm,
-  IngestContextInput,
-  IngestContextResult,
-  KnowledgeEngine,
-  LocateSlideInput,
-  RetrieveContextInput,
-  SlidePointer,
-} from "@sightline/contracts";
+import { randomUUID } from "node:crypto";
+import { QdrantClient } from "@qdrant/js-client-rest";
+import { GlossaryTerm, IngestContextResult, type ContextChunk, type ContextState, type IngestContextInput, type KnowledgeEngine, type LocateSlideInput, type RetrieveContextInput, type SlidePointer } from "@sightline/contracts";
+import { z } from "zod";
+import { AppError } from "../../../lib/errors";
+import type { Embeddings, StructuredModel } from "../ai/structured-model";
+import { BoundedCache, chunkContext } from "./chunks";
 
-import { notImplemented } from "../../../lib/errors";
-
-const OWNER = "Tushar";
+const GlossaryDraft = z.object({ glossary: z.array(GlossaryTerm.omit({ id: true })).max(200), topics: z.array(z.string()).max(50) });
+type SearchHit = { id: string | number; score: number; payload?: Record<string, unknown> | null };
+type KnowledgeOptions = { client: QdrantClient; embeddings: Embeddings; model: StructuredModel; pointerThreshold?: number; pointerMargin?: number };
 
 export class QdrantKnowledgeEngine implements KnowledgeEngine {
   readonly name = "qdrant";
+  private readonly glossary = new Map<string, GlossaryTerm[]>();
+  private readonly vectors = new BoundedCache<number[]>();
+  private readonly results = new BoundedCache<SearchHit[]>(512, 30_000);
+  private readonly chunkCounts = new Map<string, number>();
+  constructor(private readonly options: KnowledgeOptions) {}
 
-  constructor(
-    readonly qdrantUrl: string,
-    readonly qdrantApiKey: string | undefined,
-    readonly embeddingModel: string,
-  ) {}
-
-  async ingestContext(_input: IngestContextInput): Promise<IngestContextResult> {
-    // TODO(tushar): chunk slides (per slide + per bullet) and free text → embed → upsert into collection
-    //   `ctx_<sessionId>` (payload: text, source, slideIndex, bulletIndex). Glossary agent (structured output
-    //   GlossaryTerm[] incl. likely STT mis-hearings as `aliases`). Cache glossary in memory/Postgres.
-    throw notImplemented("KnowledgeEngine.ingestContext", OWNER);
+  hydrate(contexts: ContextState[]) {
+    for (const context of contexts) {
+      this.glossary.set(context.sessionId, context.glossary);
+      this.chunkCounts.set(context.sessionId, context.chunkCount);
+    }
   }
 
-  async getGlossary(_sessionId: string): Promise<GlossaryTerm[]> {
-    // TODO(tushar): return the cached glossary — this is on Ashwath's hot path, no network calls here.
-    throw notImplemented("KnowledgeEngine.getGlossary", OWNER);
+  async ingestContext(input: IngestContextInput, publish: (work: () => Promise<void>) => Promise<boolean> = async (work) => { await work(); return true; }): Promise<IngestContextResult> {
+    const chunks = chunkContext(input);
+    const base = `ctx_${input.sessionId}`;
+    const collection = `${base}_${randomUUID().replace(/-/g, "")}`;
+    const previous = (await this.options.client.getAliases()).aliases.find((alias) => alias.alias_name === base)?.collection_name;
+    let published = false;
+    try {
+      const vectors = chunks.length ? await this.options.embeddings.embed(chunks.map((chunk) => chunk.text)) : [];
+      const dimension = vectors[0]?.length ?? 1536;
+      await this.options.client.createCollection(collection, { vectors: { size: dimension, distance: "Cosine" } });
+      for (let offset = 0; offset < chunks.length; offset += 64) {
+        await this.options.client.upsert(collection, { wait: true, points: chunks.slice(offset, offset + 64).map((chunk, index) => ({ id: chunk.id, vector: vectors[offset + index]!, payload: { ...chunk, sessionId: input.sessionId } })) });
+      }
+      const draft = chunks.length ? await this.options.model.generate(GlossaryDraft,
+        "Extract lecture topics and a glossary from the source excerpts. Include likely speech-recognition mishearings as aliases, accurate short definitions, category, and source. Never invent lecture content. Prefer terms actually present in the excerpts.",
+        { title: input.title, subject: input.subject, excerpts: chunks.map((chunk) => ({ text: chunk.text, source: chunk.source })).slice(0, 120) }) : { glossary: [], topics: [] };
+      const terms = draft.glossary.map((term, index) => ({ ...term, id: `trm_${index}_${randomUUID().replace(/-/g, "").slice(0, 12)}`, aliases: [...new Set(term.aliases.filter((alias) => alias.trim() && alias.toLowerCase() !== term.term.toLowerCase()))] }));
+      if (!(await publish(async () => {
+        try {
+          await this.options.client.updateCollectionAliases({ actions: [...(previous ? [{ delete_alias: { alias_name: base } }] : []), { create_alias: { collection_name: collection, alias_name: base } }] });
+        } catch (error) {
+          const aliases = await this.options.client.getAliases().catch(() => null);
+          if (!aliases?.aliases.some((alias) => alias.alias_name === base && alias.collection_name === collection)) throw error;
+        }
+        published = true;
+        this.glossary.set(input.sessionId, terms);
+        this.chunkCounts.set(input.sessionId, chunks.length);
+        this.results.clear();
+      }))) throw new AppError("CONFLICT", "Context ingestion was superseded");
+      if (previous) await this.options.client.deleteCollection(previous).catch((error) => console.warn("[knowledge] old collection cleanup deferred", error));
+      return IngestContextResult.parse({ glossary: terms, topics: draft.topics, chunkCount: chunks.length, sttKeyterms: [...new Set(terms.map((term) => term.term))].slice(0, 100) });
+    } finally {
+      if (!published) {
+        const aliases = await this.options.client.getAliases().catch(() => null);
+        if (aliases && !aliases.aliases.some((alias) => alias.collection_name === collection)) await this.options.client.deleteCollection(collection).catch((error) => console.warn("[knowledge] unpublished collection cleanup deferred", error));
+      }
+    }
   }
 
-  async retrieveContext(_input: RetrieveContextInput): Promise<ContextChunk[]> {
-    // TODO(tushar): embed query → Qdrant search in `ctx_<sessionId>` → ContextChunk[] (< 300 ms p95).
-    throw notImplemented("KnowledgeEngine.retrieveContext", OWNER);
+  async getGlossary(sessionId: string) { return this.glossary.get(sessionId) ?? []; }
+
+  private async search(sessionId: string, text: string, limit: number, slidesOnly = false): Promise<SearchHit[]> {
+    if (!this.chunkCounts.get(sessionId)) return [];
+    const key = JSON.stringify([sessionId, text, limit, slidesOnly]);
+    const cached = this.results.get(key);
+    if (cached) return cached;
+    let vector = this.vectors.get(text);
+    if (!vector) {
+      vector = (await this.options.embeddings.embed([text]))[0];
+      if (!vector) throw new Error("Missing query embedding");
+      this.vectors.set(text, vector);
+    }
+    try {
+      const result = await this.options.client.query(`ctx_${sessionId}`, { query: vector, limit, with_payload: true, filter: { must: [{ key: "sessionId", match: { value: sessionId } }, ...(slidesOnly ? [{ key: "source", match: { value: "SLIDE" } }] : [])] } });
+      this.results.set(key, result.points);
+      return result.points;
+    } catch (error) {
+      if (typeof error === "object" && error !== null && "status" in error && error.status === 404) return [];
+      throw error;
+    }
   }
 
-  async locateSlide(_input: LocateSlideInput): Promise<SlidePointer | null> {
-    // TODO(tushar, P1): nearest slide/bullet chunk; hysteresis around currentSlideIndex.
-    return null;
+  async retrieveContext(input: RetrieveContextInput): Promise<ContextChunk[]> {
+    const hits = await this.search(input.sessionId, input.query, Math.min(20, Math.max(1, input.limit ?? 5)));
+    return hits.filter((hit) => typeof hit.payload?.text === "string").map((hit) => ({ id: String(hit.id), text: String(hit.payload!.text), source: hit.payload!.source === "SLIDE" ? "SLIDE" : "TEXT", slideIndex: typeof hit.payload!.slideIndex === "number" ? hit.payload!.slideIndex : null, score: hit.score }));
   }
 
-  async dropSession(_sessionId: string): Promise<void> {
-    // TODO(tushar): delete collection + cache.
+  async locateSlide(input: LocateSlideInput): Promise<SlidePointer | null> {
+    if (!input.text.trim()) return null;
+    const hits = await this.search(input.sessionId, input.text, 20, true);
+    const usable = hits.filter((hit) => typeof hit.payload?.slideIndex === "number");
+    let best = usable[0];
+    if (!best || best.score < (this.options.pointerThreshold ?? 0.5)) return null;
+    const current = usable.find((hit) => hit.payload?.slideIndex === input.currentSlideIndex);
+    if (current && best.payload?.slideIndex !== input.currentSlideIndex && best.score - current.score < (this.options.pointerMargin ?? 0.1) && current.score >= (this.options.pointerThreshold ?? 0.5)) best = current;
+    return { slideIndex: Number(best.payload!.slideIndex), bulletIndex: typeof best.payload!.bulletIndex === "number" ? best.payload!.bulletIndex : null, confidence: Math.max(0, Math.min(1, best.score)) };
+  }
+
+  async dropSession(sessionId: string) {
+    const base = `ctx_${sessionId}`;
+    const aliases = (await this.options.client.getAliases()).aliases;
+    if (aliases.some((alias) => alias.alias_name === base)) await this.options.client.updateCollectionAliases({ actions: [{ delete_alias: { alias_name: base } }] });
+    const collections = (await this.options.client.getCollections()).collections.filter((collection) => collection.name === base || (collection.name.startsWith(`${base}_`) && /^[a-f0-9]{32}$/.test(collection.name.slice(base.length + 1))));
+    for (const collection of collections) await this.options.client.deleteCollection(collection.name);
+    this.glossary.delete(sessionId);
+    this.chunkCounts.delete(sessionId);
+    this.results.clear();
   }
 }

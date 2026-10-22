@@ -31,11 +31,15 @@ export const platformRoutes = (deps: {
     new Elysia({ prefix: "/api" })
       // --- public ----------------------------------------------------------
       .get("/health", () => deps.health())
-      .get("/assets/:assetId", async ({ params }) => {
+      .get("/assets/:assetId", async ({ params, request }) => {
+        const user = await resolveUser(request);
+        const sessionId = await assets.getSessionId(params.assetId);
+        if (!sessionId) throw notFound("Asset");
+        await svc.requireSession(user.id, sessionId);
         const asset = await assets.get(params.assetId);
         if (!asset) throw notFound("Asset");
         return new Response(asset.bytes, {
-          headers: { "content-type": asset.contentType, "cache-control": "public, max-age=31536000, immutable" },
+          headers: { "content-type": asset.contentType, "cache-control": "private, no-store", "x-content-type-options": "nosniff" },
         });
       })
 

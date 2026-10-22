@@ -17,6 +17,8 @@ to every contract and owner brief.
 
 ## Quick start (everything mocked, no external services)
 
+Use Bun 1.4.4 (the tested runtime). Bun 1.3.10 on Windows can hang during auth integration; Windows startup guidance is in the platform operations document linked below.
+
 ```bash
 bun install
 cp apps/server/.env.example apps/server/.env   # USE_MOCK_DATA=true
@@ -44,6 +46,8 @@ docs/               overview, owner briefs, contract references
 ```
 
 ## Scripts
+
+Tushar's implementation, recovery, migration and Docker instructions: [platform operations](docs/implementation/tushar-operations.md).
 
 | Command | What |
 | --- | --- |

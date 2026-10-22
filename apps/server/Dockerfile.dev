@@ -1,0 +1,8 @@
+FROM oven/bun:1.4.4
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends poppler-utils libreoffice-impress fonts-dejavu-core && rm -rf /var/lib/apt/lists/*
+COPY . .
+RUN bun install --ignore-scripts --frozen-lockfile
+RUN bun run --filter server env:generate
+WORKDIR /app/apps/server
+CMD ["sh", "-c", "bun run --filter @sightline/db db:migrate && bun src/index.ts"]

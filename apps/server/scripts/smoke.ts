@@ -16,10 +16,17 @@ import {
   type SessionClientMessage,
 } from "@sightline/contracts";
 import type { z } from "zod";
+import { lecturePdf } from "./fixtures";
 
 const BASE = process.env.SERVER_URL ?? "http://localhost:3000";
 const WS_BASE = BASE.replace(/^http/, "ws");
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+async function poll<Value>(load: () => Promise<Value>, ready: (value: Value) => boolean, timeoutMs = 120_000): Promise<Value> {
+  const deadline = Date.now() + timeoutMs;
+  let value = await load();
+  while (!ready(value) && Date.now() < deadline) { await sleep(250); value = await load(); }
+  return value;
+}
 let failures = 0;
 
 function check(label: string, ok: boolean, detail = "") {
@@ -36,6 +43,7 @@ async function call<T extends z.ZodType>(schema: T, method: string, path: string
   const json = await res.json();
   const parsed = schema.safeParse(json);
   check(`${method} ${path} → ${res.status}`, parsed.success, parsed.success ? "" : parsed.error.message.slice(0, 300));
+  if (!parsed.success) throw new Error(`Invalid contract response from ${method} ${path}`);
   return parsed.data as z.infer<T>;
 }
 
@@ -52,12 +60,11 @@ await call(ApiError, "POST", "/api/sessions", { title: "" });
 await call(ApiError, "GET", "/api/sessions/ses_doesnotexist");
 
 const form = new FormData();
-form.append("file", new File([new Uint8Array([37, 80, 68, 70])], "deck.pdf", { type: "application/pdf" }));
+form.append("file", new File([lecturePdf()], "deck.pdf", { type: "application/pdf" }));
 await call(SlideDeck, "POST", `/api/sessions/${session.id}/slides`, form);
-await sleep(2500);
-const deck = await call(SlideDeck, "GET", `/api/sessions/${session.id}/slides`);
+const deck = await poll(() => call(SlideDeck, "GET", `/api/sessions/${session.id}/slides`), (value) => value.status === "READY" || value.status === "FAILED");
 check("slides READY", deck.status === "READY", `${deck.slides.length} slides`);
-const ctx = await call(ContextState, "GET", `/api/sessions/${session.id}/context`);
+const ctx = await poll(() => call(ContextState, "GET", `/api/sessions/${session.id}/context`), (value) => value.status === "READY" || value.status === "FAILED");
 check("context READY with glossary", ctx.status === "READY" && ctx.glossary.length > 0, ctx.source);
 
 await call(Session, "POST", `/api/sessions/${session.id}/start`);
@@ -74,7 +81,7 @@ await new Promise((r) => (ws.onopen = r));
 send({ type: "ping", ts: Date.now() });
 send({ type: "gaze.transition", transition: { from: "SCREEN", to: "BOARD", targetId: "teacher", ts: Date.now() }, ts: Date.now() });
 ws.send(JSON.stringify({ type: "nope" }));
-await sleep(12_000);
+await poll(async () => seen, (messages) => (messages.get("caption.refined") ?? 0) >= 15, 30_000);
 send({ type: "gaze.transition", transition: { from: "BOARD", to: "SCREEN", targetId: null, ts: Date.now() }, ts: Date.now() });
 
 for (const type of ["session.ready", "pong", "error", "caption.interim", "caption.final", "caption.refined", "slide.pointer"]) {
@@ -93,8 +100,7 @@ if (utterance.audioUrl) {
 }
 
 await call(Session, "POST", `/api/sessions/${session.id}/end`);
-await sleep(3500);
-const notes = await call(NotesResponse, "GET", `/api/sessions/${session.id}/notes`);
+const notes = await poll(() => call(NotesResponse, "GET", `/api/sessions/${session.id}/notes`), (value) => value.status === "READY" || value.status === "FAILED", 300_000);
 check("notes READY", notes.status === "READY" && notes.notes !== null, notes.notes?.title);
 check("ws received notes.status", (seen.get("notes.status") ?? 0) > 0);
 const md = await fetch(`${BASE}/api/sessions/${session.id}/notes/export?format=md`);

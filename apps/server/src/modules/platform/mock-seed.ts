@@ -75,6 +75,6 @@ export async function seedDemoSession(deps: { store: SessionStore; slides: Slide
   await store.addGazeTransition(sessionId, { from: "SCREEN", to: "BOARD", targetId: "teacher", ts: startedAt + 42_000 });
   await store.addGazeTransition(sessionId, { from: "BOARD", to: "SCREEN", targetId: null, ts: startedAt + 57_500 });
 
-  await platform.generateNotes(sessionId);
+  await platform.regenerateNotes(DEMO_USER.id, sessionId);
   console.log(`[seed] demo session ${sessionId} ready`);
 }

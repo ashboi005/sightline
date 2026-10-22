@@ -16,11 +16,13 @@ Everything around the live core: session lifecycle and storage, slide uploads, t
 | Business logic + notes job | `…/platform/platform-service.ts` | ✅ working |
 | Auth resolver (better-auth) | `…/platform/auth.ts` | ✅ working |
 | Away windows (gaze → missed segments) | `…/platform/notes/away-windows.ts` | ✅ working |
-| **KnowledgeEngine (Qdrant RAG + glossary)** | `…/platform/knowledge/qdrant-knowledge-engine.ts` | ⛔ stub (mock exists) |
-| **NotesEngine (Mastra workflow)** | `…/platform/notes/llm-notes-engine.ts` | ⛔ stub (mock exists) |
-| **Postgres store** | `…/platform/store/postgres-store.ts` + `packages/db/src/schema/sightline.ts` | ⛔ stub (memory store exists) |
-| **PDF/PPTX → slide images + text** | `…/platform/slides/slide-processor.ts` (`FileSlideProcessor`) | ⛔ stub (SVG mock exists) |
-| P1: slide auto-pointer (`locateSlide`), board-heavy note markers | KnowledgeEngine / NotesEngine | stretch |
+| **KnowledgeEngine (Qdrant RAG + glossary)** | `…/platform/knowledge/qdrant-knowledge-engine.ts` | implemented; real-service acceptance pending |
+| **NotesEngine (Mastra workflow)** | `…/platform/notes/llm-notes-engine.ts` | implemented; provider quality/timing acceptance pending |
+| **Postgres store** | `…/platform/store/postgres-store.ts` + `packages/db/src/schema/sightline.ts` | implemented; real-service acceptance pending |
+| **PDF/PPTX → slide images + text** | `…/platform/slides/slide-processor.ts` (`FileSlideProcessor`) | implemented; converter acceptance pending |
+| P1: slide auto-pointer (`locateSlide`), board-heavy note markers | KnowledgeEngine / NotesEngine | implemented; deterministic tests pass |
+
+Implementation decisions, verification status and Docker/migration/recovery instructions are in [platform operations](../implementation/tushar-operations.md) and the [progress ledger](../implementation/tushar-progress.md).
 
 ## You do NOT own
 
