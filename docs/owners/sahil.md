@@ -38,29 +38,27 @@ Any server logic, recognition, or the LLM. If you need a field that doesn't exis
 
 ## What you consume: the web app's hooks
 
-REST goes through TanStack Query hooks in `apps/web/src/hooks` (built on `lib/api.ts`). The three JSON sockets
-have their own hooks; message types live in `apps/web/src/types/realtime.ts` and mirror the protocol docs.
+Types and REST client come straight from `@sightline/contracts`; `apps/web/src/lib/api.ts` is the typed client and
+every call goes through a TanStack Query hook in `apps/web/src/hooks`. The workspace (`app/(workspace)/layout.tsx`)
+mounts two providers so a running lecture survives page changes:
 
-| Hook | Socket | Gives you |
+| Provider / hook | Talks to | Gives you |
 | --- | --- | --- |
-| `useSessionSocket(sessionId)` | server `/ws/sessions/:id` | ordered captions (refined in place, backfilled after reconnects), interim line, slide pointer, sign utterances, snapshots, notes status, `send`, raw `socket` |
-| `useGazeBridge({ onTransition })` | gaze bridge `:7777` | device status, `zone` (blinks ignored), `isAway`, targets, calibration, `setMode`, `startCalibration` |
-| `useSignService({ onPhrase })` | sign service `:7788/ws` | vocabulary, hands detected, partial gloss, phrase tokens, `start` / `sendFrame` / `stop` / `reset` |
-| `useCreateSignUtterance(sessionId)` | REST | phrase tokens → sentence + audio |
+| `GazeProvider` → `useGaze()` | gaze bridge `:7777` (one connection for the whole workspace) | device status, `zone` (blinks ignored), `isAway`, calibration, `setMode`, `onTransition` / `onMessage` subscriptions |
+| `LiveLectureProvider` → `useLiveLecture()` | session socket, mic, scene camera, recorder, voice focus, snapshots | `begin` / `end`, captions + gaze pause (`pause`, `resumeLive`), `recorder`, `voice`, `saveBoard`, `setMode` |
+| `useSessionSocket(sessionId)` | server `/ws/sessions/:id` | ordered captions (refined in place, backfilled on (re)connect), slide pointer, notes status; utterances and snapshots go into their query caches |
+| `useSignService({ onPhrase })` | sign service `:7788/ws` | hands detected, partial gloss, phrase tokens, `start` / `sendFrame` / `stop` / `reset` |
+| `use-sessions.ts`, `use-lecture-data.ts` | REST | sessions, context, slides, transcript, notes, recordings, snapshots, sign utterances, health |
 
-```ts
-const live = useSessionSocket(sessionId, { onMessage: (m) => snapshots.onSessionMessage(m) });
-const gaze = useGazeBridge({
-  onTransition: (transition) => live.send({ type: "gaze.transition", transition, ts: Date.now() }),
-});
-const utter = useCreateSignUtterance(sessionId);
-const sign = useSignService({ onPhrase: (tokens, source) => utter.mutate({ tokens, source }) });
-// webcam → sign: startWebcamFrames(videoEl, { fps: 12, width: 640, height: 480 }, sign.sendFrame) after sign.start()
-```
+Pure logic with unit tests (`bun run --filter web test`): `lib/live/gaze-pause.ts` (pause / catch-up rules),
+`lib/realtime/captions.ts` (merge: REFINED never downgraded), `lib/recordings/timeline.ts` (lecture time ↔ segment).
 
-`NEXT_PUBLIC_MOCK_MODE=true` swaps every socket for a scripted mock in the browser (`apps/web/src/mocks/realtime`):
-a Kirchhoff lecture with corrections and formulas, a gaze timeline with calibration, and repeating sign phrases.
-No server or device services needed.
+### Developing without hardware
+
+`bun run dev:demo` starts the server with `USE_MOCK_DATA=true` plus the `packages/mocks` gaze, sign and speaker
+services; then `bun run dev:web`. The sidebar badge shows which server modules are simulated (from `/api/health`).
+The gaze mock reads its terminal's keys (`b` board, `s` screen, `p` person, `m` auto). `MOCK_SIGN_AUTO=1` makes the
+sign mock recognise phrases without a webcam.
 
 For the **mic, live captions and look-to-hear**, don't touch Web Audio yourself. Use `@sightline/live-client` (Ashwath's):
 
