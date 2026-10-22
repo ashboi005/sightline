@@ -23,6 +23,7 @@ This file is the **entry point**. It explains the whole system, who owns what, a
 | [`contracts/sign-service.md`](contracts/sign-service.md) | Sign service protocol (Harnoor ↔ frontend) |
 | [`contracts/backend-modules.md`](contracts/backend-modules.md) | In-process interfaces between Ashwath's core and Tushar's surrounding modules |
 | [`contracts/mock-mode.md`](contracts/mock-mode.md) | `USE_MOCK_DATA`, fixtures, and the mock services everyone can run today |
+| [`contracts/recordings.md`](contracts/recordings.md) | Session recordings: browser recorder → presigned uploads to S3 → playback |
 | [`deploy.md`](deploy.md) | Coolify deployment: server, web, Postgres, Qdrant; what runs on the student laptop |
 
 **Source of truth for every shape is code:** [`packages/contracts`](../packages/contracts) (zod schemas + TS
@@ -123,6 +124,9 @@ Key decisions:
 | KnowledgeEngine: RAG over context (Qdrant), glossary | **Tushar** | same | — | local Qdrant |
 | NotesEngine + notes job, export; board markers; placing snapshot images | **Tushar** | same | transcript + snapshots via `SessionStore` | replay lecture (`MOCK_CAPTIONS`) |
 | Slide auto-pointer, smart snapshots (capture, vision description) | **Ashwath** | `apps/server/src/modules/live` + `packages/live-client` | deck via `SessionStore` | mock slides |
+| Storage layer (S3 / local, presigned URLs) | **TBD** (scaffolded by Ashwath) | `apps/server/src/lib/storage.ts` | — | local driver |
+| Session recordings: recorder + playback UI | **Sahil** | `apps/web` | recordings API | local driver |
+| Session recordings: server API | **TBD** (scaffolded by Ashwath) | `apps/server/src/modules/recordings` | `SessionStore`, storage | — |
 | `@sightline/contracts` | **Everyone (PR-reviewed)** | `packages/contracts` | — | — |
 
 ### Who relies on whom

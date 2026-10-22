@@ -44,6 +44,9 @@ Flip `MOCK_SPEECH=false` / `MOCK_CAPTIONS=false` (with keys) and the replay lect
   `PostgresStore`, table `snapshot` drafted in `packages/db`). `GenerateNotesInput.snapshots` now carries the board
   snapshots, and `NoteBlock` has a new `image` type: place each snapshot in the section whose captions overlap
   `snapshot.segmentIds` (see `placeSnapshots` in `mock-notes-engine.ts`).
+- **Recordings + storage.** `SessionStore.upsertRecording` / `getRecording` / `listRecordings` were added (memory
+  done; implement in `PostgresStore`, table `recording` drafted). Assets now sit on `ObjectStorage`
+  (`lib/storage.ts`: local disk in dev, S3 in prod). `AssetStore` gained an optional `directUrl` (presigned GET).
 - **LLMs go through Merge Gateway.** For your notes/glossary agents use `gatewayModel(gateway, ENV.LLM_MODEL)` from
   `src/lib/llm-gateway.ts` (default `zai/glm-5.3-flash`). Embeddings still use `EMBEDDING_MODEL` + `OPENAI_API_KEY`.
 

@@ -25,7 +25,15 @@
 
 - Build: Dockerfile `apps/server/Dockerfile`, build context = repo root. Port 3000, health check `GET /api/health`.
 - Domain: `https://api.<domain>`. WebSockets must be allowed through the proxy (Coolify/Traefik does this by default).
-- Volume: mount persistent storage at `STORAGE_DIR` (e.g. `/data/uploads`, and set `STORAGE_DIR=/data/uploads`).
+- Storage: set `STORAGE_DRIVER=s3` with `S3_BUCKET`, `S3_REGION` (`auto` for R2), `S3_ENDPOINT` (R2/MinIO only),
+  `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`. With `STORAGE_DRIVER=local` instead, mount a volume at `STORAGE_DIR`.
+- **Bucket CORS** (browsers PUT recordings and GET media straight from the bucket):
+
+  ```json
+  [{ "AllowedOrigins": ["https://<domain>"], "AllowedMethods": ["PUT", "GET", "HEAD"],
+     "AllowedHeaders": ["content-type", "range"], "ExposeHeaders": ["etag", "content-range", "accept-ranges"], "MaxAgeSeconds": 3600 }]
+  ```
+- Keep the bucket **private**: every read and write goes through short-lived presigned URLs.
 - Environment: everything in [`apps/server/.env.example`](../apps/server/.env.example). Production values:
 
 | Var | Value |

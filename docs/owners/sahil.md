@@ -28,6 +28,7 @@ All of [`apps/web`](../../apps/web) (Next.js 16, Tailwind 4, shadcn-style `packa
 | HoH look-to-hear | Scene preview with face boxes, highlight the selected face, "listening to …", delay readout, earphone playback | [speaker service](../contracts/speaker-service.md) + gaze bridge `gaze.scene` + `createGazeTargetSelector` |
 | Notes | Sections, formulas (KaTeX), definitions, BOARD callouts, **board snapshot images** (`image` blocks), export .md | `getNotes`, `notesExportUrl` |
 | Slide pointer | On `slide.pointer`: flip the preview to `slideIndex`, highlight `bulletIndex` | session socket |
+| **Session recording** (you own the recorder) | Record the eye-tracker scene camera (or webcam/screen) + mic while LIVE, in ~5-min self-contained segments; "● Recording" indicator + stop; playback page plays `segments[]` in order next to the transcript (seek by `startMs`) | [recordings contract](../contracts/recordings.md), `createRecordingUploader` |
 | Snapshot toasts | On `snapshot.captured`: small thumbnail + reason; the description arrives in a second event | session socket |
 
 ## You do NOT own
