@@ -35,6 +35,8 @@ Ashwath — transcript + sign utterances (`apps/server/src/modules/live/routes.t
 | GET | `/api/sessions/:id/transcript` | – | `{ data: CaptionSegment[] }` | Use after (re)connecting the socket |
 | POST | `/api/sessions/:id/sign/utterances` | `CreateSignUtteranceInput` | `201 SignUtterance` | Gloss → sentence + `audioUrl` |
 | GET | `/api/sessions/:id/sign/utterances` | – | `{ data: SignUtterance[] }` | |
+| POST | `/api/sessions/:id/snapshots` | multipart `file` (jpeg/png/webp ≤ 5 MB) + `trigger`, `reason?`, `capturedAt?` | `201 Snapshot` | Board/diagram frame → notes (vision description added async) |
+| GET | `/api/sessions/:id/snapshots` | – | `{ data: Snapshot[] }` | |
 | GET | `/api/sessions/:id/notes` | – | `NotesResponse` | `{ status, notes, error }` — always 200 |
 | POST | `/api/sessions/:id/notes` | – | `202 NotesResponse` | Regenerate (ENDED only) |
 | GET | `/api/sessions/:id/notes/export?format=md` | – | `text/markdown` | Download |

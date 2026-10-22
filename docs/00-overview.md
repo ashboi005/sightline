@@ -39,7 +39,9 @@ types). The markdown docs explain intent; if a doc and a schema disagree, the sc
 | 3 | **Context-Locked Smart Subtitles + Formula Rendering** | STT mangles jargon ("kerchief law") and spoken maths | Slides/PDF or typed context feed a RAG glossary; captions are corrected and spoken formulas render as LaTeX blocks inline | P0 |
 | 4 | **Two-Way Sign Interpreter** | Captions are one-way; the student can't ask back | Webcam signs → gloss → fluent sentence on screen → spoken aloud via TTS. Also translates a peer signing at the camera | P0 |
 | 5 | **Context-Linked Lecture Notes** | No time to take notes while reading captions | On "End Lecture", transcript + formulas + context → structured notes (headings, definitions, formulas, takeaways) | P0 |
-| — | Live Slide Auto-Pointer | Student loses place in the deck | Captions are matched to the slide + bullet being explained; preview flips & highlights | P1 |
+| — | Live Slide Auto-Pointer | Student loses place in the deck | Captions are matched to the slide + bullet being explained; preview flips & highlights (✅ built, Ashwath) | P1 |
+| — | Smart Board Snapshots | Diagrams drawn on the board never make it into notes | When the teacher says "look at this diagram", the student keeps looking at the board, or the board changes and settles, the scene frame is captured, described by a vision model and placed in the right notes section (✅ built, Ashwath; pointing-gesture trigger is next) | P1 |
+| — | Hinglish | Indian classrooms mix Hindi and English | Sarvam streaming STT in code-mix mode keeps Hindi + English as spoken; sign replies can be spoken in Hinglish (✅ built, Ashwath) | P0 |
 | — | Board-Gaze Markers in Notes | Exam revision | Note sections where the student looked at the board longest are tagged | P1 |
 
 ## 2. User flow → which system handles it
@@ -119,7 +121,8 @@ Key decisions:
 | Sessions, auth guard, DB schema, persistence | **Tushar** | `apps/server/src/modules/platform` + `packages/db` | `SessionLifecycle` | `MOCK_SPEECH` replay |
 | Uploads, PDF/PPT → slide images + text | **Tushar** | same | — | mock slides |
 | KnowledgeEngine: RAG over context (Qdrant), glossary | **Tushar** | same | — | local Qdrant |
-| NotesEngine + notes job, export; P1 slide pointer + board markers | **Tushar** | same | transcript via `SessionStore` | replay lecture (`MOCK_CAPTIONS`) |
+| NotesEngine + notes job, export; board markers; placing snapshot images | **Tushar** | same | transcript + snapshots via `SessionStore` | replay lecture (`MOCK_CAPTIONS`) |
+| Slide auto-pointer, smart snapshots (capture, vision description) | **Ashwath** | `apps/server/src/modules/live` + `packages/live-client` | deck via `SessionStore` | mock slides |
 | `@sightline/contracts` | **Everyone (PR-reviewed)** | `packages/contracts` | — | — |
 
 ### Who relies on whom
@@ -213,5 +216,5 @@ sightline/
 ## 9. Tech stack
 
 Bun · Elysia · Next.js 16 · better-auth · Postgres + Drizzle · Mastra · Qdrant (self-hosted) · Deepgram
-(streaming STT, keyterm prompting) · ElevenLabs / Sarvam (TTS) · KaTeX (formula rendering) · Python
+(streaming STT, keyterm prompting) · Sarvam (Hinglish STT + TTS) · ElevenLabs (TTS) · Merge Gateway → GLM 5.3 Flash / GLM 4.5V (LLM + vision) · KaTeX (formula rendering) · Python
 (gaze bridge, sign service: OpenCV / MediaPipe) · Docker → Coolify on our VPS.

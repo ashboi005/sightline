@@ -20,7 +20,7 @@ Everything around the live core: session lifecycle and storage, slide uploads, t
 | **NotesEngine (Mastra workflow)** | `…/platform/notes/llm-notes-engine.ts` | ⛔ stub (mock exists) |
 | **Postgres store** | `…/platform/store/postgres-store.ts` + `packages/db/src/schema/sightline.ts` | ⛔ stub (memory store exists) |
 | **PDF/PPTX → slide images + text** | `…/platform/slides/slide-processor.ts` (`FileSlideProcessor`) | ⛔ stub (SVG mock exists) |
-| P1: slide auto-pointer (`locateSlide`), board-heavy note markers | KnowledgeEngine / NotesEngine | stretch |
+| P1: board-heavy note markers + placing snapshot images | NotesEngine | stretch (mock already does both) |
 
 ## ✅ Ready for you to use (from Ashwath's side)
 
@@ -34,6 +34,18 @@ The live core is wired with real providers behind the same interfaces, so nothin
 | Gaze away-windows | socket → `store.addGazeTransition` | Already feeds `deriveAwayWindows` for your notes (P1 board markers) |
 
 Flip `MOCK_SPEECH=false` / `MOCK_CAPTIONS=false` (with keys) and the replay lecture is replaced by real mic audio.
+
+**Recent interface changes that touch you (all additive or removals of work you no longer own):**
+
+- **Slide pointer moved to Ashwath.** `KnowledgeEngine.locateSlide` is gone, so don't implement it. Ashwath's
+  `LexicalSlideLocator` reads your deck via `SessionStore.getSlideDeck`, so a real slide pipeline lights it up
+  automatically.
+- **Snapshots.** `SessionStore.upsertSnapshot` / `listSnapshots` were added (memory store done; implement them in
+  `PostgresStore`, table `snapshot` drafted in `packages/db`). `GenerateNotesInput.snapshots` now carries the board
+  snapshots, and `NoteBlock` has a new `image` type: place each snapshot in the section whose captions overlap
+  `snapshot.segmentIds` (see `placeSnapshots` in `mock-notes-engine.ts`).
+- **LLMs go through Merge Gateway.** For your notes/glossary agents use `gatewayModel(gateway, ENV.LLM_MODEL)` from
+  `src/lib/llm-gateway.ts` (default `zai/glm-5.3-flash`). Embeddings still use `EMBEDDING_MODEL` + `OPENAI_API_KEY`.
 
 ## You do NOT own
 

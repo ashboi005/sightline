@@ -36,9 +36,10 @@
 | `BETTER_AUTH_SECRET` | `openssl rand -base64 32` |
 | `DATABASE_URL` | Postgres internal URL |
 | `USE_MOCK_DATA` | `false`, then force still-unfinished modules back on (e.g. `MOCK_KNOWLEDGE=true`, `MOCK_NOTES=true`, `MOCK_SLIDES=true`, `MOCK_PERSISTENCE=true` until Tushar's are ready) |
-| `DEEPGRAM_API_KEY` | required when `MOCK_SPEECH=false` |
+| `DEEPGRAM_API_KEY` | required when `MOCK_SPEECH=false` and `STT_PROVIDER=deepgram` |
 | `TTS_PROVIDER` + `ELEVENLABS_API_KEY` or `SARVAM_API_KEY` | required when `MOCK_SPEECH=false` |
-| `OPENAI_API_KEY` (or the provider of `CAPTION_MODEL`/`SIGN_MODEL`) | required when `MOCK_CAPTIONS=false` |
+| `MERGE_GATEWAY_API_KEY` (+ `CAPTION_MODEL`, `SIGN_MODEL`, `VISION_MODEL`) | required when `MOCK_CAPTIONS=false` (all LLM + vision calls go through Merge Gateway) |
+| `STT_PROVIDER` | `deepgram` (English) or `sarvam` (Hinglish, `SARVAM_STT_MODE=codemix`) |
 | `QDRANT_URL`, `QDRANT_API_KEY`, `EMBEDDING_MODEL`, `LLM_MODEL` | Tushar's modules |
 
 ## 3. Web app

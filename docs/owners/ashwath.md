@@ -24,6 +24,10 @@ You own the **core of the problem**: what the student hears and reads, live.
 | **Deepgram streaming STT** | `…/live/speech/deepgram-stt.ts` | ✅ built + tested against a fake Deepgram; needs `DEEPGRAM_API_KEY` |
 | **ElevenLabs / Sarvam TTS** | `…/live/speech/tts.ts` | ✅ built (cached) + tested with fake HTTP; needs a key |
 | **Browser live client** (mic, caption streaming, look-to-hear, player) | `packages/live-client` | ✅ built; controller verified against the real speaker service |
+| **LLM via Merge Gateway** (GLM 5.3 Flash captions/sign, GLM 4.5V vision) | `src/lib/llm-gateway.ts`, `live/captions/llm.ts` | ✅ verified against a fake OpenAI-compatible gateway; needs `MERGE_GATEWAY_API_KEY` |
+| **Hinglish STT** (Sarvam saaras codemix) | `live/speech/sarvam-stt.ts` (`STT_PROVIDER=sarvam`) | ✅ tested against a fake Sarvam + `check:pipeline sarvam`; needs `SARVAM_API_KEY` |
+| **Slide auto-pointer** (P1) | `live/slides/slide-locator.ts` | ✅ 82% slide accuracy on the golden lecture; reads Tushar's deck via `SessionStore` |
+| **Smart board snapshots** (P1) | `live/snapshots/*` + `live-client` `startSmartSnapshots` | ✅ speech-cue / board-dwell / visual-change / manual → vision description → notes. Next: pointing-gesture trigger |
 | **Look-to-hear speaker service** | `apps/speaker-service/` + `protocols/speaker-service.ts` | ✅ working with the real model (see its README for measurements) |
 | **Gaze bridge** (zones + `gaze.scene`) | `apps/gaze-bridge/` | ✅ classifier + protocol tested (fake tracker); plug Arunya's device into `tracker.py` |
 | Deploy (Coolify, Dockerfiles, VPS Postgres + Qdrant) | [`docs/deploy.md`](../deploy.md) | guide ready; server bundle verified; run it once keys/VPS are ready |
@@ -39,8 +43,8 @@ Sessions/DB/auth, slides, the RAG index, or notes; those are Tushar's. You use t
 ```bash
 # apps/server/.env — your side real, Tushar's side mocked
 USE_MOCK_DATA=true
-MOCK_CAPTIONS=false          # real Mastra caption engine (needs the key for CAPTION_MODEL)
-MOCK_SPEECH=false            # real Deepgram + TTS (needs DEEPGRAM_API_KEY + ELEVENLABS/SARVAM key)
+MOCK_CAPTIONS=false          # real Mastra caption engine via Merge Gateway (MERGE_GATEWAY_API_KEY)
+MOCK_SPEECH=false            # real STT + TTS (STT_PROVIDER=deepgram|sarvam; keys for the chosen providers)
 CAPTIONS_USE_RAG=false       # glossary only until Tushar's RAG is real
 bun run dev:server
 ```
@@ -48,7 +52,7 @@ bun run dev:server
 | Check | Command | Needs keys? |
 | --- | --- | --- |
 | Unit tests (TTS, Deepgram, caption engine) | `bun run --filter server test` | no |
-| Whole caption pipeline with a fake Deepgram | `bun run --filter server check:pipeline` | no |
+| Whole caption pipeline with a fake Deepgram / Sarvam | `bun run --filter server check:pipeline` / `… check:pipeline sarvam` | no |
 | Golden-set quality + latency of the real LLM | `bun run --filter server eval:captions` | LLM key |
 | Live client | `bun run --filter @sightline/live-client test` | no |
 | Gaze bridge | `bun run gaze:test` | no |

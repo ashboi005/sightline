@@ -9,7 +9,7 @@ Goal: **nobody waits on anybody.** Every boundary has a mock that speaks the rea
 | `USE_MOCK_DATA` | `true` | Master switch; every flag below inherits it when left empty | – |
 | `MOCK_CAPTIONS` | ← master | `MockCaptionEngine`: golden refinements for known lines, glossary fast path for anything else, fixture sign sentences | Ashwath |
 | `MOCK_SPEECH` | ← master | `MockReplayStt` replays the Kirchhoff lecture on session start (mic not needed) + `MockTts` chime WAV | Ashwath |
-| `MOCK_KNOWLEDGE` | ← master | `MockKnowledgeEngine`: fixture glossary/topics, word-overlap retrieval, fixture slide pointers | Tushar |
+| `MOCK_KNOWLEDGE` | ← master | `MockKnowledgeEngine`: fixture glossary/topics, word-overlap retrieval (slide pointer is Ashwath's real locator in every mode) | Tushar |
 | `MOCK_NOTES` | ← master | `MockNotesEngine`: fixture notes linked to the real transcript + board markers | Tushar |
 | `MOCK_PERSISTENCE` | ← master | In-memory store + in-memory assets (lost on restart) | Tushar |
 | `MOCK_SLIDES` | ← master | Any upload → the fixture deck rendered as SVG slides | Tushar |

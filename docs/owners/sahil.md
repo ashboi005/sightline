@@ -26,7 +26,9 @@ All of [`apps/web`](../../apps/web) (Next.js 16, Tailwind 4, shadcn-style `packa
 | Gaze-pause (Deaf) | Pause scroll + bookmark on away, highlight missed lines, catch-up then resume | gaze bridge zones (client-side logic) |
 | Sign panel | Webcam preview, live partial gloss, sentence, play audio, SELF/PEER toggle | sign service + `createSignUtterance` |
 | HoH look-to-hear | Scene preview with face boxes, highlight the selected face, "listening to …", delay readout, earphone playback | [speaker service](../contracts/speaker-service.md) + gaze bridge `gaze.scene` + `createGazeTargetSelector` |
-| Notes | Sections, formulas (KaTeX), definitions, BOARD callouts, export .md | `getNotes`, `notesExportUrl` |
+| Notes | Sections, formulas (KaTeX), definitions, BOARD callouts, **board snapshot images** (`image` blocks), export .md | `getNotes`, `notesExportUrl` |
+| Slide pointer | On `slide.pointer`: flip the preview to `slideIndex`, highlight `bulletIndex` | session socket |
+| Snapshot toasts | On `snapshot.captured`: small thumbnail + reason; the description arrives in a second event | session socket |
 
 ## You do NOT own
 
@@ -65,6 +67,13 @@ const lth = await startLookToHear({
   onState: (s) => setLookToHear(s),                          // faces, targetId, status, playbackDelay
 });
 lth.select("face_id");                                       // click-to-select fallback
+
+const snaps = startSmartSnapshots({                          // board/diagram frames → notes
+  video: sceneVideoEl,
+  upload: (image, fields) => api.uploadSnapshot(sessionId, image, fields),
+});
+// forward: session socket messages → snaps.onSessionMessage(m); gaze.zone → snaps.onGazeZone(m.zone)
+// "Save board" button → snaps.capture("MANUAL")
 await lth.stop(); captions.stop(); await mic.stop();
 ```
 
