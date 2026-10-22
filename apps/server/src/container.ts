@@ -81,6 +81,7 @@ export function createContainer() {
         captionModel: ENV.CAPTION_MODEL,
         signModel: ENV.SIGN_MODEL,
         signLanguage: ENV.SIGN_OUTPUT_LANGUAGE,
+        visionModel: ENV.VISION_MODEL,
         timeoutMs: ENV.CAPTION_TIMEOUT_MS,
         useRag: ENV.CAPTIONS_USE_RAG,
       };
@@ -92,7 +93,7 @@ export function createContainer() {
   const health = (): HealthResponse => ({ status: "ok", version: "0.1.0", mocks: { ...mocks }, ts: Date.now() });
   const engines = { captions: live.captions.name, stt: stt.name, tts: tts.name, knowledge: knowledge.name, notes: notes.name, store: store.name };
 
-  return { store, assets, slides, knowledge, notes, resolveUser, live, platform, health, engines };
+  return { store, assets, assetUrl, slides, knowledge, notes, resolveUser, live, platform, health, engines };
 }
 
 export type Container = ReturnType<typeof createContainer>;

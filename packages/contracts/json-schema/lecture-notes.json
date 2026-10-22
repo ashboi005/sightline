@@ -122,6 +122,34 @@
                   "properties": {
                     "type": {
                       "type": "string",
+                      "const": "image"
+                    },
+                    "snapshotId": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": "string"
+                    },
+                    "caption": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "snapshotId",
+                    "url",
+                    "caption"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
                       "const": "callout"
                     },
                     "variant": {

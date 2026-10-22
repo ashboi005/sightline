@@ -6,6 +6,7 @@ import type {
   Session,
   SignUtterance,
   SlideDeck,
+  Snapshot,
 } from "@sightline/contracts";
 
 import { notFound } from "../../../lib/errors";
@@ -19,6 +20,7 @@ type Row = {
   segments: Map<string, CaptionSegment>;
   gaze: GazeTransition[];
   utterances: SignUtterance[];
+  snapshots: Map<string, Snapshot>;
   notes: LectureNotes | null;
 };
 
@@ -54,6 +56,7 @@ export class MemoryStore implements SessionStore {
       segments: new Map(),
       gaze: [],
       utterances: [],
+      snapshots: new Map(),
       notes: null,
     });
     return session;
@@ -124,6 +127,14 @@ export class MemoryStore implements SessionStore {
 
   async listUtterances(sessionId: string) {
     return this.row(sessionId).utterances;
+  }
+
+  async upsertSnapshot(snapshot: Snapshot) {
+    this.row(snapshot.sessionId).snapshots.set(snapshot.id, snapshot);
+  }
+
+  async listSnapshots(sessionId: string) {
+    return [...this.row(sessionId).snapshots.values()].sort((a, b) => a.capturedAt - b.capturedAt);
   }
 
   async getNotes(sessionId: string) {

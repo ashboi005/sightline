@@ -19,6 +19,7 @@ import {
   UpdateSessionInput,
 } from "./domain/session";
 import { CreateSignUtteranceInput, SignUtterance } from "./domain/sign";
+import { Snapshot } from "./domain/snapshots";
 
 type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -164,6 +165,21 @@ export const routes = {
     status: 200,
     summary: "Sign conversation history for the session",
     response: ListResponse(SignUtterance),
+  }),
+
+  createSnapshot: route({
+    method: "POST",
+    path: "/api/sessions/:sessionId/snapshots",
+    status: 201,
+    summary: "Multipart: image 'file' (jpeg/png/webp, ≤ 5 MB) + trigger, reason?, capturedAt? (CreateSnapshotFields)",
+    response: Snapshot,
+  }),
+  listSnapshots: route({
+    method: "GET",
+    path: "/api/sessions/:sessionId/snapshots",
+    status: 200,
+    summary: "Board/diagram snapshots for the session, oldest first",
+    response: ListResponse(Snapshot),
   }),
 
   // --- notes ---------------------------------------------------------------

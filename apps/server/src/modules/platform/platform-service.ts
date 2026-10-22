@@ -250,6 +250,7 @@ export class PlatformService {
           startedAt,
           session.endedAt ?? Date.now(),
         ),
+        snapshots: await store.listSnapshots(sessionId),
       });
       const notes: LectureNotes = { ...draft, id: newId("nts"), sessionId, generatedAt: Date.now() };
       await store.saveNotes(notes);

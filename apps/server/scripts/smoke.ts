@@ -12,6 +12,8 @@ import {
   SessionServerMessage,
   SignUtterance,
   SlideDeck,
+  Snapshot,
+  ListResponse,
   paginated,
   type SessionClientMessage,
 } from "@sightline/contracts";
@@ -77,7 +79,7 @@ ws.send(JSON.stringify({ type: "nope" }));
 await sleep(12_000);
 send({ type: "gaze.transition", transition: { from: "BOARD", to: "SCREEN", targetId: null, ts: Date.now() }, ts: Date.now() });
 
-for (const type of ["session.ready", "pong", "error", "caption.interim", "caption.final", "caption.refined", "slide.pointer"]) {
+for (const type of ["session.ready", "pong", "error", "caption.interim", "caption.final", "caption.refined", "slide.pointer", "snapshot.request"]) {
   check(`ws received ${type}`, (seen.get(type) ?? 0) > 0, `${seen.get(type) ?? 0}x`);
 }
 
@@ -92,10 +94,26 @@ if (utterance.audioUrl) {
   check("TTS audio served", audio.ok, audio.headers.get("content-type") ?? "");
 }
 
+const snapForm = new FormData();
+snapForm.append("file", new File([new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 16])], "board.jpg", { type: "image/jpeg" }));
+snapForm.append("trigger", "SPEECH_CUE");
+snapForm.append("reason", "Teacher: let me draw an example on the board");
+const snap = await call(Snapshot, "POST", `/api/sessions/${session.id}/snapshots`, snapForm);
+const badSnap = new FormData();
+badSnap.append("file", new File(["x"], "x.txt", { type: "text/plain" }));
+badSnap.append("trigger", "MANUAL");
+await call(ApiError, "POST", `/api/sessions/${session.id}/snapshots`, badSnap);
+const snaps = await call(ListResponse(Snapshot), "GET", `/api/sessions/${session.id}/snapshots`);
+check("snapshot listed", snaps.data.some((s) => s.id === snap.id));
+await sleep(100);
+check("ws received snapshot.captured", (seen.get("snapshot.captured") ?? 0) > 0);
+
 await call(Session, "POST", `/api/sessions/${session.id}/end`);
 await sleep(3500);
 const notes = await call(NotesResponse, "GET", `/api/sessions/${session.id}/notes`);
 check("notes READY", notes.status === "READY" && notes.notes !== null, notes.notes?.title);
+const imageBlocks = notes.notes?.sections.flatMap((sec) => sec.blocks).filter((b) => b.type === "image") ?? [];
+check("snapshot placed in notes", imageBlocks.some((b) => b.type === "image" && b.snapshotId === snap.id), `${imageBlocks.length} image block(s)`);
 check("ws received notes.status", (seen.get("notes.status") ?? 0) > 0);
 const md = await fetch(`${BASE}/api/sessions/${session.id}/notes/export?format=md`);
 check("notes export markdown", md.ok && (md.headers.get("content-type") ?? "").includes("markdown"));

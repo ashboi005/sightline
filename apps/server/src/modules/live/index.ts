@@ -16,6 +16,8 @@ import { sessionSocket } from "./realtime/socket";
 import { liveRoutes } from "./routes";
 import { SignUtterances } from "./sign-utterances";
 import { LexicalSlideLocator } from "./slides/slide-locator";
+import { SnapshotService } from "./snapshots/snapshot-service";
+import { GatewayVisionDescriber, MockVisionDescriber } from "./snapshots/vision";
 import type { SpeechToText, TextToSpeech } from "./speech/types";
 
 export type CaptionConfig =
@@ -26,6 +28,7 @@ export type CaptionConfig =
       captionModel: string;
       signModel: string;
       signLanguage: "english" | "hinglish";
+      visionModel: string;
       timeoutMs: number;
       useRag: boolean;
     };
@@ -52,6 +55,10 @@ export function createLiveModule(deps: {
       });
   const slides = new LexicalSlideLocator(store);
   const live = new LiveCaptions({ store, stt: deps.stt, captions, knowledge, slides, events: hub });
+  const vision = deps.captions.mock
+    ? new MockVisionDescriber()
+    : new GatewayVisionDescriber(deps.captions.gateway, deps.captions.visionModel);
+  const snapshots = new SnapshotService({ store, assets: deps.assets, events: hub, vision, assetUrl: deps.assetUrl });
   const sign = new SignUtterances({ store, captions, tts: deps.tts, assets: deps.assets, events: hub, assetUrl: deps.assetUrl });
 
   const lifecycle: SessionLifecycle = {
@@ -67,7 +74,8 @@ export function createLiveModule(deps: {
     captions,
     events: hub,
     lifecycle,
-    routes: liveRoutes({ store, resolveUser, sign }),
+    snapshots,
+    routes: liveRoutes({ store, resolveUser, sign, snapshots }),
     socket: sessionSocket({ store, hub, live, resolveUser }),
     devRoutes: captionDevRoutes(captions, slides),
   };

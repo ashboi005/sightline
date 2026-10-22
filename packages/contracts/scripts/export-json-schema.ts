@@ -24,6 +24,7 @@ const schemas: Record<string, z.ZodType> = {
   "sign-token": c.SignToken,
   "caption-segment": c.CaptionSegment,
   "lecture-notes": c.LectureNotes,
+  snapshot: c.Snapshot,
 };
 
 await mkdir(OUT_DIR, { recursive: true });

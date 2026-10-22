@@ -14,6 +14,7 @@ import type {
 } from "@sightline/contracts";
 
 import type { SessionEvents, SessionStore } from "../../../shared/ports";
+import { CueCooldown, detectVisualCue } from "../snapshots/visual-cues";
 import type { SpeechToText, SttStream } from "../speech/types";
 
 const REPLAY_FORMAT: AudioFormat = { encoding: "LINEAR16", sampleRate: 16000, channels: 1 };
@@ -22,6 +23,7 @@ type LiveState = { stream: SttStream; nextSeq: number; pointer: SlidePointer | n
 
 export class LiveCaptions {
   private readonly live = new Map<string, LiveState>();
+  private readonly cueCooldown = new CueCooldown();
 
   constructor(
     private readonly deps: {
@@ -143,6 +145,18 @@ export class LiveCaptions {
       const refinedSegment: CaptionSegment = { ...finalSegment, ...refined, status: "REFINED", slidePointer: pointer };
       await store.upsertSegment(refinedSegment);
       events.publish(sessionId, { type: "caption.refined", segment: refinedSegment, ts: Date.now() });
+
+      // Teacher referring to something visual → ask the web app to grab the scene frame for the notes.
+      const cue = detectVisualCue(refined.text) ?? detectVisualCue(raw.text);
+      if (cue && this.cueCooldown.allow(sessionId)) {
+        events.publish(sessionId, {
+          type: "snapshot.request",
+          trigger: "SPEECH_CUE",
+          reason: `Teacher: "${refined.text.slice(0, 160)}"`,
+          segmentId: refinedSegment.id,
+          ts: Date.now(),
+        });
+      }
 
       if (pointer && state && (pointer.slideIndex !== state.pointer?.slideIndex || pointer.bulletIndex !== state.pointer?.bulletIndex)) {
         state.pointer = pointer;
