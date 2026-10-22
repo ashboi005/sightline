@@ -1,6 +1,6 @@
 # Android USB streaming implementation
 
-Goal: an installable Kotlin/Jetpack Compose APK in apps/mobile that turns attached UVC webcams into individual MJPEG streams on the phone's local network.
+Goal: an installable Kotlin/Jetpack Compose APK in apps/mobile that turns phone cameras and attached UVC webcams into individual MJPEG streams on the phone's local network.
 
 The user explicitly authorized implementation. The separate clone is under ~/Desktop/Codex-projects/sight-mobile, following the user's folder rule. Publishing the mobile app source on its own branch is authorized. This Android Gradle project lives in the existing monorepo but does not depend on its web server, database, or Bun packages.
 
@@ -8,10 +8,14 @@ The user explicitly authorized implementation. The separate clone is under ~/Des
 
 - Compose controls select attached cameras, quality, and start/stop. Start at 640 × 480, 20 fps, JPEG quality 75; offer 1280 × 720 at 20 fps. Up to five distinct USB devices may be selected, subject to hardware capacity.
 - A foreground service owns one direct UVC session per selected camera, using UVCAndroid 1.0.13. This avoids depending on the vendor's Camera2 external-camera provider. A real USB host and UVC-compatible cameras are still required.
+- Built-in cameras use Camera2 with YUV ImageReaders. Discovery includes front/rear devices and readable physical lenses. Logical/physical hardware overlaps are rejected; separate phone devices use advertised concurrent combinations and session-configuration checks. A shared logical device can serve up to two physical lenses. Every concurrent device opens before sessions are configured.
+- A camera coordinator merges discovery and tracks phone/USB batch completion separately. Failure of one backend leaves the other running. Each backend removes only its own frame channels; stale camera callbacks are discarded and pending close callbacks precede new phone-camera opens.
+- Phone YUV buffers honor row/pixel stride and crop, rotate according to sensor/device orientation, and enter a bounded JPEG queue at up to 20 FPS. Camera permission is required for both kinds; USB hardware is optional for installation and phone-only use.
 - Each camera negotiates supported modes. JPEG encoding is bounded to one outstanding frame per camera; the server broadcasts the latest frame independently to each viewer. Slow viewers cannot accumulate capture queues.
 - One local HTTP server serves a browser dashboard, per-camera multipart MJPEG, snapshots, and health information. HTTP is unauthenticated and intended for a trusted LAN; no cloud deployment or public exposure.
 - Capture continues under a foreground notification; explicit Stop releases camera handles, sockets and power locks. USB permission denial and detach affect that camera only. Status never calls a camera live before frames arrive.
-- UI: light cool-gray base (#F2F6F7), white surfaces, dark blue-gray text (#20343C), teal controls (#176A74), red errors (#BA1A1A). System sans typography, large left-aligned title, clear device rows with individual status and links. Camera identity and actions take priority over decoration.
+- UI follows `apps/web/design-context.md`: chalk background (#F3F4F1), ink text (#16181C), marigold actions (#F5B301), sage device states, lilac connection panels, and subtle clay depth. Bundled Atkinson Hyperlegible Next type, the shared gaze logo, and a saved light/dark toggle carry the web identity into native Compose. A camera selection sheet, persistent Start/Stop action, flat readable links, and expandable connection help keep setup clear. Large-text layouts, semantic controls and real camera status take priority over decoration.
+- The camera picker groups Phone and USB sources. The main screen keeps selected cameras, status, quality, viewing links and Start/Stop; setup paragraphs, compatibility notes and privacy detail live in Help. No redundant frame counter or per-camera raw URL blocks.
 
 ## Tasks
 
