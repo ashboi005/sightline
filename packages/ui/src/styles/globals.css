@@ -13,6 +13,11 @@
  *   ink       #16181C  text on light, text on marigold
  *   marigold  #F5B301  the highlighter: primary actions, missed-line highlights, focus
  *   umber     #8A5A00  marigold as text on light surfaces (AA contrast)
+ *   sage      #DFEADF  supporting accent: ready / devices / notes
+ *   lilac     #E8E2F6  supporting accent: recordings / sign language
+ *
+ * Clay: soft, tactile volume for the workspace chrome (sidebar, cards, controls). Reading surfaces (captions,
+ * transcripts, slides, video, notes) stay flat and high-contrast; only their frames get a light clay edge.
  */
 :root {
   --background: #f3f4f1;
@@ -37,6 +42,26 @@
   --marigold-ink: #8a5a00;
   --highlight: color-mix(in oklab, #f5b301 30%, transparent);
   --slate: #181c21;
+  --sage: #dfeadf;
+  --sage-ink: #3d6b47;
+  --lilac: #e8e2f6;
+  --lilac-ink: #5b4a8b;
+  --live: #c4321f;
+  --clay-surface: linear-gradient(165deg, #ffffff 0%, #f7f7f3 100%);
+  --clay-shadow:
+    inset 0 1.5px 0 rgb(255 255 255 / 0.95), inset 0 -3px 8px rgb(22 24 28 / 0.05),
+    0 14px 30px -16px rgb(22 24 28 / 0.32), 0 4px 10px -6px rgb(22 24 28 / 0.14);
+  --clay-shadow-sm:
+    inset 0 1px 0 rgb(255 255 255 / 0.95), inset 0 -2px 5px rgb(22 24 28 / 0.05),
+    0 8px 18px -12px rgb(22 24 28 / 0.3), 0 2px 5px -3px rgb(22 24 28 / 0.12);
+  --clay-pressed: inset 0 3px 8px rgb(22 24 28 / 0.16), inset 0 -1px 0 rgb(255 255 255 / 0.7);
+  --clay-sunken: inset 0 2px 6px rgb(22 24 28 / 0.09), inset 0 -1px 0 rgb(255 255 255 / 0.85);
+  --clay-marigold: linear-gradient(165deg, #ffd25a 0%, #f5b301 100%);
+  --clay-marigold-shadow:
+    inset 0 1.5px 0 rgb(255 255 255 / 0.55), inset 0 -3px 6px rgb(138 90 0 / 0.18),
+    0 12px 24px -14px rgb(176 120 0 / 0.65), 0 3px 8px -5px rgb(138 90 0 / 0.35);
+  --clay-sage: linear-gradient(165deg, #ecf3ec 0%, #dfeadf 100%);
+  --clay-lilac: linear-gradient(165deg, #f2eefb 0%, #e8e2f6 100%);
   --chart-1: #f5b301;
   --chart-2: #d18f00;
   --chart-3: #8a5a00;
@@ -76,6 +101,25 @@
   --marigold-ink: #f5b301;
   --highlight: color-mix(in oklab, #f5b301 22%, transparent);
   --slate: #12151a;
+  --sage: #26352b;
+  --sage-ink: #a9d1b0;
+  --lilac: #2e2940;
+  --lilac-ink: #c9bdf0;
+  --live: #f07a66;
+  --clay-surface: linear-gradient(165deg, #2a3038 0%, #22272e 100%);
+  --clay-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.07), inset 0 -3px 8px rgb(0 0 0 / 0.25),
+    0 16px 32px -16px rgb(0 0 0 / 0.75), 0 4px 10px -6px rgb(0 0 0 / 0.5);
+  --clay-shadow-sm:
+    inset 0 1px 0 rgb(255 255 255 / 0.06), inset 0 -2px 5px rgb(0 0 0 / 0.22),
+    0 8px 18px -12px rgb(0 0 0 / 0.7);
+  --clay-pressed: inset 0 3px 8px rgb(0 0 0 / 0.45), inset 0 -1px 0 rgb(255 255 255 / 0.05);
+  --clay-sunken: inset 0 2px 6px rgb(0 0 0 / 0.4), inset 0 -1px 0 rgb(255 255 255 / 0.05);
+  --clay-marigold: linear-gradient(165deg, #ffcb47 0%, #e9a900 100%);
+  --clay-marigold-shadow:
+    inset 0 1.5px 0 rgb(255 255 255 / 0.4), inset 0 -3px 6px rgb(0 0 0 / 0.2), 0 12px 24px -14px rgb(0 0 0 / 0.8);
+  --clay-sage: linear-gradient(165deg, #2c3d31 0%, #26352b 100%);
+  --clay-lilac: linear-gradient(165deg, #352f49 0%, #2e2940 100%);
   --chart-1: #f5b301;
   --chart-2: #d18f00;
   --chart-3: #8a5a00;
@@ -98,6 +142,11 @@
   --color-marigold-ink: var(--marigold-ink);
   --color-highlight: var(--highlight);
   --color-slate: var(--slate);
+  --color-sage: var(--sage);
+  --color-sage-ink: var(--sage-ink);
+  --color-lilac: var(--lilac);
+  --color-lilac-ink: var(--lilac-ink);
+  --color-live: var(--live);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -136,6 +185,47 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
+}
+
+/* Clay surfaces. Pair with a rounded-* class; radii vary by hierarchy (shell 32px, cards 24–28px, controls 14–18px). */
+@utility clay {
+  background: var(--clay-surface);
+  box-shadow: var(--clay-shadow);
+}
+@utility clay-sm {
+  background: var(--clay-surface);
+  box-shadow: var(--clay-shadow-sm);
+}
+@utility clay-sunken {
+  background: var(--muted);
+  box-shadow: var(--clay-sunken);
+}
+@utility clay-marigold {
+  background: var(--clay-marigold);
+  box-shadow: var(--clay-marigold-shadow);
+  color: #16181c;
+}
+@utility clay-sage {
+  background: var(--clay-sage);
+  box-shadow: var(--clay-shadow-sm);
+}
+@utility clay-lilac {
+  background: var(--clay-lilac);
+  box-shadow: var(--clay-shadow-sm);
+}
+/* Tactile press: sinks a clay control on :active. */
+@utility clay-press {
+  transition:
+    transform 120ms ease,
+    box-shadow 160ms ease,
+    filter 160ms ease;
+  &:hover:not(:disabled) {
+    filter: brightness(1.02);
+  }
+  &:active:not(:disabled) {
+    transform: translateY(1px) scale(0.99);
+    box-shadow: var(--clay-pressed);
+  }
 }
 
 @layer base {

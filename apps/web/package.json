@@ -7,9 +7,12 @@
     "build": "next build",
     "check-types": "tsc --noEmit",
     "start": "next start",
-    "env:generate": "varlock codegen"
+    "env:generate": "varlock codegen",
+    "test": "bun test src"
   },
   "dependencies": {
+    "@sightline/contracts": "workspace:*",
+    "@sightline/live-client": "workspace:*",
     "@sightline/ui": "workspace:*",
     "@swc/helpers": "^0.5.23",
     "@tanstack/react-form": "^1.33.5",

@@ -1,4 +1,4 @@
-import type { CaptionSegment, CaptionStatus, SessionServerMessage } from "@/types/realtime";
+import type { CaptionSegment, CaptionStatus, SessionServerMessage } from "@sightline/contracts";
 
 export type InterimCaption = { segmentId: string; seq: number; text: string; startMs: number };
 

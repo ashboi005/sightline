@@ -1,56 +1,60 @@
 "use client";
 
+import type {
+  CaptionSegment,
+  ProcessingStatus,
+  Session,
+  SessionClientMessage,
+  SessionServerMessage,
+  SignUtterance,
+  SlidePointer,
+  Snapshot,
+} from "@sightline/contracts";
+import { connectSessionSocket, type SocketStatus, type TypedSocket } from "@sightline/contracts/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useEffectEvent, useReducer, useState } from "react";
 
 import { api } from "@/lib/api";
+import { SERVER_WS_URL } from "@/lib/config";
+import { keys } from "@/lib/query-keys";
 import { applyCaptionMessage, emptyCaptions, upsertCaptions, type CaptionState } from "@/lib/realtime/captions";
-import { connectSessionSocket } from "@/lib/realtime/session-socket";
-import type { Socket, SocketStatus } from "@/lib/realtime/socket";
-import type { ProcessingStatus, Session } from "@/types";
-import type {
-  CaptionSegment,
-  SessionClientMessage,
-  SessionServerMessage,
-  SlidePointer,
-  SignUtterance,
-  Snapshot,
-} from "@/types/realtime";
-
-import { sessionKeys } from "./use-sessions";
 
 export type LiveSessionState = {
+  /** Which lecture this state belongs to; anything else is ignored. */
+  sessionId: string | null;
   session: Session | null;
-  /** Captions come from a recorded lecture (mock speech), so the mic isn't needed. */
+  /** Captions come from the server's recorded lecture (MOCK_SPEECH), so the mic isn't needed. */
   isReplay: boolean;
   captions: CaptionState;
   slidePointer: SlidePointer | null;
-  utterances: SignUtterance[];
-  snapshots: Snapshot[];
   notesStatus: ProcessingStatus | null;
   lastError: { code: string; message: string } | null;
 };
 
-const initialState: LiveSessionState = {
+const initial = (sessionId: string | null): LiveSessionState => ({
+  sessionId,
   session: null,
   isReplay: false,
   captions: emptyCaptions,
   slidePointer: null,
-  utterances: [],
-  snapshots: [],
   notesStatus: null,
   lastError: null,
-};
+});
 
-type Action = { type: "message"; message: SessionServerMessage } | { type: "backfill"; segments: CaptionSegment[] };
+type Action =
+  | { type: "reset"; sessionId: string | null }
+  | { type: "message"; sessionId: string; message: SessionServerMessage }
+  | { type: "backfill"; sessionId: string; segments: CaptionSegment[] };
 
 function reducer(state: LiveSessionState, action: Action): LiveSessionState {
+  if (action.type === "reset") return initial(action.sessionId);
+  if (action.sessionId !== state.sessionId) return state; // a late frame from the previous lecture
   if (action.type === "backfill") return { ...state, captions: upsertCaptions(state.captions, action.segments) };
 
   const m = action.message;
   switch (m.type) {
     case "session.ready":
-      return { ...state, session: m.session, isReplay: m.isReplay };
+      return { ...state, session: m.session, isReplay: m.isReplay, lastError: null };
     case "session.status":
       return { ...state, session: state.session && { ...state.session, status: m.status } };
     case "caption.interim":
@@ -59,60 +63,67 @@ function reducer(state: LiveSessionState, action: Action): LiveSessionState {
       return { ...state, captions: applyCaptionMessage(state.captions, m) };
     case "slide.pointer":
       return { ...state, slidePointer: m.pointer };
-    case "sign.utterance":
-      return state.utterances.some((u) => u.id === m.utterance.id)
-        ? state
-        : { ...state, utterances: [...state.utterances, m.utterance] };
-    case "snapshot.captured": // sent again with a description: replace by id
-      return { ...state, snapshots: [...state.snapshots.filter((s) => s.id !== m.snapshot.id), m.snapshot] };
     case "notes.status":
       return { ...state, notesStatus: m.status };
     case "error":
       return { ...state, lastError: { code: m.code, message: m.message } };
-    default: // pong; snapshot.request is handled through `onMessage`
+    default:
       return state;
   }
 }
 
+/** Adds or replaces an item by id in a cached list. */
+const upsertById = <T extends { id: string }>(list: T[] | undefined, item: T) =>
+  list?.some((x) => x.id === item.id) ? list.map((x) => (x.id === item.id ? item : x)) : [...(list ?? []), item];
+
 /**
- * Connects to the live lecture socket while `sessionId` is set and keeps the lecture's live state: ordered
- * captions (refined in place), the slide pointer, sign utterances, snapshots and notes progress.
- *
- *   const live = useSessionSocket(sessionId, { onMessage: (m) => snapshots.onSessionMessage(m) });
- *   live.send({ type: "gaze.transition", transition, ts: Date.now() });
- *   streamMicToSession(live.socket!, mic);   // @sightline/live-client, when not a replay
+ * The live lecture socket while `sessionId` is set: ordered captions (refined in place, backfilled from the
+ * transcript on every (re)connect), the slide pointer, notes progress and errors. Sign utterances and snapshots
+ * go into the same query caches as their REST lists, de-duplicated by id.
  */
 export function useSessionSocket(
   sessionId: string | null,
   options: { onMessage?: (message: SessionServerMessage) => void } = {},
 ) {
   const queryClient = useQueryClient();
-  const [state, dispatch] = useReducer(reducer, initialState);
+  const [state, dispatch] = useReducer(reducer, sessionId, initial);
   const [status, setStatus] = useState<SocketStatus>("CLOSED");
-  const [socket, setSocket] = useState<Socket<SessionClientMessage> | null>(null);
+  const [socket, setSocket] = useState<TypedSocket<SessionClientMessage> | null>(null);
 
-  const handleMessage = useEffectEvent((message: SessionServerMessage) => {
-    dispatch({ type: "message", message });
+  const handleMessage = useEffectEvent((id: string, message: SessionServerMessage) => {
+    dispatch({ type: "message", sessionId: id, message });
     options.onMessage?.(message);
 
-    if (message.type === "session.ready" && sessionId) {
-      // First connect or reconnect: fetch what we may have missed; upsert de-duplicates by segment id.
-      api<{ data: CaptionSegment[] }>(`/api/sessions/${sessionId}/transcript`)
-        .then(({ data }) => dispatch({ type: "backfill", segments: data }))
-        .catch((error) => console.warn("[session] transcript backfill failed", error));
-    }
-    if (message.type === "session.status" || message.type === "notes.status") {
-      queryClient.invalidateQueries({ queryKey: sessionKeys.all });
+    switch (message.type) {
+      case "session.ready":
+        api
+          .getTranscript(id)
+          .then(({ data }) => dispatch({ type: "backfill", sessionId: id, segments: data }))
+          .catch((error) => console.warn("[session] transcript backfill failed", error));
+        return;
+      case "sign.utterance":
+        queryClient.setQueryData<SignUtterance[]>(keys.utterances(id), (list) => upsertById(list, message.utterance));
+        return;
+      case "snapshot.captured":
+        queryClient.setQueryData<Snapshot[]>(keys.snapshots(id), (list) => upsertById(list, message.snapshot));
+        return;
+      case "session.status":
+      case "notes.status":
+        void queryClient.invalidateQueries({ queryKey: keys.sessions.all });
+        void queryClient.invalidateQueries({ queryKey: keys.notes(id) });
+        return;
     }
   });
 
   useEffect(() => {
+    dispatch({ type: "reset", sessionId });
     if (!sessionId) return;
-    const s = connectSessionSocket(sessionId, { onMessage: (m) => handleMessage(m), onStatus: setStatus });
+    const s = connectSessionSocket(SERVER_WS_URL, sessionId, { onMessage: (m) => handleMessage(sessionId, m), onStatus: setStatus });
     setSocket(s);
     return () => {
       s.close();
       setSocket(null);
+      setStatus("CLOSED");
     };
   }, [sessionId]);
 
@@ -124,3 +135,5 @@ export function useSessionSocket(
     send: (message: SessionClientMessage) => socket?.send(message),
   };
 }
+
+export type SessionSocket = ReturnType<typeof useSessionSocket>;

@@ -47,6 +47,8 @@
       "name": "web",
       "version": "0.1.0",
       "dependencies": {
+        "@sightline/contracts": "workspace:*",
+        "@sightline/live-client": "workspace:*",
         "@sightline/ui": "workspace:*",
         "@swc/helpers": "^0.5.23",
         "@tanstack/react-form": "^1.33.5",

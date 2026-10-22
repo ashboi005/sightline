@@ -29,6 +29,8 @@ bun run mock:sign                              # mock sign service ws://localhos
 bun run mock:speaker                           # mock look-to-hear service ws://127.0.0.1:7799/live
 ```
 
+Or in one terminal: `bun run dev:demo` (server in mock mode + the three device mocks), then `bun run dev:web`.
+
 The server prints which modules are mocked. A finished demo lecture is seeded, and any new session replays
 a live "Kirchhoff's Laws" lecture over the WebSocket. See [`docs/contracts/mock-mode.md`](docs/contracts/mock-mode.md).
 
