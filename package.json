@@ -47,7 +47,10 @@
     "mock:gaze": "bun run --filter @sightline/mocks gaze",
     "mock:sign": "bun run --filter @sightline/mocks sign",
     "mock:validate": "bun run --filter @sightline/mocks validate",
-    "contracts:json-schema": "bun run --filter @sightline/contracts json-schema"
+    "contracts:json-schema": "bun run --filter @sightline/contracts json-schema",
+    "speaker:setup": "cd apps/speaker-service && uv sync --frozen && uv run python -m sightline_speaker.assets --dir data/assets",
+    "speaker:dev": "cd apps/speaker-service && uv run sightline-speaker --device auto",
+    "speaker:test": "cd apps/speaker-service && uv run pytest -q"
   },
   "dependencies": {
     "zod": "catalog:"
