@@ -93,16 +93,7 @@ const me = (await (await authedFetch(`${BASE}/api/me`)).json()) as { isMock?: bo
 check("/api/me is the real user", me.isMock === false, me.email);
 const api = createSightlineApi({ baseUrl: BASE, fetch: authedFetch });
 
-const qdrantGet = async (path: string) => {
-  const res = await fetch(`${ENV.QDRANT_URL.replace(/\/$/, "")}${path}`, { headers: { "api-key": ENV.QDRANT_API_KEY ?? "" } });
-  const text = await res.text();
-  try {
-    return JSON.parse(text) as { result?: { collections?: { name: string }[]; aliases?: { alias_name: string }[] } };
-  } catch {
-    throw new Error(`Qdrant ${path} → ${res.status}: ${text.slice(0, 120)}`);
-  }
-};
-section("session + context (Qdrant, Gemini embeddings, GLM glossary)");
+section("session + context (Qdrant, Gemini embeddings, LLM glossary)");
 const contextText = [
   "Kirchhoff's current law (KCL): the algebraic sum of currents at a node is zero; charge is conserved.",
   "Kirchhoff's voltage law (KVL): the sum of voltages around any closed loop is zero; energy is conserved.",
@@ -114,9 +105,16 @@ const session = await call(Session, "POST", "/api/sessions", { title: "E2E — K
 check("create session (201)", session.status === "DRAFT", session.id);
 const ctx = await poll(() => call(ContextState, "GET", `/api/sessions/${session.id}/context`), (c) => c.status === "READY" || c.status === "FAILED", 120_000);
 check("context READY", ctx.status === "READY", `${Date.now() - t} ms, ${ctx.chunkCount} chunk(s), source=${ctx.source}, error=${ctx.error ?? "-"}`);
-check("GLM glossary extracted", ctx.glossary.length > 0, ctx.glossary.map((g) => g.term).slice(0, 8).join(", "));
-const sessionCollections = async () => ((await qdrantGet("/collections")).result?.collections ?? []).filter((c) => c.name.startsWith(`ctx_${session.id}`));
-check("context vectors live in Qdrant", (await sessionCollections()).length === 1, (await sessionCollections()).map((c) => c.name).join(","));
+check("LLM glossary extracted", ctx.glossary.length > 0, ctx.glossary.map((g) => g.term).slice(0, 8).join(", "));
+const sessionPoints = async () => {
+  const res = await fetch(`${ENV.QDRANT_URL.replace(/\/$/, "")}/collections/sightline_context/points/count`, {
+    method: "POST",
+    headers: { "api-key": ENV.QDRANT_API_KEY ?? "", "content-type": "application/json" },
+    body: JSON.stringify({ exact: true, filter: { must: [{ key: "sessionId", match: { value: session.id } }] } }),
+  });
+  return res.status === 404 ? 0 : (((await res.json()) as { result?: { count?: number } }).result?.count ?? 0);
+};
+check("context vectors live in the shared Qdrant collection", (await sessionPoints()) > 0, `${await sessionPoints()} point(s)`);
 
 section("slides (real PDF → poppler → S3 assets)");
 const form = new FormData();
@@ -140,7 +138,7 @@ if (slideUrl) {
 // Context is re-ingested with the slide text once slides land; wait so captions see the final glossary.
 await poll(() => call(ContextState, "GET", `/api/sessions/${session.id}/context`), (c) => c.status === "READY" || c.status === "FAILED", 120_000);
 
-section("live captions (ElevenLabs TTS → PCM → session socket → STT → GLM refine → slide pointer)");
+section("live captions (ElevenLabs TTS → PCM → session socket → STT → LLM refine → slide pointer)");
 await call(Session, "POST", `/api/sessions/${session.id}/start`);
 const lines = [0, 2, 4, 5, 7, 10, 13, 14].map((i) => fixtures.lecture.script.segments[i]!.raw);
 const speech: Uint8Array[] = [];
@@ -190,7 +188,7 @@ check("one final caption per spoken line", finals.length >= lines.length - 1, `$
 const firstFinal = messages.find((m) => m.type === "caption.final");
 check("first final caption latency", !!firstFinal, firstFinal ? `${firstFinal.ts - audioStart} ms after audio start` : "");
 const llmRefined = [...refined.values()].filter((s) => s.corrections.length > 0 || s.parts.some((p) => p.type === "formula"));
-check("GLM refinement corrected / formatted captions", llmRefined.length > 0, `${llmRefined.length}/${refined.size} refined with corrections or formulas`);
+check("LLM refinement corrected / formatted captions", llmRefined.length > 0, `${llmRefined.length}/${refined.size} refined with corrections or formulas`);
 for (const s of finals) {
   const r = refined.get(s.id);
   console.log(`    raw:     ${s.text.slice(0, 110)}`);
@@ -206,7 +204,7 @@ check("visual cue → snapshot.request", cue?.type === "snapshot.request", cue?.
 const transcript = await call(ListResponse(CaptionSegment), "GET", `/api/sessions/${session.id}/transcript`);
 check("transcript persisted in Postgres", transcript.data.length >= finals.length, `${transcript.data.length} segments`);
 
-section("sign → sentence (GLM) → speech (TTS) → S3");
+section("sign → sentence (LLM) → speech (TTS) → S3");
 t = Date.now();
 const utterance = await call(SignUtterance, "POST", `/api/sessions/${session.id}/sign/utterances`, {
   source: "SELF",
@@ -222,7 +220,7 @@ if (utterance.audioUrl) {
 await sleep(300);
 check("ws sign.utterance broadcast", (seen.get("sign.utterance") ?? 0) > 0);
 
-section("snapshot (S3 + GLM vision description)");
+section("snapshot (S3 + vision description)");
 const snapForm = new FormData();
 snapForm.append("file", new File([slidePng ?? new Uint8Array()], "board.png", { type: "image/png" }));
 snapForm.append("trigger", cue?.type === "snapshot.request" ? cue.trigger : "SPEECH_CUE");
@@ -235,7 +233,7 @@ const described = await poll(
   (l) => Boolean(l.data.find((s) => s.id === snap.id)?.description),
   60_000,
 );
-check("GLM vision described the snapshot", Boolean(described.data.find((s) => s.id === snap.id)?.description), described.data.find((s) => s.id === snap.id)?.description?.slice(0, 140) ?? "");
+check("vision model described the snapshot", Boolean(described.data.find((s) => s.id === snap.id)?.description), described.data.find((s) => s.id === snap.id)?.description?.slice(0, 140) ?? "");
 
 section("recording (presigned S3 PUT → playback)");
 const uploader = await createRecordingUploader(api, session.id, { contentType: "video/webm" });
@@ -254,7 +252,7 @@ if (segUrl) {
   check("tampered playback URL is rejected by S3", tampered.status === 403, String(tampered.status));
 }
 
-section("end → notes (GLM + Qdrant) → export");
+section("end → notes (LLM + Qdrant) → export");
 t = Date.now();
 await call(Session, "POST", `/api/sessions/${session.id}/end`);
 const notes = await poll(() => call(NotesResponse, "GET", `/api/sessions/${session.id}/notes`), (n) => n.status === "READY" || n.status === "FAILED", 300_000);
@@ -280,10 +278,7 @@ if (segUrl) {
   const gone = await poll(async () => (await fetch(segUrl)).status, (s) => s === 404 || s === 403, 15_000);
   check("recording objects deleted from S3", gone === 404 || gone === 403, String(gone));
 }
-const prefix = `ctx_${session.id}`;
-const leftCollections = ((await qdrantGet("/collections")).result?.collections ?? []).filter((c) => c.name.startsWith(prefix));
-const leftAliases = ((await qdrantGet("/aliases")).result?.aliases ?? []).filter((a) => a.alias_name.startsWith(prefix));
-check("Qdrant collection + alias for the session dropped", leftCollections.length === 0 && leftAliases.length === 0, `${leftCollections.length} collection(s), ${leftAliases.length} alias(es) left`);
+check("Qdrant points for the session removed", (await sessionPoints()) === 0, `${await sessionPoints()} left`);
 
 console.log(failures === 0 ? "\nLIVE E2E OK" : `\n${failures} LIVE E2E CHECK(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);

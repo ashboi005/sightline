@@ -56,7 +56,8 @@ bun run dev:server
 | Golden-set quality + latency of the real LLM | `bun run --filter server eval:captions` | LLM key |
 | Real providers (Merge, Gemini, ElevenLabs TTS→Scribe, Sarvam) | `bun run --filter server check:providers` | yes |
 | Auth end to end (cookies, CORS, WS, isolation) | `bun run --filter server check:auth` (server with `MOCK_AUTH=false`) | DB |
-| **Whole backend live** (Postgres, S3, Qdrant, GLM, STT/TTS, notes) | `bun run --filter server check:e2e` (server with `USE_MOCK_DATA=false`) | all |
+| **Whole backend live** (Postgres, S3, Qdrant, LLMs, STT/TTS, notes) | `bun run --filter server check:e2e` (server with `USE_MOCK_DATA=false`) | all |
+| Model bake-off (captions, glossary, sign, notes, vision; latency + fidelity) | `bun run --filter server bench:models -- --tasks captions --lines all --models a,b` | LLM keys |
 | Live client | `bun run --filter @sightline/live-client test` | no |
 | Gaze bridge | `bun run gaze:test` | no |
 | Speaker service | `bun run speaker:test` (`SPEAKER_MODEL_TESTS=1` for real-model tests) | no |
@@ -81,6 +82,38 @@ bun run dev:server
   testing with the real tracker's scene camera.
 - **Deploy:** Coolify runs server + web from the Dockerfiles, with Postgres + Qdrant as services, a volume on
   `STORAGE_DIR`, and `wss://` for `NEXT_PUBLIC_SERVER_WS_URL`. Give Tushar the Qdrant URL/key when it's up.
+
+## LLM routing and model choice (benchmarked 2026-10-22)
+
+Every LLM call goes through `withModels()` (`apps/server/src/lib/llm-gateway.ts`). Each `*_MODEL` is a
+comma-separated list: live calls (captions, sign) are **hedged** (the next model starts if the previous hasn't
+answered within `LLM_HEDGE_MS`, first answer wins, the rest are aborted); background calls (vision, glossary,
+notes) **fall back** in order. `gemini/<model>` = Gemini direct with the four keys rotated (`lib/key-pool.ts`,
+per-key/per-model cooldowns on 429/5xx/invalid key), falling back to Merge `google/<model>`; anything else = Merge.
+
+Captions, all 20 golden lines, with a glossary that includes tempting broad terms (`bench:models --lines all`):
+
+| Model | p50 | p95 | formulas | terms | word fidelity |
+| --- | --- | --- | --- | --- | --- |
+| **google/gemini-3.5-flash-lite** (default) | 1.8 s | 2.2 s | 17/18 | 14/14 | **0.983** |
+| zai/glm-5.3-flash (previous default) | 3.7 s | 10.8 s | 18/18 | 10/14 | 0.983 |
+| xai/grok-4.20-0309-non-reasoning (hedge) | 1.7 s | 2.7 s | 16/18 | 14/14 | 0.956 |
+| google/gemini-3.1-flash-lite | 1.9 s | 2.5 s | 12/18 | 13/14 | 0.964 (2/20 bad JSON) |
+| gpt-4.1-mini | 1.7 s | 2.9 s | 13/18 | 12/14 | 0.921 |
+
+Golden eval with the production deadline + hedge: p50 3.0 → 1.6 s, p95 6.0 → 4.9 s. Other jobs: glossary
+GLM ~20 s → Gemini 3.1 Flash Lite ~3 s; notes ~34 s → ~5 s; vision GLM-4.5V ~24 s → Gemini 3.5 Flash Lite ~2 s;
+sign GLM ~2.6 s → Grok ~1.1 s. **Gemini direct (free-tier keys) was overloaded** during the run (503s, 4–37 s for
+"say hi"), while the same models through Merge (Vertex) were fast — so defaults use Merge `google/…`, and the key
+pool serves embeddings (and any `gemini/…` model you opt into).
+
+Guards added after the live run (fidelity matters more than counts):
+- `plausibleMishearing()`: a glossary "term" substitution is kept only if it looks like a mis-hearing of what was
+  said ("kerchief's" → "Kirchhoff's"); expansions ("KCL" → full name), inflections ("resistors" → "Resistance") and
+  unrelated swaps ("sigma I in equals sigma I out" → "Conservation of charge") keep the spoken words.
+- `repairJsonLatex()`: restores `\text`, `\frac`, `\beta`, `\nu`… that JSON escaping turned into tab/form-feed/…
+- Captions are broadcast before they're persisted: a database blip never blanks the screen.
+- Scribe keyterms are shortened to ≤ 20 chars (longer ones made ElevenLabs reject the whole session).
 
 ## Done when
 

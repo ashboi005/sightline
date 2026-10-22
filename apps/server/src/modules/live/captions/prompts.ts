@@ -20,6 +20,9 @@ Language:
 Never:
 - Add, summarise, answer or explain anything. Keep every idea the speaker said, in the same order.
 - Invent formulas that were not spoken. If unsure, keep the words as text and lower the confidence.
+- Replace correctly heard words with a glossary term or a different concept: a "term" part only fixes a mis-hearing
+  of that same term ("kerchief's law" → "Kirchhoff's law"); "sigma I in equals sigma I out" is a formula, never
+  "conservation of charge"; "resistors" stays "resistors".
 - Expand, repeat or lengthen what was correctly heard: "KVL" stays "KVL", "Ohm's law" stays "Ohm's law" even if the
   glossary entry is longer (e.g. "Kirchhoff's voltage law (KVL)"). The glossary fixes spellings; it is not a template.
 

@@ -3,7 +3,7 @@ import type { KnowledgeEngine, RawTranscriptSegment, SignToken } from "@sightlin
 import { fixtures } from "@sightline/mocks";
 
 import type { StructuredGenerate } from "./llm";
-import { buildCaptionPrompt, type LlmCaptionOutput, MastraCaptionEngine } from "./mastra-caption-engine";
+import { buildCaptionPrompt, type LlmCaptionOutput, MastraCaptionEngine, repairJsonLatex, plausibleMishearing } from "./mastra-caption-engine";
 
 const glossary = fixtures.lecture.context.glossary;
 
@@ -212,4 +212,28 @@ describe("sign language output", () => {
     expect(signInstructions("hinglish")).toContain("Hinglish");
     expect(signInstructions("english")).not.toContain("Hinglish as Indian students");
   });
+});
+
+it("LaTeX mangled by JSON escapes is restored", () => {
+  // What a model emits when it forgets to double LaTeX backslashes inside JSON (only \\sum is escaped correctly).
+  const mangled = JSON.parse(String.raw`"\\sum i_{\text{in}} = \frac{a}{b} + \beta + \nu \neq 0"`) as string;
+  expect(mangled).not.toContain("\\text");
+  expect(repairJsonLatex(mangled)).toBe("\\sum i_{\\text{in}} = \\frac{a}{b} + \\beta + \\nu \\neq 0");
+  expect(repairJsonLatex("V = IR")).toBe("V = IR");
+});
+
+it("only accepts glossary substitutions that look like mis-hearings", () => {
+  const cases: [string, string, boolean][] = [
+    ["kerchief's", "Kirchhoff's", true],
+    ["kerchief's current law", "Kirchhoff's current law", true],
+    ["mash analysis", "mesh analysis", true],
+    ["homes law", "Ohm's law", true],
+    ["k c l", "KCL", true],
+    ["Kirchhoff's", "Kirchhoff's", true],
+    ["KCL", "Kirchhoff's current law", false],
+    ["Kirchhoff's laws", "Kirchhoff's voltage law", false],
+    ["resistors", "Resistance", false],
+    ["sigma I in equals sigma I out", "Conservation of charge", false],
+  ];
+  for (const [heard, term, ok] of cases) expect([heard, term, plausibleMishearing(heard, term)]).toEqual([heard, term, ok]);
 });

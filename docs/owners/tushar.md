@@ -157,30 +157,31 @@ embeddings, ElevenLabs + Sarvam. Results:
 - ✅ Fixed on my side (wiring): the Qdrant JS client silently appends `:6333` to a URL without a port, so the Coolify
   URL never connected. `container.ts` now passes the URL's own port.
 
-Open, yours (found in the live run):
+Found in the live run — **fixed by Ashwath the same day** (pull before touching these files):
 
-1. **Glossary extraction is slow and spiky.** The same 4-line context took 5 s, 13 s, 21 s, 34 s, 72 s, and twice timed
-   out at `PLATFORM_LLM_TIMEOUT_MS=45000` (2 attempts × 45 s of a job slot). Captions don't get keyterms until it lands.
-   Ideas: cap the output (`max(200)` terms invites long generations — 30–40 is plenty for keyterms), ask for fewer
-   fields (definitions can come later), or publish a deterministic glossary first (slide titles + capitalised terms)
-   and upgrade it when the LLM answers.
-2. **Glossary term shape.** GLM returns terms like `Kirchhoff's voltage law (KVL)` / `Power dissipated in a resistor
-   (P = I^2 R)`. That leaked into captions ("Kirchhoff's Voltage Law, Kirchhoff's Voltage Law (KVL)") until I hardened
-   my prompt, and ElevenLabs Scribe **rejects the whole STT session** for any keyterm over 20 chars (I now shorten them
-   in `scribeKeyterms`). Please keep `term` canonical and short (`Kirchhoff's voltage law`), put acronyms / formulas in
-   `aliases` (`KVL`), and drop formula-like "terms".
-3. **`slide-processor.test.ts` fails on any machine with poppler installed** (expects FAILED, gets READY): setting
-   `Bun.env.PATH = ""` doesn't stop `Bun.which` from finding `/opt/homebrew/bin/pdfinfo`. Inject the `which` function (or
-   the command list) into `FileSlideProcessor` instead of mutating PATH.
-4. **Qdrant integration test can't reach an authenticated Qdrant:** `new QdrantClient({ url: qdrantUrl! })` has no
-   `apiKey` (add `TEST_QDRANT_API_KEY`) and hits the same `:6333` default (pass `port`). I verified ingest / retrieve /
-   isolation / drop against the real Qdrant with my own script instead.
-5. **One Qdrant collection per session** (`ctx_<sessionId>_<uuid>` + alias). Works and cleans up correctly. Fine at
-   hackathon scale; each collection costs memory and a file set, so for many sessions a single collection with a
-   `sessionId` payload index (filter on query) scales better. Not blocking.
-6. Minor: with mock persistence the delayed asset/recording cleanup job lives in memory, so stopping the server right
-   after a delete leaves the S3 objects behind (happened once after `smoke`; cleaned up by hand). Postgres jobs are
-   durable, so production is fine.
+1. ✅ **Glossary slow and spiky** (5–72 s, two 45 s timeouts). `knowledge/glossary.ts` now owns the prompt + a compact
+   schema (≤ 30 short terms, ≤ 12-word definitions, no `source`), normalised in code. It runs **in parallel** with
+   embedding + upsert, under its own 20 s deadline, and falls back to a **deterministic glossary** (named laws +
+   their acronyms, "… analysis", acronyms, slide titles) so the context still turns READY. Model: `LLM_MODEL` list,
+   default Gemini 3.1 Flash Lite → Grok → GLM (glossary ~3 s instead of ~20 s).
+2. ✅ **Term shape.** `normalizeGlossary` keeps terms canonical (brackets → aliases, formula-like terms dropped) and
+   drops aliases under 3 letters or common words ("I" for current would have rewritten every "I" in captions).
+3. ✅ **`slide-processor.test.ts`** injects `which` into `FileSlideProcessor` instead of mutating PATH.
+4. ✅ **Qdrant integration test** takes `TEST_QDRANT_API_KEY`, honours the URL port, uses a throwaway collection.
+   Remote-DB integration tests get a 60 s timeout. All 10 pass against the Coolify Postgres + Qdrant.
+5. ✅ **One shared Qdrant collection** `sightline_context` (tenant-indexed `sessionId`, a `version` per ingest)
+   instead of a collection + alias per session. Superseded/failed ingests delete only their own points; publish
+   deletes older versions; retrieval filters on the published version. 7 engine tests cover it.
+6. ✅ **Notes failed 3/3 in the live run** ("Notes introduced an unsupported formula": models re-typeset LaTeX, e.g.
+   `12 \text{V}` vs `12\,\text{V}`). `groundDraft` now re-grounds each section instead of failing the whole notes:
+   formula blocks are matched to the range's spoken formulas ignoring spacing (unknown ones dropped), unknown segment
+   ids / slides dropped (a section citing nothing valid cites its range).
+7. Also: `MastraStructuredModel` accepts any model id (OpenAI ids have no slash) and uses prompt-injected JSON (Gemini
+   rejected the big native schema; several Merge vendors don't support native structured output). `LLM_MODEL` is a
+   fallback list. Embeddings rotate the four Gemini keys (`GEMINI_API_KEY…_4`).
+
+Still open (minor): with mock persistence the delayed asset/recording cleanup job lives in memory, so stopping the
+server right after a delete leaves S3 objects behind. Postgres jobs are durable, so production is fine.
 
 ## Review — 2026-10-22 (Ashwath, against `origin/main` @ `03a6fc3`)
 

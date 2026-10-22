@@ -4,7 +4,7 @@
  */
 import { Agent } from "@mastra/core/agent";
 
-import { type GatewayConfig, withModel } from "../../../lib/llm-gateway";
+import { type GatewayConfig, withModels } from "../../../lib/llm-gateway";
 
 export interface VisionDescriber {
   readonly name: string;
@@ -27,7 +27,7 @@ export class GatewayVisionDescriber implements VisionDescriber {
   async describe(image: Uint8Array, mimeType: string, context: string): Promise<string | null> {
     try {
       const signal = AbortSignal.timeout(this.timeoutMs);
-      const result = await withModel(this.gateway, this.model, (model) =>
+      const result = await withModels(this.gateway, this.model, (model, attemptSignal) =>
         new Agent({ id: "snapshot-describer", name: "Snapshot describer", instructions: INSTRUCTIONS, model }).generate(
           [
             {
@@ -38,8 +38,9 @@ export class GatewayVisionDescriber implements VisionDescriber {
               ],
             },
           ] as never,
-          { abortSignal: signal, ...(model.providerId === "gemini" ? { modelSettings: { maxRetries: 0 } } : {}) } as never,
+          { abortSignal: attemptSignal, ...(model.providerId === "gemini" ? { modelSettings: { maxRetries: 0 } } : {}) } as never,
         ),
+        { signal },
       );
       const text = (result as { text?: string }).text?.trim();
       return text ? text.replace(/\s+/g, " ").slice(0, 240) : null;

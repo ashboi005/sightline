@@ -44,6 +44,7 @@ if (ENV.MERGE_GATEWAY_API_KEY) {
       gateway: { url: ENV.LLM_GATEWAY_URL, apiKey: ENV.MERGE_GATEWAY_API_KEY },
       captionModel: ENV.CAPTION_MODEL,
       signModel: ENV.SIGN_MODEL,
+      hedgeMs: ENV.LLM_HEDGE_MS,
     }),
     knowledge: new MockKnowledgeEngine(),
     captionTimeoutMs: 15_000,

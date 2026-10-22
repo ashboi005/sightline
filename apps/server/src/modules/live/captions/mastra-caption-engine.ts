@@ -33,7 +33,7 @@ export const LlmCaptionOutput = z.object({
         text: z.string(),
         // Models often omit unused fields instead of sending null — accept both.
         original: z.string().nullish().transform((v) => v ?? null),
-        latex: z.string().nullish().transform((v) => v ?? null),
+        latex: z.string().nullish().transform((v) => (v ? repairJsonLatex(v) : null)),
         display: z.enum(["INLINE", "BLOCK"]).nullish().transform((v) => v ?? null),
       }),
     )
@@ -143,6 +143,20 @@ export function buildCaptionPrompt(
 // Unicode-aware so Hinglish / Devanagari transcripts are counted correctly by the drop/padding guard.
 const words = (s: string) => s.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
 
+/**
+ * Models often write LaTeX inside JSON without doubling the backslash, so JSON.parse turns "\text" into a tab +
+ * "ext", "\frac" into a form feed + "rac", "\beta" into a backspace + "eta", "\nu" into a newline + "u".
+ * Restore those commands (a real newline/tab is never meaningful inside an inline formula).
+ */
+export function repairJsonLatex(latex: string): string {
+  return latex
+    .replace(/\t/g, "\\t")
+    .replace(/\f/g, "\\f")
+    .replace(/\u0008/g, "\\b")
+    .replace(/\r(?=[a-zA-Z])/g, "\\r")
+    .replace(/\n(?=[a-zA-Z])/g, "\\n");
+}
+
 function isValidLatex(latex: string): boolean {
   try {
     katex.renderToString(latex, { throwOnError: true, strict: "ignore" });
@@ -150,6 +164,36 @@ function isValidLatex(latex: string): boolean {
   } catch {
     return false;
   }
+}
+
+const stem = (w: string) => w.replace(/'s$/, "").replace(/s$/, "");
+const bigrams = (s: string) => new Set(Array.from({ length: Math.max(0, s.length - 1) }, (_, i) => s.slice(i, i + 2)));
+
+/**
+ * Is `term` a plausible correction of what STT heard (`original`)? Models also use "term" parts to swap correctly
+ * heard words for glossary entries, which changes the meaning. Rejected (the spoken words are kept):
+ *  - acronyms or lengthening: "KCL" → "Kirchhoff's current law", "Kirchhoff's laws" → "Kirchhoff's voltage law";
+ *  - inflections of a real word: "resistors" → "Resistance";
+ *  - anything that doesn't look like the heard words: "sigma I in equals sigma I out" → "Conservation of charge".
+ * Accepted: real mis-hearings such as "kerchief's" → "Kirchhoff's", "mash analysis" → "mesh analysis".
+ */
+export function plausibleMishearing(original: string, term: string): boolean {
+  const o = original.trim();
+  const t = term.trim();
+  if (o.toLowerCase() === t.toLowerCase()) return true;
+  if (/^[A-Z]{2,6}s?$/.test(o)) return false;
+  const ow = words(o).map(stem);
+  const tw = words(t).map(stem);
+  if (ow.length > 0 && ow.every((w) => tw.includes(w))) return false;
+  if (ow.length === 1 && tw.length === 1) {
+    let common = 0;
+    while (common < Math.min(ow[0]!.length, tw[0]!.length) && ow[0]![common] === tw[0]![common]) common++;
+    if (common >= 5) return false;
+  }
+  const a = bigrams(ow.join(""));
+  const b = bigrams(tw.join(""));
+  const shared = [...a].filter((g) => b.has(g)).length;
+  return a.size + b.size > 0 && (2 * shared) / (a.size + b.size) >= 0.2; // kerchief→Kirchhoff 0.27, unrelated phrases < 0.1
 }
 
 function findGlossaryId(text: string, glossary: GlossaryTerm[]): string | null {
@@ -169,15 +213,17 @@ export function toRefined(output: LlmCaptionOutput, glossary: GlossaryTerm[], ra
     if (p.kind === "formula" && p.latex && p.latex.trim() && isValidLatex(p.latex)) {
       parts.push({ type: "formula", latex: p.latex.trim(), spoken: p.text, display: p.display ?? "INLINE" });
       corrections.push({ from: p.text, to: p.latex.trim(), reason: "FORMULA" });
-    } else if (p.kind === "term" && p.text.trim()) {
+    } else if (p.kind === "term" && p.text.trim() && (!p.original || plausibleMishearing(p.original, p.text))) {
       const original = p.original && p.original.trim().toLowerCase() !== p.text.trim().toLowerCase() ? p.original : null;
       parts.push({ type: "term", text: p.text, glossaryTermId: findGlossaryId(p.text, glossary), original });
       if (original) corrections.push({ from: original, to: p.text, reason: "GLOSSARY" });
     } else if (p.text) {
-      // Plain text — or a formula/term that failed validation, degraded to the words actually spoken.
+      // Plain text — or a formula/term that failed validation, degraded to the words actually spoken
+      // (for a rejected term substitution that is its `original`).
+      const spoken = p.kind === "term" && p.original ? p.original : p.text;
       const last = parts[parts.length - 1];
-      if (last?.type === "text") last.text += p.text;
-      else parts.push({ type: "text", text: p.text });
+      if (last?.type === "text") last.text += spoken;
+      else parts.push({ type: "text", text: spoken });
     }
   }
   if (parts.length === 0) return null;

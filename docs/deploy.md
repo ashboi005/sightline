@@ -54,8 +54,10 @@
 | `DEEPGRAM_API_KEY` | required when `MOCK_SPEECH=false` and `STT_PROVIDER=deepgram` |
 | `TTS_PROVIDER` + `ELEVENLABS_API_KEY` or `SARVAM_API_KEY` | required when `MOCK_SPEECH=false` |
 | `MERGE_GATEWAY_API_KEY` (+ `CAPTION_MODEL`, `SIGN_MODEL`, `VISION_MODEL`) | required when `MOCK_CAPTIONS=false` (all LLM + vision calls go through Merge Gateway) |
-| `STT_PROVIDER` | `deepgram` (English) or `sarvam` (Hinglish, `SARVAM_STT_MODE=codemix`) |
+| `STT_PROVIDER` | `elevenlabs` (default, Scribe v2 realtime; Hinglish via `hi` + English), `deepgram`, or `sarvam` (`SARVAM_STT_MODE=codemix`) |
 | `QDRANT_URL`, `QDRANT_API_KEY`, `EMBEDDING_MODEL`, `LLM_MODEL` | Tushar's modules |
+| `GEMINI_API_KEY` … `GEMINI_API_KEY_4` | Embeddings (+ any `gemini/…` model); one key per Google Cloud project, rotated per call |
+| `CAPTION_MODEL`, `SIGN_MODEL`, `VISION_MODEL`, `LLM_MODEL`, `LLM_HEDGE_MS` | Comma-separated model lists (hedged for captions/sign, fallback otherwise) — defaults in `.env.schema` |
 
 ## 3. Web app
 

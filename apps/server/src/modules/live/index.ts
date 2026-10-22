@@ -30,6 +30,7 @@ export type CaptionConfig =
       signLanguage: "english" | "hinglish";
       visionModel: string;
       timeoutMs: number;
+      hedgeMs: number;
       useRag: boolean;
     };
 

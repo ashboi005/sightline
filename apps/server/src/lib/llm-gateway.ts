@@ -58,3 +58,56 @@ export async function withModel<T>(gateway: GatewayConfig, modelId: string, call
   console.warn(`[llm] gemini keys exhausted for ${model}; falling back to Merge google/${model}`);
   return call(gatewayModel(gateway, modelId));
 }
+
+/**
+ * Model lists: "a,b,c" in any *_MODEL env var. Without `hedgeMs` it is a plain fallback chain (b only runs if a
+ * fails). With `hedgeMs` (live captions/sign) a slow model is raced: b also starts if a hasn't answered after
+ * `hedgeMs`, or as soon as a fails; the first success wins and the others are aborted. Every attempt goes through
+ * withModel, so "gemini/…" entries still rotate keys.
+ */
+export async function withModels<T>(
+  gateway: GatewayConfig,
+  models: string,
+  call: (model: MastraModelConfig, signal: AbortSignal) => Promise<T>,
+  options: { hedgeMs?: number; signal?: AbortSignal } = {},
+): Promise<T> {
+  const ids = models.split(",").map((m) => m.trim()).filter(Boolean);
+  if (ids.length === 0) throw new Error("No LLM model configured");
+  const controllers = ids.map(() => new AbortController());
+  const signals = controllers.map((c) => (options.signal ? AbortSignal.any([options.signal, c.signal]) : c.signal));
+
+  return new Promise<T>((resolve, reject) => {
+    let next = 0;
+    let running = 0;
+    let settled = false;
+    let lastError: unknown = null;
+    let hedgeTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const finish = (fn: () => void, winner = -1) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(hedgeTimer);
+      controllers.forEach((c, i) => i !== winner && c.abort());
+      fn();
+    };
+    const launch = () => {
+      if (settled || next >= ids.length || options.signal?.aborted) return;
+      const index = next++;
+      running++;
+      clearTimeout(hedgeTimer);
+      if (options.hedgeMs !== undefined && next < ids.length) hedgeTimer = setTimeout(launch, options.hedgeMs);
+      withModel(gateway, ids[index]!, (model) => call(model, signals[index]!)).then(
+        (value) => finish(() => resolve(value), index),
+        (error) => {
+          running--;
+          if (!settled && !signals[index]!.aborted) console.warn(`[llm] ${ids[index]} failed${next < ids.length ? `, trying ${ids[next]}` : ""}:`, error instanceof Error ? error.message.slice(0, 160) : error);
+          lastError = error;
+          if (next < ids.length && !options.signal?.aborted) launch();
+          else if (running === 0) finish(() => reject(lastError));
+        },
+      );
+    };
+    options.signal?.addEventListener("abort", () => finish(() => reject(options.signal!.reason ?? lastError)), { once: true });
+    launch();
+  });
+}

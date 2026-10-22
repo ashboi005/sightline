@@ -125,6 +125,7 @@ export function createContainer() {
         signLanguage: ENV.SIGN_OUTPUT_LANGUAGE,
         visionModel: ENV.VISION_MODEL,
         timeoutMs: ENV.CAPTION_TIMEOUT_MS,
+        hedgeMs: ENV.LLM_HEDGE_MS,
         useRag: ENV.CAPTIONS_USE_RAG,
       };
   const live = createLiveModule({ captions, stt, tts, store, assets, knowledge, resolveUser, assetUrl });
