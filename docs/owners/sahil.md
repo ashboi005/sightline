@@ -78,6 +78,11 @@ const snaps = startSmartSnapshots({                          // board/diagram fr
 await lth.stop(); captions.stop(); await mic.stop();
 ```
 
+**Auth is verified end to end with your pages:** headless Chrome signed up through your `/sign-up` form, landed on
+`/dashboard`, `/sign-in` redirected a signed-in user, and sign-out sent `/dashboard` back to `/sign-in`. Keep using
+`authClient` + `credentials: "include"` (the API client already does). In production the server sets
+`AUTH_COOKIE_DOMAIN` so your server-rendered pages see the session cookie.
+
 All incoming messages are zod-validated; types are exhaustive discriminated unions. `@sightline/contracts` is
 already a dependency of `apps/web`; add `katex` for formulas.
 
