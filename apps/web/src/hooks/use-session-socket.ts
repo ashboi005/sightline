@@ -60,7 +60,12 @@ function reducer(state: LiveSessionState, action: Action): LiveSessionState {
     case "caption.interim":
     case "caption.final":
     case "caption.refined":
-      return { ...state, captions: applyCaptionMessage(state.captions, m) };
+      // Captions flowing again means speech-to-text recovered.
+      return {
+        ...state,
+        captions: applyCaptionMessage(state.captions, m),
+        lastError: state.lastError?.code === "STT_ERROR" ? null : state.lastError,
+      };
     case "slide.pointer":
       return { ...state, slidePointer: m.pointer };
     case "notes.status":

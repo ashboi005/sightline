@@ -5,14 +5,15 @@ import { Button } from "@sightline/ui/components/button";
 import { cn } from "@sightline/ui/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { Camera, CameraOff, Hand, Play, Square, Users, Volume2, X } from "lucide-react";
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 
 import { InlineAlert, StatusPill } from "@/components/clay/clay";
 import { useCreateSignUtterance, useSignUtterances } from "@/hooks/use-lecture-data";
 import { useSignService } from "@/hooks/use-sign-service";
 import { useStreamPreview } from "@/hooks/live/use-scene-camera";
-import { assetUrl, errorMessage } from "@/lib/api";
+import { errorMessage } from "@/lib/api";
 import { formatWhen } from "@/lib/format";
+import { speakUtterance } from "@/lib/live/speak";
 import { describeMediaError } from "@/lib/media/errors";
 import { startWebcamFrames } from "@/lib/media/webcam-frames";
 import { keys } from "@/lib/query-keys";
@@ -21,21 +22,6 @@ const FRAME = { fps: 12, width: 640, height: 480 };
 
 const upsert = (list: SignUtterance[] | undefined, u: SignUtterance) =>
   list?.some((x) => x.id === u.id) ? list : [...(list ?? []), u];
-
-/** Plays an utterance once: its TTS audio, or the browser's voice when the server sent none. */
-function useSpeakOnce() {
-  const played = useRef(new Set<string>());
-  return (u: SignUtterance, force = false) => {
-    if (!force && played.current.has(u.id)) return;
-    played.current.add(u.id);
-    if (u.audioUrl) {
-      void new Audio(assetUrl(u.audioUrl)).play().catch(() => {});
-    } else if ("speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(new SpeechSynthesisUtterance(u.text));
-    }
-  };
-}
 
 /**
  * Sign → text → speech. Webcam frames go to the sign service; committed signs build a phrase; when the signer
@@ -51,7 +37,6 @@ export function SignPanel({ sessionId, variant = "page" }: { sessionId: string |
   const preview = useStreamPreview(camera);
   const history = useSignUtterances(sessionId);
   const create = useCreateSignUtterance(sessionId);
-  const speakOnce = useSpeakOnce();
 
   const sign = useSignService({
     onPhrase: (tokens, phraseSource) => {
@@ -60,7 +45,7 @@ export function SignPanel({ sessionId, variant = "page" }: { sessionId: string |
         {
           onSuccess: (u) => {
             if (sessionId) queryClient.setQueryData<SignUtterance[]>(keys.utterances(sessionId), (list) => upsert(list, u));
-            if (speak && u.source === "SELF") speakOnce(u);
+            if (speak && u.source === "SELF") speakUtterance(u, { browserVoice: true });
           },
         },
       );
@@ -229,7 +214,12 @@ export function SignPanel({ sessionId, variant = "page" }: { sessionId: string |
           <section aria-label="Latest sentence" className="rounded-[1.5rem] clay-marigold p-4">
             <p className="text-xs font-bold opacity-80">{latest.source === "SELF" ? "You said" : "They said"}</p>
             <p className="mt-1 text-xl leading-snug font-bold">{latest.text}</p>
-            <Button variant="clay-soft" size="sm" className="mt-3" onClick={() => speakOnce(latest, true)}>
+            {latest.alternatives.length > 0 && (
+              <p className="mt-1.5 text-sm opacity-80">
+                Or maybe: {latest.alternatives.map((a) => `“${a}”`).join(", ")}
+              </p>
+            )}
+            <Button variant="clay-soft" size="sm" className="mt-3" onClick={() => speakUtterance(latest, { again: true, browserVoice: true })}>
               <Volume2 /> Play again
             </Button>
           </section>
@@ -250,7 +240,7 @@ export function SignPanel({ sessionId, variant = "page" }: { sessionId: string |
                     <p className="mt-0.5 font-medium">{u.text}</p>
                     <p className="mt-0.5 font-mono text-xs text-muted-foreground">{u.gloss.join(" ")}</p>
                   </div>
-                  <Button variant="ghost" size="icon-sm" aria-label={`Play "${u.text}"`} onClick={() => speakOnce(u, true)}>
+                  <Button variant="ghost" size="icon-sm" aria-label={`Play "${u.text}"`} onClick={() => speakUtterance(u, { again: true, browserVoice: true })}>
                     <Play />
                   </Button>
                 </li>

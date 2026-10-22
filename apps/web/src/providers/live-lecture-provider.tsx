@@ -13,8 +13,9 @@ import { useHealth } from "@/hooks/use-lecture-data";
 import { useSessionSocket } from "@/hooks/use-session-socket";
 import { useEndSession, useSession, useStartSession, useUpdateSession } from "@/hooks/use-sessions";
 import { ACTIVE_LECTURE_KEY } from "@/lib/account-state";
-import { api, errorMessage } from "@/lib/api";
+import { api, assetUrl, errorMessage } from "@/lib/api";
 import { LIVE, pauseReducer } from "@/lib/live/gaze-pause";
+import { speakUtterance } from "@/lib/live/speak";
 
 import { useGaze } from "./gaze-provider";
 
@@ -74,24 +75,75 @@ function useLiveLectureRuntime() {
 
   useEffect(() => setActiveIdState(readActive()), []);
 
-  const live = useSessionSocket(activeId, {
-    onMessage: (m: SessionServerMessage) => {
-      snapshots.current?.onSessionMessage(m);
-      if (m.type === "snapshot.captured" && m.snapshot.description === null) {
-        toast.success("Board snapshot saved to your notes", { description: m.snapshot.reason || undefined });
-      }
-    },
-  });
+  const live = useSessionSocket(activeId, { onMessage: (m: SessionServerMessage) => handleServerMessage(m) });
 
   const session = activeSession.data ?? live.session;
+
+  /** What the server tells this lecture that needs a visible response. */
+  function handleServerMessage(m: SessionServerMessage) {
+    snapshots.current?.onSessionMessage(m);
+    switch (m.type) {
+      case "snapshot.request":
+        // The teacher referred to something visual, but there's no scene camera to capture it.
+        if (!snapshots.current) {
+          toast.info("The teacher pointed at the board", {
+            description: "Turn on the scene camera to save the board into your notes.",
+            action: { label: "Turn on", onClick: () => void scene.start() },
+          });
+        }
+        return;
+      case "snapshot.captured":
+        if (m.snapshot.description === null) {
+          toast.success("Board snapshot saved to your notes", {
+            description: m.snapshot.reason || undefined,
+            icon: <img src={assetUrl(m.snapshot.imageUrl)} alt="" className="size-10 rounded-md object-cover" />,
+          });
+        }
+        return;
+      case "sign.utterance":
+        // Speak the student's own sentences once, even when they were signed in another tab.
+        if (m.utterance.source === "SELF") speakUtterance(m.utterance);
+        return;
+      case "error":
+        if (m.code === "STT_ERROR") {
+          toast.error("Captions stopped", {
+            id: "stt-error",
+            description: "The speech-to-text service isn't responding. The lecture keeps running; captions resume when it's back.",
+          });
+        }
+        return;
+    }
+  }
   const mode: AccessibilityMode = session?.mode ?? "DEAF";
 
-  // A remembered lecture that has since ended (or was deleted) is no longer active.
+  /** Stops everything this device runs for the lecture: recording (waiting for the last upload) first. */
+  const teardown = async () => {
+    if (recorder.state.status === "recording") await recorder.stop();
+    await voice.stop();
+    snapshots.current?.stop();
+    await mic.stop();
+    scene.stop();
+  };
+
+  // Ended or deleted somewhere else (another tab or device, or it was never live here): save what this device was
+  // recording, release the devices, and stop following it.
+  const releasing = useRef(false);
+  const releaseEndedLecture = useEffectEvent(async () => {
+    if (releasing.current) return;
+    releasing.current = true;
+    try {
+      const wasRecording = recorder.state.status === "recording";
+      await teardown();
+      setActiveId(null);
+      if (wasRecording) toast.info("The lecture ended on another device, so the recording was saved.");
+    } finally {
+      releasing.current = false;
+    }
+  });
+  const goneElsewhere = Boolean(activeId) && !ending && ((activeSession.data && activeSession.data.status !== "LIVE") || activeSession.isError);
   useEffect(() => {
-    if (!activeId || ending) return;
-    if (activeSession.data && activeSession.data.status !== "LIVE") setActiveId(null);
-    if (activeSession.isError) setActiveId(null);
-  }, [activeId, ending, activeSession.data, activeSession.isError, setActiveId]);
+    if (goneElsewhere) void releaseEndedLecture();
+  }, [goneElsewhere]);
 
   // A new lecture starts live, with nothing missed.
   useEffect(() => dispatchPause({ type: "resume" }), [activeId]);
@@ -168,15 +220,11 @@ function useLiveLectureRuntime() {
   );
 
   /** Stops recording (waiting for the last upload), voice focus, snapshots and devices, then ends the lecture. */
-  const end = useCallback(async () => {
+  const end = async () => {
     if (!activeId) return;
     setEnding(true);
     try {
-      if (recorder.state.status === "recording") await recorder.stop();
-      await voice.stop();
-      snapshots.current?.stop();
-      await mic.stop();
-      scene.stop();
+      await teardown();
       await endSession.mutateAsync(activeId);
       setActiveId(null);
     } catch (error) {
@@ -185,7 +233,7 @@ function useLiveLectureRuntime() {
     } finally {
       setEnding(false);
     }
-  }, [activeId, recorder, voice, mic, scene, endSession, setActiveId]);
+  };
 
   /** Switch Deaf ↔ hard-of-hearing during the lecture. */
   const setMode = useCallback(

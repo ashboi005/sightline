@@ -17,6 +17,20 @@ import { SlidesPanel } from "./slides-panel";
 import { VoiceFocusPanel } from "./voice-focus-panel";
 
 type PanelId = "slides" | "voice" | "sign" | "board";
+
+/** The session socket's error codes, in the student's words. */
+function socketErrorText(error: { code: string; message: string }) {
+  switch (error.code) {
+    case "STT_ERROR":
+      return "Captions stopped: the speech-to-text service isn't responding. The lecture keeps running, and captions resume when it's back.";
+    case "NOT_LIVE":
+      return "This lecture isn't live any more.";
+    case "NOT_FOUND":
+      return "This lecture couldn't be found. It may have been deleted.";
+    default:
+      return error.message;
+  }
+}
 const OPEN_KEY = "sightline.live-panels";
 
 const PANELS: { id: PanelId; title: string; short: string; icon: typeof Hand; tone: "marigold" | "sage" | "lilac" }[] = [
@@ -98,7 +112,7 @@ export function LiveWorkspace() {
   return (
     <div className="mx-auto flex max-w-[110rem] flex-col gap-4 lg:h-[calc(100svh-4rem)]">
       <LiveHeader />
-      {error && <InlineAlert>{error.code === "NOT_LIVE" ? "This lecture isn't live any more." : error.message}</InlineAlert>}
+      {error && <InlineAlert>{socketErrorText(error)}</InlineAlert>}
 
       {wide ? (
         <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(20rem,26rem)] gap-4">
