@@ -4,6 +4,7 @@
  *
  *   bun run --filter server check:pipeline            # Deepgram path
  *   bun run --filter server check:pipeline sarvam     # Sarvam (Hinglish) path
+ *   bun run --filter server check:pipeline elevenlabs # ElevenLabs Scribe realtime path
  *
  * Spawns the server with MOCK_SPEECH=false / MOCK_CAPTIONS=false and DEEPGRAM_URL pointing at the fake, streams
  * LINEAR16 audio over the session socket the way @sightline/live-client does, and asserts captions come back.
@@ -13,7 +14,10 @@ import { floatToLinear16 } from "@sightline/live-client/pcm"; // DOM-free entry
 import { fixtures } from "@sightline/mocks";
 
 const SERVER_PORT = 13100;
-const provider = process.argv[2] === "sarvam" ? "sarvam" : "deepgram";
+const provider = (["sarvam", "elevenlabs"].includes(process.argv[2] ?? "") ? process.argv[2] : "deepgram") as
+  | "deepgram"
+  | "sarvam"
+  | "elevenlabs";
 const lines = fixtures.lecture.script.segments.slice(0, 3);
 
 // --- fake Deepgram -----------------------------------------------------------
@@ -23,19 +27,27 @@ let keyterms: string[] = [];
 const fake = Bun.serve({
   port: 0,
   fetch(req, server) {
-    auth = req.headers.get("authorization") ?? req.headers.get("api-subscription-key");
+    if (new URL(req.url).pathname === "/v1/single-use-token/realtime_scribe") {
+      auth = req.headers.get("xi-api-key");
+      return Response.json({ token: "single-use" });
+    }
+    auth ??= req.headers.get("authorization") ?? req.headers.get("api-subscription-key");
     keyterms = new URL(req.url).searchParams.getAll("keyterm");
     if (server.upgrade(req)) return;
     return new Response("upgrade required", { status: 426 });
   },
   websocket: {
+    open(ws) {
+      if (provider === "elevenlabs") ws.send(JSON.stringify({ message_type: "session_started" }));
+    },
     message(ws, msg) {
       let bytes: number;
       if (typeof msg === "string") {
         const parsed = JSON.parse(msg);
         if (parsed.type === "CloseStream") ws.close(1000);
-        if (!parsed.audio) return;
-        bytes = Buffer.from(parsed.audio.data, "base64").byteLength; // Sarvam: base64 PCM inside JSON
+        const b64 = parsed.audio?.data ?? parsed.audio_base_64; // Sarvam / ElevenLabs: base64 PCM inside JSON
+        if (!b64) return;
+        bytes = Buffer.from(b64, "base64").byteLength;
       } else {
         bytes = msg.byteLength; // Deepgram: binary PCM
       }
@@ -45,7 +57,10 @@ const fake = Bun.serve({
       const index = Math.floor(audioBytes / 16000) - 1;
       if (index >= 0 && index < lines.length && Math.floor(before / 16000) - 1 < index) {
         const raw = lines[index]!.raw;
-        if (provider === "sarvam") {
+        if (provider === "elevenlabs") {
+          ws.send(JSON.stringify({ message_type: "partial_transcript", text: raw.split(" ").slice(0, 3).join(" ") }));
+          ws.send(JSON.stringify({ message_type: "committed_transcript", text: raw }));
+        } else if (provider === "sarvam") {
           ws.send(JSON.stringify({ type: "events", data: { signal_type: "START_SPEECH" } }));
           ws.send(JSON.stringify({ type: "data", data: { request_id: "r", transcript: raw, metrics: { audio_duration: 1 } } }));
         } else {
@@ -74,6 +89,8 @@ const server = Bun.spawn(["bun", "run", "src/index.ts"], {
     DEEPGRAM_URL: `ws://localhost:${fake.port}`,
     SARVAM_API_KEY: "fake-key",
     SARVAM_STT_URL: `ws://localhost:${fake.port}`,
+    ELEVENLABS_API_KEY: "fake-key",
+    ELEVENLABS_URL: `http://localhost:${fake.port}`,
     CAPTION_TIMEOUT_MS: "1500",
   },
   stdout: "ignore",
@@ -119,7 +136,7 @@ try {
 
   const types = (t: string) => seen.filter((m) => m.type === t);
   console.log(`provider: ${provider}`);
-  check(`fake ${provider} got the API key`, auth === (provider === "sarvam" ? "fake-key" : "Token fake-key"), String(auth));
+  check(`fake ${provider} got the API key`, auth === (provider === "deepgram" ? "Token fake-key" : "fake-key"), String(auth));
   if (provider === "deepgram") {
     check("keyterms from the glossary reached Deepgram", keyterms.includes("Kirchhoff"), keyterms.slice(0, 4).join(", "));
   }

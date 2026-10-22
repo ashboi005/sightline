@@ -10,6 +10,7 @@ import { config } from "./config";
 import { ENV } from "./env.server";
 import { createLiveModule } from "./modules/live";
 import { DeepgramStt } from "./modules/live/speech/deepgram-stt";
+import { ElevenLabsStt } from "./modules/live/speech/elevenlabs-stt";
 import { SarvamStt } from "./modules/live/speech/sarvam-stt";
 import { MockReplayStt } from "./modules/live/speech/mock-stt";
 import { CachedTts, ElevenLabsTts, MockTts, SarvamTts } from "./modules/live/speech/tts";
@@ -43,7 +44,15 @@ export function createContainer() {
   // --- core (Ashwath) ------------------------------------------------------
   const stt = mocks.speech
     ? new MockReplayStt(config.mockReplaySpeed)
-    : ENV.STT_PROVIDER === "sarvam"
+    : ENV.STT_PROVIDER === "elevenlabs"
+      ? new ElevenLabsStt({
+          apiKey: ENV.ELEVENLABS_API_KEY,
+          model: ENV.ELEVENLABS_STT_MODEL,
+          language: ENV.ELEVENLABS_STT_LANGUAGE,
+          vadSilenceSecs: ENV.ELEVENLABS_STT_VAD_SILENCE_SECS,
+          baseUrl: ENV.ELEVENLABS_URL || undefined,
+        })
+      : ENV.STT_PROVIDER === "sarvam"
       ? new SarvamStt({
           apiKey: ENV.SARVAM_API_KEY,
           model: ENV.SARVAM_STT_MODEL,
