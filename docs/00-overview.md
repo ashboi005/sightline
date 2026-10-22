@@ -16,7 +16,8 @@ This file is the **entry point**. It explains the whole system, who owns what, a
 | [`owners/sahil.md`](owners/sahil.md) | Sahil — the entire frontend (landing, auth, workspace, notes) |
 | [`owners/ashwath.md`](owners/ashwath.md) | Ashwath — **core**: live pipeline (STT, captions, formulas, WS), gaze software + look→hear, sign sentences + TTS, deploy |
 | [`owners/tushar.md`](owners/tushar.md) | Tushar — **surrounding**: sessions + persistence, slides, knowledge (RAG/Qdrant), post-lecture notes, auth |
-| [`contracts/rest-api.md`](contracts/rest-api.md) | HTTP API (frontend ↔ server) |
+| [`contracts/frontend-api.md`](contracts/frontend-api.md) | **Every API the web app uses** (REST, auth, session socket, S3 media, laptop services) with schema links |
+| [`contracts/rest-api.md`](contracts/rest-api.md) | REST request/response examples |
 | [`contracts/realtime-ws.md`](contracts/realtime-ws.md) | Session WebSocket (frontend ↔ server): audio up, captions down |
 | [`contracts/gaze-bridge.md`](contracts/gaze-bridge.md) | Local gaze bridge protocol (eye tracker → zones + scene gaze ↔ frontend) |
 | [`contracts/speaker-service.md`](contracts/speaker-service.md) | Local look-to-hear speaker service (scene frames + room mic → the looked-at person's voice) |

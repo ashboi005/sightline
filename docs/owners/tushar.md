@@ -1,7 +1,7 @@
 # Tushar — Surrounding: Sessions, Knowledge (RAG), Notes, Slides, Persistence
 
 > Back to [overview](../00-overview.md). Your contracts: [backend modules](../contracts/backend-modules.md) ·
-> [REST API](../contracts/rest-api.md).
+> [REST API](../contracts/frontend-api.md#2-rest-api).
 
 ## Mission
 

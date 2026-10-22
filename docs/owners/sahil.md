@@ -1,6 +1,7 @@
 # Sahil — Frontend (everything the user sees)
 
-> Back to [overview](../00-overview.md). Contracts you consume: [REST](../contracts/rest-api.md) ·
+> Back to [overview](../00-overview.md). **Start here: [frontend API contract](../contracts/frontend-api.md)** — every API
+> the web app uses, its schema and where it's wired. Deep dives: [REST examples](../contracts/rest-api.md) ·
 > [session socket](../contracts/realtime-ws.md) · [gaze bridge](../contracts/gaze-bridge.md) ·
 > [sign service](../contracts/sign-service.md).
 
