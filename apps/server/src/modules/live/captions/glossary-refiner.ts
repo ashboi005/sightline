@@ -11,7 +11,8 @@ export function refineWithGlossary(text: string, glossary: GlossaryTerm[]): Refi
   const corrections: CaptionCorrection[] = [];
   const parts: CaptionPart[] = [];
   const aliases = glossary
-    .flatMap((term) => term.aliases.map((alias) => ({ pattern: new RegExp(`\\b${escapeRegExp(alias)}\\b`, "i"), term })))
+    // An alias under 3 letters ("I" for current, "V" for voltage) would rewrite ordinary words: never use one.
+    .flatMap((term) => term.aliases.filter((alias) => alias.replace(/[^\p{L}\p{N}]/gu, "").length >= 3).map((alias) => ({ pattern: new RegExp(`\\b${escapeRegExp(alias)}\\b`, "i"), term })))
     .sort((a, b) => b.pattern.source.length - a.pattern.source.length);
 
   let rest = text;

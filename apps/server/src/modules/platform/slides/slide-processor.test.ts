@@ -14,16 +14,12 @@ test("missing converters fail just the upload with an actionable terminal error"
   await store.createSession("owner", session);
   const assets = new MemoryAssetStore(store);
   const jobs = new MemoryJobs(store);
-  const service = new PlatformService({ store, assets, jobs, knowledge: new MockKnowledgeEngine(), notes: new MockNotesEngine(), slides: new FileSlideProcessor(assets, (id) => id), events: { publish() {} }, lifecycle: { async onSessionStarted() {}, async onSessionEnded() {}, async onSessionDeleted() {} } });
-  const original = Bun.env.PATH;
-  Bun.env.PATH = "";
-  try {
-    await service.uploadSlides("owner", session.id, new File([lecturePdf()], "lecture.pdf", { type: "application/pdf" }));
-    await service.executeJob((await jobs.claim(Date.now()))!);
-    const deck = await service.getSlides("owner", session.id);
-    expect(deck.status).toBe("FAILED");
-    expect(deck.error).toContain("development server container");
-    expect(await jobs.claim(Date.now() + 1_000_000)).toBeNull();
-    expect((await service.requireSession("owner", session.id)).status).toBe("DRAFT");
-  } finally { Bun.env.PATH = original; }
+  const service = new PlatformService({ store, assets, jobs, knowledge: new MockKnowledgeEngine(), notes: new MockNotesEngine(), slides: new FileSlideProcessor(assets, (id) => id, () => null), events: { publish() {} }, lifecycle: { async onSessionStarted() {}, async onSessionEnded() {}, async onSessionDeleted() {} } });
+  await service.uploadSlides("owner", session.id, new File([lecturePdf()], "lecture.pdf", { type: "application/pdf" }));
+  await service.executeJob((await jobs.claim(Date.now()))!);
+  const deck = await service.getSlides("owner", session.id);
+  expect(deck.status).toBe("FAILED");
+  expect(deck.error).toContain("development server container");
+  expect(await jobs.claim(Date.now() + 1_000_000)).toBeNull();
+  expect((await service.requireSession("owner", session.id)).status).toBe("DRAFT");
 });

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -28,6 +28,8 @@ import { errorHandler } from "../../lib/error-handler";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 const qdrantUrl = process.env.TEST_QDRANT_URL;
+// Remote databases (e.g. the Coolify Postgres from a laptop) are ~150 ms per round trip.
+if (databaseUrl) setDefaultTimeout(60_000);
 const session: Session = { id: "ses_integration", title: "Circuits", subject: null, mode: "DEAF", status: "DRAFT", contextStatus: "EMPTY", slidesStatus: "EMPTY", notesStatus: "EMPTY", createdAt: 1, startedAt: null, endedAt: null };
 
 describe.skipIf(!databaseUrl)("real Postgres and better-auth", () => {
@@ -244,8 +246,10 @@ describe.skipIf(!databaseUrl)("real Postgres and better-auth", () => {
 });
 
 test.skipIf(!qdrantUrl)("real Qdrant ingest/retrieve/replacement/isolation/deletion", async () => {
-  const client = new QdrantClient({ url: qdrantUrl!, checkCompatibility: false });
-  const knowledge = new QdrantKnowledgeEngine({ client, embeddings: { embed: async (texts) => texts.map((text) => /voltage/i.test(text) ? [0, 1, 0] : [1, 0, 0]) }, model: { generate: async (schema) => schema.parse({ glossary: [], topics: ["Circuits"] }) } });
+  const client = new QdrantClient({ url: qdrantUrl!, port: Number(new URL(qdrantUrl!).port) || null, apiKey: process.env.TEST_QDRANT_API_KEY || undefined, checkCompatibility: false });
+  // Throwaway collection: the fake 3-dim embeddings must never touch the real (768-dim) shared collection.
+  const collection = `test_context_${randomUUID().replace(/-/g, "")}`;
+  const knowledge = new QdrantKnowledgeEngine({ client, collection, embeddings: { embed: async (texts) => texts.map((text) => /voltage/i.test(text) ? [0, 1, 0] : [1, 0, 0]) }, model: { generate: async (schema) => schema.parse({ glossary: [], topics: ["Circuits"] }) } });
   const sessionId = `ses_${randomUUID().replace(/-/g, "")}`;
   try {
     await knowledge.ingestContext({ sessionId, title: "Circuits", subject: null, text: "Current is conserved", slides: [] });
@@ -253,9 +257,10 @@ test.skipIf(!qdrantUrl)("real Qdrant ingest/retrieve/replacement/isolation/delet
     expect(await knowledge.retrieveContext({ sessionId: `${sessionId}other`, query: "current", limit: 5 })).toEqual([]);
     await knowledge.ingestContext({ sessionId, title: "Circuits", subject: null, text: "Voltage is conserved", slides: [] });
     expect((await knowledge.retrieveContext({ sessionId, query: "voltage", limit: 5 })).map((chunk) => chunk.text)).toEqual(["Voltage is conserved"]);
-  } finally { await knowledge.dropSession(sessionId); }
-  expect(await knowledge.retrieveContext({ sessionId, query: "current", limit: 5 })).toEqual([]);
-}, 30_000);
+    await knowledge.dropSession(sessionId);
+    expect(await knowledge.retrieveContext({ sessionId, query: "current", limit: 5 })).toEqual([]);
+  } finally { await client.deleteCollection(collection).catch(() => {}); }
+}, 60_000);
 
 test.skipIf(!process.env.TEST_REAL_CONVERTERS && !process.env.TEST_PDF_CONVERTERS)("real PDF conversion produces private page images and text", async () => {
   const store = new MemoryStore();

@@ -49,11 +49,16 @@ export class MockSlideProcessor implements SlideProcessor {
 export class FileSlideProcessor implements SlideProcessor {
   readonly name = "file";
 
-  constructor(private readonly assets: AssetStore, private readonly assetUrl: (id: string) => string) {}
+  constructor(
+    private readonly assets: AssetStore,
+    private readonly assetUrl: (id: string) => string,
+    /** Converter lookup; tests inject a fake (Bun.which ignores a PATH changed at runtime). */
+    private readonly which: (command: string) => string | null = (command) => Bun.which(command),
+  ) {}
 
   async checkDependencies(extension: string) {
     for (const command of ["pdfinfo", "pdftoppm", "pdftotext", ...(extension === "pdf" ? [] : ["libreoffice"])]) {
-      if (!Bun.which(command)) throw new AppError("VALIDATION_ERROR", `Real slides require ${command}; use the development server container`);
+      if (!this.which(command)) throw new AppError("VALIDATION_ERROR", `Real slides require ${command}; use the development server container`);
     }
   }
 
