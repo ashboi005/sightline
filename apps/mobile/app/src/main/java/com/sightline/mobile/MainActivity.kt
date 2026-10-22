@@ -5,11 +5,14 @@ import android.content.*
 import android.content.pm.PackageManager
 import android.os.*
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.core.content.ContextCompat
+import androidx.core.content.edit
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sightline.mobile.camera.CaptureSettings
 import com.sightline.mobile.ui.CameraScreen
@@ -43,6 +46,13 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         bound = bindService(Intent(this, CaptureService::class.java), connection, BIND_AUTO_CREATE)
         setContent {
+            val preferences = remember { getSharedPreferences("appearance", MODE_PRIVATE) }
+            var darkTheme by rememberSaveable { mutableStateOf(preferences.getBoolean("darkTheme", false)) }
+            LaunchedEffect(darkTheme) {
+                val bars = if (darkTheme) SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+                    else SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+                enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
+            }
             val service = capture
             val state = if (service != null) service.state.collectAsStateWithLifecycle().value else CaptureUiState()
             CameraScreen(state, service != null, permissionError,
@@ -63,6 +73,11 @@ class MainActivity : ComponentActivity() {
                 onStop = { startService(Intent(this, CaptureService::class.java).setAction(CaptureService.STOP)) },
                 onCopy = { text -> (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("Camera URL", text)) },
                 onShare = { text -> startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), "Share camera link")) },
+                darkTheme = darkTheme,
+                onThemeChange = { dark ->
+                    darkTheme = dark
+                    preferences.edit { putBoolean("darkTheme", dark) }
+                },
             )
         }
     }
