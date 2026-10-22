@@ -10,11 +10,12 @@ import {
   connectSpeakerService,
   type TypedSocket,
 } from "@sightline/contracts/client";
-import type { SessionClientMessage } from "@sightline/contracts";
+import type { GazeZone, SessionClientMessage, SessionServerMessage, SnapshotTrigger } from "@sightline/contracts";
 
 import { LookToHearController, type LookToHearState } from "./look-to-hear-controller";
 import { floatToLinear16, StreamingResampler, TARGET_RATE } from "./pcm";
 import { PlaybackScheduler } from "./playback-scheduler";
+import { BoardDwellTrigger, SnapshotGate, VisualChangeDetector, type VisualChangeOptions } from "./snapshot-triggers";
 
 // ---------------------------------------------------------------------------
 // Microphone: one capture, many subscribers, always 16 kHz mono Float32
@@ -237,6 +238,83 @@ export async function startLookToHear(options: {
       await controller.stop(); // lets the last focused audio drain and play
       speaker.close();
       player.stop();
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Smart snapshots: board/diagram frames → notes
+// ---------------------------------------------------------------------------
+
+/**
+ * Captures scene-camera frames into the lecture notes when:
+ *  - the server hears a visual cue (`snapshot.request` on the session socket → call `onSessionMessage`)
+ *  - the student keeps looking at the board (`onGazeZone`)
+ *  - the board visibly changes and settles (internal 2 fps thumbnail check)
+ *  - the student presses a button (`capture("MANUAL")`)
+ */
+export function startSmartSnapshots(options: {
+  video: HTMLVideoElement;
+  upload: (image: Blob, fields: { trigger: SnapshotTrigger; reason?: string; capturedAt?: number }) => Promise<unknown>;
+  visualChange?: VisualChangeOptions | false;
+  boardDwellMs?: number;
+  cooldownMs?: number;
+  onCaptured?: (trigger: SnapshotTrigger) => void;
+}) {
+  const gate = new SnapshotGate(options.cooldownMs);
+  const dwell = new BoardDwellTrigger(options.boardDwellMs);
+  const detector = options.visualChange === false ? null : new VisualChangeDetector(options.visualChange || {});
+  const frame = document.createElement("canvas");
+  const thumb = document.createElement("canvas");
+  thumb.width = 32;
+  thumb.height = 18;
+  const thumbCtx = thumb.getContext("2d", { willReadFrequently: true })!;
+
+  const grab = () =>
+    new Promise<Blob | null>((resolve) => {
+      const v = options.video;
+      if (v.readyState < 2 || !v.videoWidth) return resolve(null);
+      const scale = Math.min(1, 1280 / v.videoWidth);
+      frame.width = Math.round(v.videoWidth * scale);
+      frame.height = Math.round(v.videoHeight * scale);
+      frame.getContext("2d")!.drawImage(v, 0, 0, frame.width, frame.height);
+      frame.toBlob(resolve, "image/jpeg", 0.85);
+    });
+
+  async function capture(trigger: SnapshotTrigger, reason?: string) {
+    const automatic = trigger === "BOARD_DWELL" || trigger === "VISUAL_CHANGE";
+    if (automatic && !gate.allow(Date.now())) return;
+    const capturedAt = Date.now();
+    const image = await grab();
+    if (!image) return;
+    await options.upload(image, { trigger, reason, capturedAt });
+    options.onCaptured?.(trigger);
+  }
+
+  const timer = detector
+    ? setInterval(() => {
+        const v = options.video;
+        if (v.readyState < 2) return;
+        thumbCtx.drawImage(v, 0, 0, thumb.width, thumb.height);
+        const rgba = thumbCtx.getImageData(0, 0, thumb.width, thumb.height).data;
+        const gray = new Uint8Array(thumb.width * thumb.height);
+        for (let i = 0; i < gray.length; i++) gray[i] = (rgba[i * 4]! * 0.299 + rgba[i * 4 + 1]! * 0.587 + rgba[i * 4 + 2]! * 0.114) | 0;
+        if (detector.feed(gray, Date.now())) void capture("VISUAL_CHANGE", "New content appeared on the board");
+      }, 500)
+    : null;
+
+  return {
+    capture,
+    /** Pass every message from the session socket. */
+    onSessionMessage(msg: SessionServerMessage) {
+      if (msg.type === "snapshot.request") void capture(msg.trigger, msg.reason);
+    },
+    /** Pass every `gaze.zone` from the gaze bridge. */
+    onGazeZone(zone: GazeZone) {
+      if (dwell.update(zone, Date.now())) void capture("BOARD_DWELL", "You looked at the board for a while");
+    },
+    stop() {
+      if (timer) clearInterval(timer);
     },
   };
 }
