@@ -1,5 +1,7 @@
 /** Every TanStack Query key in one place, so invalidation after a mutation can't miss a screen. */
 export const keys = {
+  /** The signed-in student (better-auth session, or the server's demo user under MOCK_AUTH). */
+  session: ["auth", "session"] as const,
   health: ["health"] as const,
   sessions: {
     all: ["sessions"] as const,

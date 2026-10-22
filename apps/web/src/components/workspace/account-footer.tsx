@@ -11,7 +11,6 @@ import {
 import { Button } from "@sightline/ui/components/button";
 import { cn } from "@sightline/ui/lib/utils";
 import { LogOut } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { ModeToggle } from "@/components/mode-toggle";
@@ -22,14 +21,13 @@ import { RailTip } from "./rail-tip";
 
 /** Account and theme: quiet, at the bottom of the sidebar. */
 export function AccountFooter({ collapsed = false }: { collapsed?: boolean }) {
-  const router = useRouter();
   const { data } = useSession();
   const signOut = useSignOut();
   const lecture = useLiveLecture();
   const [confirming, setConfirming] = useState(false);
   const user = data?.user;
 
-  const doSignOut = () => signOut.mutate(undefined, { onSuccess: () => router.push("/") });
+  const doSignOut = () => signOut.mutate();
 
   return (
     <div className={cn("flex items-center gap-2.5 rounded-[1.25rem] px-1.5 py-1", collapsed && "flex-col")}>

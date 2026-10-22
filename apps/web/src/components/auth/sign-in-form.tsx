@@ -5,6 +5,7 @@ import { Input } from "@sightline/ui/components/input";
 import { Label } from "@sightline/ui/components/label";
 import { useForm } from "@tanstack/react-form";
 import { LoaderCircle } from "lucide-react";
+import type { Route } from "next";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import z from "zod";
@@ -13,7 +14,7 @@ import { useSignIn } from "@/hooks/use-auth";
 
 import { authErrorMessage } from "./auth-error";
 import { FieldError, FormAlert, PasswordInput } from "./fields";
-import { useRedirectIfSignedIn } from "./use-redirect-if-signed-in";
+import { useSignedInDestination } from "./use-signed-in-destination";
 
 const schema = z.object({
   email: z.email("Enter a valid email address, like name@college.edu"),
@@ -23,14 +24,14 @@ const schema = z.object({
 export function SignInForm() {
   const router = useRouter();
   const signIn = useSignIn();
-  useRedirectIfSignedIn();
+  const { destination, carry } = useSignedInDestination();
 
   const form = useForm({
     defaultValues: { email: "", password: "" },
     // Validate on every change so errors clear as soon as the input is fixed; show them only after blur or submit.
     validators: { onChange: schema },
     onSubmit: async ({ value }) => {
-      await signIn.mutateAsync(value, { onSuccess: () => router.push("/dashboard") }).catch(() => {});
+      await signIn.mutateAsync(value, { onSuccess: () => router.push(destination) }).catch(() => {});
     },
   });
 
@@ -114,7 +115,7 @@ export function SignInForm() {
       <p className="mt-8 text-base text-muted-foreground">
         New to Sightline?{" "}
         <Link
-          href="/sign-up"
+          href={`/sign-up${carry}` as Route}
           className="font-semibold text-foreground underline decoration-marigold decoration-2 underline-offset-4 hover:decoration-foreground"
         >
           Create an account

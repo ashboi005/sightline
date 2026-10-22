@@ -2,19 +2,22 @@
 
 import { Button } from "@sightline/ui/components/button";
 import { LoaderCircle, ServerOff } from "lucide-react";
-import { useRouter } from "next/navigation";
+import type { Route } from "next";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 import { useSession } from "@/hooks/use-auth";
 
-/** Workspace pages need a signed-in student (or a server running MOCK_AUTH). */
+/** Workspace pages need a signed-in student: a better-auth session, or the demo student when the server runs MOCK_AUTH. */
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const session = useSession();
 
+  // Not signed in (or the sign-in expired): sign in, then come back to this page.
   useEffect(() => {
-    if (session.isSuccess && !session.data) router.replace("/sign-in");
-  }, [session.isSuccess, session.data, router]);
+    if (session.isSuccess && !session.data) router.replace(`/sign-in?next=${encodeURIComponent(pathname)}` as Route);
+  }, [session.isSuccess, session.data, router, pathname]);
 
   if (session.isError) {
     return (

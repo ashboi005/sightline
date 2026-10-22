@@ -1,17 +1,17 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import type { CurrentUser } from "@sightline/contracts";
 
 import { ApiRequestError, api } from "@/lib/api";
+import { clearAccountState } from "@/lib/account-state";
 import { authClient } from "@/lib/auth-client";
+import { keys } from "@/lib/query-keys";
 
 export type User = Pick<CurrentUser, "id" | "name" | "email"> & { isMock?: boolean };
 
-export const authKeys = {
-  session: ["auth", "session"] as const,
-};
+export const authKeys = { session: keys.session };
 
 export type AuthSession = { user: User } | null;
 
@@ -38,6 +38,13 @@ async function getSession(): Promise<AuthSession> {
   }
 }
 
+/** A different student may have been signed in on this browser: drop their cached data, then load the new session. */
+function startFreshAccount(queryClient: QueryClient) {
+  clearAccountState();
+  queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== "auth" });
+  return queryClient.invalidateQueries({ queryKey: authKeys.session });
+}
+
 export function useSession() {
   return useQuery({
     queryKey: authKeys.session,
@@ -54,7 +61,7 @@ export function useSignIn() {
     mutationFn: async (input: SignInInput) => {
       unwrap(await authClient.signIn.email(input));
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: authKeys.session }),
+    onSuccess: () => startFreshAccount(queryClient),
   });
 }
 
@@ -66,19 +73,22 @@ export function useSignUp() {
     mutationFn: async (input: SignUpInput) => {
       unwrap(await authClient.signUp.email(input));
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: authKeys.session }),
+    onSuccess: () => startFreshAccount(queryClient),
   });
 }
 
+/**
+ * Signs out, then reloads the home page. The full load drops every socket, the mic and cameras, and all cached
+ * data in one go, and avoids racing the workspace's "sign in to continue" redirect.
+ */
 export function useSignOut() {
-  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async () => {
       unwrap(await authClient.signOut());
     },
     onSuccess: () => {
-      queryClient.setQueryData(authKeys.session, null);
-      queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== "auth" });
+      clearAccountState();
+      window.location.replace("/");
     },
   });
 }
