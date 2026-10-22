@@ -5,6 +5,7 @@ import { Input } from "@sightline/ui/components/input";
 import { Label } from "@sightline/ui/components/label";
 import { useForm } from "@tanstack/react-form";
 import { LoaderCircle } from "lucide-react";
+import type { Route } from "next";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -14,7 +15,7 @@ import { useSignUp } from "@/hooks/use-auth";
 
 import { authErrorMessage } from "./auth-error";
 import { FieldError, FieldHint, FormAlert, PasswordInput } from "./fields";
-import { useRedirectIfSignedIn } from "./use-redirect-if-signed-in";
+import { useSignedInDestination } from "./use-signed-in-destination";
 
 // better-auth's server defaults: 8–128 characters.
 const schema = z.object({
@@ -29,7 +30,7 @@ const schema = z.object({
 export function SignUpForm() {
   const router = useRouter();
   const signUp = useSignUp();
-  useRedirectIfSignedIn();
+  const { destination, carry } = useSignedInDestination();
 
   const form = useForm({
     defaultValues: { name: "", email: "", password: "" },
@@ -42,7 +43,7 @@ export function SignUpForm() {
           {
             onSuccess: () => {
               toast.success("Account created");
-              router.push("/dashboard");
+              router.push(destination);
             },
           },
         )
@@ -160,7 +161,7 @@ export function SignUpForm() {
       <p className="mt-8 text-base text-muted-foreground">
         Already have an account?{" "}
         <Link
-          href="/sign-in"
+          href={`/sign-in${carry}` as Route}
           className="font-semibold text-foreground underline decoration-marigold decoration-2 underline-offset-4 hover:decoration-foreground"
         >
           Sign in
