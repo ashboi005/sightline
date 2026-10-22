@@ -1,12 +1,16 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
+import {
+  SIGN_SERVICE_PROTOCOL_VERSION,
+  type SignServiceCommand,
+  type SignServiceMessage,
+  type SignSource,
+  type SignToken,
+} from "@sightline/contracts";
+import { connectSignService, type SocketStatus, type TypedSocket } from "@sightline/contracts/client";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 
-import { api } from "@/lib/api";
-import { SIGN_PROTOCOL_VERSION, connectSignService } from "@/lib/realtime/sign-service";
-import type { Socket, SocketStatus } from "@/lib/realtime/socket";
-import type { SignServiceCommand, SignServiceMessage, SignSource, SignToken, SignUtterance } from "@/types/realtime";
+import { SIGN_SERVICE_URL } from "@/lib/config";
 
 /**
  * Connects to the sign recogniser. Call `start()`, then feed webcam frames with `sendFrame` (see
@@ -27,7 +31,7 @@ export function useSignService(
   const [partial, setPartial] = useState<string | null>(null);
   const [tokens, setTokens] = useState<SignToken[]>([]);
   const [streaming, setStreaming] = useState(false);
-  const socketRef = useRef<Socket<SignServiceCommand> | null>(null);
+  const socketRef = useRef<TypedSocket<SignServiceCommand> | null>(null);
   const tokensRef = useRef<SignToken[]>([]);
   const sourceRef = useRef<SignSource>("SELF");
   const seqRef = useRef(0);
@@ -62,7 +66,7 @@ export function useSignService(
 
   useEffect(() => {
     if (!enabled) return;
-    const socket = connectSignService({ onMessage: (m) => handleMessage(m), onStatus: setStatus });
+    const socket = connectSignService(SIGN_SERVICE_URL, { onMessage: (m) => handleMessage(m), onStatus: setStatus });
     socketRef.current = socket;
     return () => {
       socket.close();
@@ -87,7 +91,7 @@ export function useSignService(
       seqRef.current = 0;
       send({
         type: "stream.start",
-        protocolVersion: SIGN_PROTOCOL_VERSION,
+        protocolVersion: SIGN_SERVICE_PROTOCOL_VERSION,
         source: sourceRef.current,
         fps: opts.fps ?? 12,
         width: opts.width ?? 640,
@@ -109,15 +113,4 @@ export function useSignService(
       setPartial(null);
     },
   };
-}
-
-/** Gloss tokens → a sentence (+ speech audio). The server also broadcasts it as `sign.utterance` on the session socket. */
-export function useCreateSignUtterance(sessionId: string) {
-  return useMutation({
-    mutationFn: (input: { tokens: SignToken[]; source: SignSource; speak?: boolean }) =>
-      api<SignUtterance>(`/api/sessions/${sessionId}/sign/utterances`, {
-        method: "POST",
-        body: JSON.stringify({ speak: true, ...input }),
-      }),
-  });
 }

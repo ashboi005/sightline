@@ -2,10 +2,12 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { MOCK_MODE } from "@/lib/api";
+import type { CurrentUser } from "@sightline/contracts";
+
+import { ApiRequestError, api } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
-import { mockAuth } from "@/mocks/auth";
-import type { User } from "@/types";
+
+export type User = Pick<CurrentUser, "id" | "name" | "email"> & { isMock?: boolean };
 
 export const authKeys = {
   session: ["auth", "session"] as const,
@@ -24,9 +26,16 @@ function unwrap<T>(result: AuthResult<T>): T {
 }
 
 async function getSession(): Promise<AuthSession> {
-  if (MOCK_MODE) return mockAuth.getSession();
   const data = unwrap(await authClient.getSession());
-  return data ? { user: { id: data.user.id, name: data.user.name, email: data.user.email } } : null;
+  if (data) return { user: { id: data.user.id, name: data.user.name, email: data.user.email } };
+  // A server running with MOCK_AUTH treats every API call as its demo user, without a better-auth session.
+  try {
+    const me = await api.me();
+    return me.isMock ? { user: me } : null;
+  } catch (error) {
+    if (error instanceof ApiRequestError && error.status === 401) return null;
+    throw error;
+  }
 }
 
 export function useSession() {
@@ -43,7 +52,6 @@ export function useSignIn() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (input: SignInInput) => {
-      if (MOCK_MODE) return mockAuth.signIn(input);
       unwrap(await authClient.signIn.email(input));
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: authKeys.session }),
@@ -56,7 +64,6 @@ export function useSignUp() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (input: SignUpInput) => {
-      if (MOCK_MODE) return mockAuth.signUp(input);
       unwrap(await authClient.signUp.email(input));
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: authKeys.session }),
@@ -67,7 +74,6 @@ export function useSignOut() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async () => {
-      if (MOCK_MODE) return mockAuth.signOut();
       unwrap(await authClient.signOut());
     },
     onSuccess: () => {

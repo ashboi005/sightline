@@ -2,19 +2,21 @@
 
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 
-import { connectGazeBridge } from "@/lib/realtime/gaze-bridge";
-import type { Socket, SocketStatus } from "@/lib/realtime/socket";
-import type { AccessibilityMode } from "@/types";
 import type {
-  CalibrationProgress,
-  CalibrationResult,
-  DeviceStatus,
+  AccessibilityMode,
   FocusTarget,
   GazeBridgeCommand,
   GazeBridgeMessage,
   GazeTransition,
   GazeZone,
-} from "@/types/realtime";
+} from "@sightline/contracts";
+import { connectGazeBridge, type SocketStatus, type TypedSocket } from "@sightline/contracts/client";
+
+import { GAZE_BRIDGE_URL } from "@/lib/config";
+
+export type DeviceStatus = Extract<GazeBridgeMessage, { type: "device.status" }>;
+export type CalibrationProgress = Extract<GazeBridgeMessage, { type: "calibration.progress" }>;
+export type CalibrationResult = Extract<GazeBridgeMessage, { type: "calibration.result" }>;
 
 /**
  * Connects to the local eye-tracker bridge and tracks where the student is looking.
@@ -43,7 +45,7 @@ export function useGazeBridge(
   const [targetId, setTargetId] = useState<string | null>(null);
   const [targets, setTargets] = useState<FocusTarget[]>([]);
   const [calibration, setCalibration] = useState<CalibrationProgress | CalibrationResult | null>(null);
-  const socketRef = useRef<Socket<GazeBridgeCommand> | null>(null);
+  const socketRef = useRef<TypedSocket<GazeBridgeCommand> | null>(null);
   const zoneRef = useRef<GazeZone>("SCREEN");
 
   const handleMessage = useEffectEvent((message: GazeBridgeMessage) => {
@@ -77,7 +79,7 @@ export function useGazeBridge(
 
   useEffect(() => {
     if (!enabled) return;
-    const socket = connectGazeBridge({ onMessage: (m) => handleMessage(m), onStatus: setStatus });
+    const socket = connectGazeBridge(GAZE_BRIDGE_URL, { onMessage: (m) => handleMessage(m), onStatus: setStatus });
     socketRef.current = socket;
     return () => {
       socket.close();
