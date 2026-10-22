@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test";
 import type { RawTranscriptSegment } from "@sightline/contracts";
 import type { ServerWebSocket } from "bun";
 
-import { buildScribeUrl, ElevenLabsStt } from "./elevenlabs-stt";
+import { buildScribeUrl, ElevenLabsStt, scribeKeyterms } from "./elevenlabs-stt";
 import type { SttStreamOptions } from "./types";
 
 /** Fake api.elevenlabs.io: token endpoint + realtime socket. */
@@ -92,6 +92,14 @@ describe("buildScribeUrl", () => {
     const url = new URL(buildScribeUrl({ ...base, language: "hi" }, options([]), "tok"));
     expect(url.searchParams.get("language_code")).toBe("hi");
     expect(url.searchParams.get("secondary_languages")).toBe("en");
+  });
+});
+
+describe("scribeKeyterms", () => {
+  it("keeps every keyterm within Scribe's 20-character limit (a longer one fails the whole session)", () => {
+    const terms = scribeKeyterms(["Kirchhoff's Current Law (KCL)", "Ohm's law", "Power dissipated in a resistor", "Thevenin equivalent circuit", "  ", "Ohm's law"]);
+    expect(terms).toEqual(["KCL", "Kirchhoff's", "Current", "Ohm's law", "Power", "Thevenin"]);
+    expect(terms.every((t) => t.length <= 20)).toBe(true);
   });
 });
 

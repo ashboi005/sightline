@@ -29,6 +29,7 @@ export type ElevenLabsSttOptions = {
 
 const MAX_BUFFERED_BYTES = 5 * 16000 * 2;
 const MAX_KEYTERMS = 50;
+const MAX_KEYTERM_CHARS = 20;
 const TERMINAL_ERRORS = new Set([
   "auth_error",
   "quota_exceeded",
@@ -41,6 +42,28 @@ const TERMINAL_ERRORS = new Set([
   "session_time_limit_exceeded",
 ]);
 
+/**
+ * Scribe realtime rejects the whole session if any keyterm is over 20 characters, and glossary terms often are
+ * ("Kirchhoff's Current Law (KCL)"). Keep short terms; from long ones keep the bracketed acronym and the
+ * distinctive capitalised words ("KCL", "Kirchhoff's").
+ */
+export function scribeKeyterms(terms: string[]): string[] {
+  const out = new Set<string>();
+  for (const raw of terms) {
+    const term = raw.trim().replace(/\s+/g, " ");
+    if (!term) continue;
+    if (term.length <= MAX_KEYTERM_CHARS) {
+      out.add(term);
+      continue;
+    }
+    for (const [, acronym] of term.matchAll(/\(([^)]{1,20})\)/g)) out.add(acronym!.trim());
+    const bare = term.replace(/\([^)]*\)/g, "").replace(/\s+/g, " ").trim();
+    if (bare.length <= MAX_KEYTERM_CHARS) out.add(bare);
+    else for (const word of bare.split(" ")) if (/^\p{Lu}/u.test(word) && word.length >= 5 && word.length <= MAX_KEYTERM_CHARS) out.add(word.replace(/[,.;:]+$/, ""));
+  }
+  return [...out].filter(Boolean).slice(0, MAX_KEYTERMS);
+}
+
 export function buildScribeUrl(opts: ElevenLabsSttOptions, stream: SttStreamOptions, token: string): string {
   const params = new URLSearchParams({
     model_id: opts.model,
@@ -50,9 +73,7 @@ export function buildScribeUrl(opts: ElevenLabsSttOptions, stream: SttStreamOpti
     vad_silence_threshold_secs: String(opts.vadSilenceSecs),
   });
   if (opts.language === "hi") params.append("secondary_languages", "en"); // Hinglish keeps both halves
-  for (const term of [...new Set(stream.keyterms.map((t) => t.trim()).filter(Boolean))].slice(0, MAX_KEYTERMS)) {
-    params.append("keyterms", term);
-  }
+  for (const term of scribeKeyterms(stream.keyterms)) params.append("keyterms", term);
   params.append("token", token);
   const ws = (opts.baseUrl ?? "https://api.elevenlabs.io").replace(/^http/, "ws").replace(/\/$/, "");
   return `${ws}/v1/speech-to-text/realtime?${params}`;

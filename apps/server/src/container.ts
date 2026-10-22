@@ -64,7 +64,7 @@ export function createContainer() {
   const model = new MastraStructuredModel(llmGateway, ENV.LLM_MODEL, { timeoutMs: ENV.PLATFORM_LLM_TIMEOUT_MS });
   const knowledge: KnowledgeEngine = mocks.knowledge
     ? new MockKnowledgeEngine()
-    : new QdrantKnowledgeEngine({ client: new QdrantClient({ url: ENV.QDRANT_URL, apiKey: ENV.QDRANT_API_KEY || undefined, timeout: 30_000 }),
+    : new QdrantKnowledgeEngine({ client: new QdrantClient({ url: ENV.QDRANT_URL, port: qdrantPort(ENV.QDRANT_URL), apiKey: ENV.QDRANT_API_KEY || undefined, timeout: 30_000 }),
         embeddings: new OpenAIEmbeddings(ENV.GEMINI_API_KEY, ENV.EMBEDDING_MODEL, { baseURL: ENV.GEMINI_BASE_URL, dimensions: ENV.EMBEDDING_DIMENSIONS }),
         model, dimensions: ENV.EMBEDDING_DIMENSIONS });
   const notes: NotesEngine = mocks.notes ? new MockNotesEngine() : new LlmNotesEngine(knowledge, model);
@@ -148,4 +148,9 @@ export type Container = ReturnType<typeof createContainer>;
 function requireEnv(value: string | undefined, name: string): string {
   if (!value) throw new Error(`${name} is required when STORAGE_DRIVER=s3`);
   return value;
+}
+
+/** The Qdrant client appends :6333 when the URL has no port — wrong behind a proxy (Coolify serves Qdrant on 80/443). */
+function qdrantPort(url: string) {
+  return Number(new URL(url).port) || null;
 }
