@@ -1,4 +1,4 @@
-import { Button } from "@sightline/ui/components/button";
+import { Button, buttonVariants } from "@sightline/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,11 +12,12 @@ import { Skeleton } from "@sightline/ui/components/skeleton";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { authClient } from "@/lib/auth-client";
+import { useSession, useSignOut } from "@/hooks/use-auth";
 
 export default function UserMenu() {
   const router = useRouter();
-  const { data: session, isPending } = authClient.useSession();
+  const { data: session, isPending } = useSession();
+  const signOut = useSignOut();
 
   if (isPending) {
     return <Skeleton className="h-9 w-24" />;
@@ -24,8 +25,8 @@ export default function UserMenu() {
 
   if (!session) {
     return (
-      <Link href="/login">
-        <Button variant="outline">Sign In</Button>
+      <Link href="/sign-in" className={buttonVariants({ variant: "outline" })}>
+        Sign in
       </Link>
     );
   }
@@ -42,15 +43,7 @@ export default function UserMenu() {
           <DropdownMenuItem>{session.user.email}</DropdownMenuItem>
           <DropdownMenuItem
             variant="destructive"
-            onClick={() => {
-              authClient.signOut({
-                fetchOptions: {
-                  onSuccess: () => {
-                    router.push("/");
-                  },
-                },
-              });
-            }}
+            onClick={() => signOut.mutate(undefined, { onSuccess: () => router.push("/") })}
           >
             Sign Out
           </DropdownMenuItem>
