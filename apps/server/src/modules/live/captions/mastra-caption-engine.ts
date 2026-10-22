@@ -31,9 +31,10 @@ export const LlmCaptionOutput = z.object({
       z.object({
         kind: z.enum(["text", "term", "formula"]),
         text: z.string(),
-        original: z.string().nullable(),
-        latex: z.string().nullable(),
-        display: z.enum(["INLINE", "BLOCK"]).nullable(),
+        // Models often omit unused fields instead of sending null — accept both.
+        original: z.string().nullish().transform((v) => v ?? null),
+        latex: z.string().nullish().transform((v) => v ?? null),
+        display: z.enum(["INLINE", "BLOCK"]).nullish().transform((v) => v ?? null),
       }),
     )
     .min(1),

@@ -13,7 +13,8 @@
     "smoke": "bun scripts/smoke.ts",
     "test": "bun test src",
     "eval:captions": "bun scripts/eval-captions.ts",
-    "check:pipeline": "bun scripts/pipeline-check.ts"
+    "check:pipeline": "bun scripts/pipeline-check.ts",
+    "check:providers": "bun scripts/check-providers.ts"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.2",
