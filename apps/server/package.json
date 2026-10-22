@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.2",
+    "@mastra/core": "^1.79.0",
     "@sightline/auth": "workspace:*",
     "@sightline/contracts": "workspace:*",
     "@sightline/db": "workspace:*",
@@ -21,12 +22,14 @@
     "@sinclair/typebox": "^0.34.52",
     "better-auth": "catalog:",
     "elysia": "^1.4.30",
+    "katex": "^0.19.0",
     "varlock": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@sightline/config": "workspace:*",
     "@types/bun": "catalog:",
+    "@types/katex": "^0.16.8",
     "tsdown": "^0.23.0",
     "typescript": "catalog:"
   }
