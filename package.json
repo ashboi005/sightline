@@ -32,6 +32,7 @@
     "dev:web": "bun run --filter web dev",
     "dev:server": "bun run --filter server dev",
     "dev:demo": "bun scripts/dev-demo.ts",
+    "live": "bun scripts/live.ts",
     "db:push": "bun run --filter @sightline/db db:push",
     "db:studio": "bun run --filter @sightline/db db:studio",
     "db:generate": "bun run --filter @sightline/db db:generate",
