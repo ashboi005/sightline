@@ -32,6 +32,7 @@
       },
       "devDependencies": {
         "@sightline/config": "workspace:*",
+        "@sightline/live-client": "workspace:*",
         "@types/bun": "catalog:",
         "@types/katex": "^0.16.8",
         "tsdown": "^0.23.0",
