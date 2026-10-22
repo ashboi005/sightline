@@ -141,6 +141,47 @@ The numbered review below is historical. Current fixes and verification are trac
 - Real Qdrant/converter/provider acceptance remains pending where prerequisites are unavailable. Deterministic
   tests do not establish production latency or model quality.
 
+## Live run — 2026-10-22 (Ashwath, `main` @ `84e02f1`, every module real)
+
+Your push `9012c4c` closes every item in the review below ✅. Then the whole backend ran against the real services:
+remote Postgres (migrations applied, both of yours), S3 (ap-south-1), Coolify Qdrant, Merge GLM 5.3 Flash, Gemini
+embeddings, ElevenLabs + Sarvam. Results:
+
+- ✅ Your Postgres integration suite against the remote DB: **10/10** (`TEST_DATABASE_URL`, `TEST_PDF_CONVERTERS`,
+  `TEST_PROVIDER`). With the default 5 s timeout 4 tests fail purely on latency (~166 ms round trip from a laptop);
+  they pass with `--timeout 120000`.
+- ✅ `check:e2e` (new, `apps/server/scripts/e2e-live.ts`), all green: context READY + glossary + vectors in Qdrant →
+  6-page PDF via poppler → PNGs in S3 behind owner-checked 302s → live captions/slide pointer → notes READY (cites real
+  segments, snapshot placed, Markdown export embeds images) → DELETE removes the Postgres rows, S3 objects and the
+  Qdrant collection + alias.
+- ✅ Fixed on my side (wiring): the Qdrant JS client silently appends `:6333` to a URL without a port, so the Coolify
+  URL never connected. `container.ts` now passes the URL's own port.
+
+Open, yours (found in the live run):
+
+1. **Glossary extraction is slow and spiky.** The same 4-line context took 5 s, 13 s, 21 s, 34 s, 72 s, and twice timed
+   out at `PLATFORM_LLM_TIMEOUT_MS=45000` (2 attempts × 45 s of a job slot). Captions don't get keyterms until it lands.
+   Ideas: cap the output (`max(200)` terms invites long generations — 30–40 is plenty for keyterms), ask for fewer
+   fields (definitions can come later), or publish a deterministic glossary first (slide titles + capitalised terms)
+   and upgrade it when the LLM answers.
+2. **Glossary term shape.** GLM returns terms like `Kirchhoff's voltage law (KVL)` / `Power dissipated in a resistor
+   (P = I^2 R)`. That leaked into captions ("Kirchhoff's Voltage Law, Kirchhoff's Voltage Law (KVL)") until I hardened
+   my prompt, and ElevenLabs Scribe **rejects the whole STT session** for any keyterm over 20 chars (I now shorten them
+   in `scribeKeyterms`). Please keep `term` canonical and short (`Kirchhoff's voltage law`), put acronyms / formulas in
+   `aliases` (`KVL`), and drop formula-like "terms".
+3. **`slide-processor.test.ts` fails on any machine with poppler installed** (expects FAILED, gets READY): setting
+   `Bun.env.PATH = ""` doesn't stop `Bun.which` from finding `/opt/homebrew/bin/pdfinfo`. Inject the `which` function (or
+   the command list) into `FileSlideProcessor` instead of mutating PATH.
+4. **Qdrant integration test can't reach an authenticated Qdrant:** `new QdrantClient({ url: qdrantUrl! })` has no
+   `apiKey` (add `TEST_QDRANT_API_KEY`) and hits the same `:6333` default (pass `port`). I verified ingest / retrieve /
+   isolation / drop against the real Qdrant with my own script instead.
+5. **One Qdrant collection per session** (`ctx_<sessionId>_<uuid>` + alias). Works and cleans up correctly. Fine at
+   hackathon scale; each collection costs memory and a file set, so for many sessions a single collection with a
+   `sessionId` payload index (filter on query) scales better. Not blocking.
+6. Minor: with mock persistence the delayed asset/recording cleanup job lives in memory, so stopping the server right
+   after a delete leaves the S3 objects behind (happened once after `smoke`; cleaned up by hand). Postgres jobs are
+   durable, so production is fine.
+
 ## Review — 2026-10-22 (Ashwath, against `origin/main` @ `03a6fc3`)
 
 **Overall:** solid. Persistence, recoverable jobs, private assets, PDF/PPTX conversion, Qdrant RAG with versioned

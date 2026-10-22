@@ -54,6 +54,9 @@ bun run dev:server
 | Unit tests (TTS, Deepgram, caption engine) | `bun run --filter server test` | no |
 | Whole caption pipeline with a fake Deepgram / Sarvam | `bun run --filter server check:pipeline` / `… check:pipeline sarvam` | no |
 | Golden-set quality + latency of the real LLM | `bun run --filter server eval:captions` | LLM key |
+| Real providers (Merge, Gemini, ElevenLabs TTS→Scribe, Sarvam) | `bun run --filter server check:providers` | yes |
+| Auth end to end (cookies, CORS, WS, isolation) | `bun run --filter server check:auth` (server with `MOCK_AUTH=false`) | DB |
+| **Whole backend live** (Postgres, S3, Qdrant, GLM, STT/TTS, notes) | `bun run --filter server check:e2e` (server with `USE_MOCK_DATA=false`) | all |
 | Live client | `bun run --filter @sightline/live-client test` | no |
 | Gaze bridge | `bun run gaze:test` | no |
 | Speaker service | `bun run speaker:test` (`SPEAKER_MODEL_TESTS=1` for real-model tests) | no |

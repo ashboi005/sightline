@@ -20,7 +20,12 @@
    machine with the public URL, or a Coolify one-off command). Include the snapshot/recording forward migration;
    do not use `db:push` for deployment. See [platform upgrades](implementation/tushar-operations.md#migrations-and-upgrades).
 2. **Qdrant:** create the service with a persistent volume on `/qdrant/storage` and set `QDRANT__SERVICE__API_KEY`.
-   Server env: `QDRANT_URL=http://<internal-host>:6333`, `QDRANT_API_KEY=…`.
+   Server env: `QDRANT_URL=http://<internal-host>:6333`, `QDRANT_API_KEY=…`. Prefer the *internal* URL: over the public
+   `http://…sslip.io` proxy the API key travels in clear text. A URL without a port now means 80/443 (the Qdrant JS
+   client would otherwise silently add `:6333` — handled in `container.ts`).
+3. **S3:** `S3_ACCESS_KEY_ID` is marked `@public` in `.env.schema` on purpose — AWS puts it in every presigned URL
+   (`X-Amz-Credential`) and varlock's leak scanner would otherwise 500 any response carrying one. The secret stays
+   sensitive. Use an IAM user scoped to the one bucket.
 
 ## 2. Server app
 
@@ -76,4 +81,12 @@ Browsers allow `ws://localhost` from an HTTPS page, so the deployed web app can 
 ```bash
 curl https://api.<domain>/api/health          # mocks flags show what is real
 SERVER_URL=https://api.<domain> bun run --filter server smoke   # only with MOCK_SPEECH=true (replay)
+SERVER_URL=https://api.<domain> WEB_ORIGIN=https://<domain> bun run --filter server check:auth
+SERVER_URL=https://api.<domain> WEB_ORIGIN=https://<domain> bun run --filter server check:e2e   # everything real
 ```
+
+`check:e2e` signs up a throwaway `e2e+<ts>@sightline.dev` user, speaks the Kirchhoff lecture with ElevenLabs TTS into
+the session socket, and walks context → slides → captions → sign → snapshot → recording → notes → delete against
+real Postgres, S3, Qdrant, Merge GLM, Gemini and ElevenLabs. It deletes its session (S3 + Qdrant included); the test
+user stays. Last local run (2026-10-22): all checks pass — context 20–70 s, slides 20 s, first caption ~5.8 s after
+audio start, sign sentence 5 s, notes 40 s.
