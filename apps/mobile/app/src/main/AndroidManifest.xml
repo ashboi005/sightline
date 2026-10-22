@@ -22,7 +22,7 @@
         android:fullBackupContent="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:label="Sightline USB"
-        android:icon="@drawable/ic_camera"
+        android:icon="@drawable/ic_sightline"
         android:theme="@style/AppTheme"
         android:supportsRtl="true">
         <activity android:name=".MainActivity" android:exported="true">

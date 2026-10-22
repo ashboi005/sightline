@@ -1,0 +1,9 @@
+Atkinson Hyperlegible Next
+
+Source: Google Fonts, https://github.com/google/fonts/tree/main/ofl/atkinsonhyperlegiblenext
+Downloaded 2026-10-23 from:
+https://raw.githubusercontent.com/google/fonts/main/ofl/atkinsonhyperlegiblenext/AtkinsonHyperlegibleNext%5Bwght%5D.ttf
+
+Upstream font blob SHA: 92a357554bdcca62a7e80d5e3724bf4eb8932e5e
+Bundled unmodified. Distributed under SIL Open Font License 1.1.
+See Atkinson-Hyperlegible-Next-OFL.txt in this directory.
