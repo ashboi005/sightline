@@ -9,6 +9,7 @@ import type {
   CaptionSegment,
   KnowledgeEngine,
   RawTranscriptSegment,
+  SlideLocator,
   SlidePointer,
 } from "@sightline/contracts";
 
@@ -28,6 +29,7 @@ export class LiveCaptions {
       stt: SpeechToText;
       captions: CaptionEngine;
       knowledge: KnowledgeEngine;
+      slides: SlideLocator;
       events: SessionEvents;
     },
   ) {}
@@ -96,7 +98,7 @@ export class LiveCaptions {
   }
 
   private async handleSegment(raw: RawTranscriptSegment): Promise<void> {
-    const { store, events, captions, knowledge } = this.deps;
+    const { store, events, captions, slides } = this.deps;
     const sessionId = raw.sessionId;
 
     if (!raw.isFinal) {
@@ -133,14 +135,10 @@ export class LiveCaptions {
       const previous = (await store.listSegments(sessionId)).filter((s) => s.status === "REFINED").slice(-5);
       const refined = await captions.refineCaption({ sessionId, segment: raw, previous });
 
-      const deck = await store.getSlideDeck(sessionId);
       const state = this.live.get(sessionId);
-      const pointer =
-        deck?.status === "READY"
-          ? await knowledge
-              .locateSlide({ sessionId, text: refined.text, currentSlideIndex: state?.pointer?.slideIndex ?? null })
-              .catch(() => null)
-          : null;
+      const pointer = await slides
+        .locate({ sessionId, text: refined.text, currentSlideIndex: state?.pointer?.slideIndex ?? null })
+        .catch(() => null);
 
       const refinedSegment: CaptionSegment = { ...finalSegment, ...refined, status: "REFINED", slidePointer: pointer };
       await store.upsertSegment(refinedSegment);

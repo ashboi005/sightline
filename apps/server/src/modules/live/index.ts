@@ -15,6 +15,7 @@ import { LiveCaptions } from "./realtime/live-captions";
 import { sessionSocket } from "./realtime/socket";
 import { liveRoutes } from "./routes";
 import { SignUtterances } from "./sign-utterances";
+import { LexicalSlideLocator } from "./slides/slide-locator";
 import type { SpeechToText, TextToSpeech } from "./speech/types";
 
 export type CaptionConfig =
@@ -41,7 +42,8 @@ export function createLiveModule(deps: {
         captionTimeoutMs: deps.captions.timeoutMs,
         useRag: deps.captions.useRag,
       });
-  const live = new LiveCaptions({ store, stt: deps.stt, captions, knowledge, events: hub });
+  const slides = new LexicalSlideLocator(store);
+  const live = new LiveCaptions({ store, stt: deps.stt, captions, knowledge, slides, events: hub });
   const sign = new SignUtterances({ store, captions, tts: deps.tts, assets: deps.assets, events: hub, assetUrl: deps.assetUrl });
 
   const lifecycle: SessionLifecycle = {
@@ -59,6 +61,6 @@ export function createLiveModule(deps: {
     lifecycle,
     routes: liveRoutes({ store, resolveUser, sign }),
     socket: sessionSocket({ store, hub, live, resolveUser }),
-    devRoutes: captionDevRoutes(captions),
+    devRoutes: captionDevRoutes(captions, slides),
   };
 }

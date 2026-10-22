@@ -1,6 +1,7 @@
 /**
  * Fixture-backed KnowledgeEngine. Used when MOCK_KNOWLEDGE=true.
  * Ingest returns the Kirchhoff glossary/topics; retrieval is naive word overlap over the ingested text.
+ * (The slide pointer moved to the live module — modules/live/slides.)
  */
 import type {
   ContextChunk,
@@ -8,22 +9,14 @@ import type {
   IngestContextInput,
   IngestContextResult,
   KnowledgeEngine,
-  LocateSlideInput,
   RetrieveContextInput,
-  SlidePointer,
 } from "@sightline/contracts";
 import { fixtures } from "@sightline/mocks";
 
-const { context, script } = fixtures.lecture;
+const { context } = fixtures.lecture;
 
 const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
 const words = (s: string) => new Set(normalize(s).split(" ").filter((w) => w.length > 2));
-const pointerByText = new Map(
-  script.segments.flatMap((s) => [
-    [normalize(s.raw), s.slidePointer],
-    [normalize(s.refined.text), s.slidePointer],
-  ]),
-);
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export class MockKnowledgeEngine implements KnowledgeEngine {
@@ -57,10 +50,6 @@ export class MockKnowledgeEngine implements KnowledgeEngine {
       .filter((c) => c.score > 0)
       .sort((a, b) => b.score - a.score)
       .slice(0, input.limit);
-  }
-
-  async locateSlide(input: LocateSlideInput): Promise<SlidePointer | null> {
-    return pointerByText.get(normalize(input.text)) ?? null;
   }
 
   async dropSession(sessionId: string): Promise<void> {

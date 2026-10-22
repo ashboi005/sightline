@@ -4,7 +4,7 @@
  * Consumers:
  *  - Ashwath's live caption pipeline: `getGlossary` (STT keyterms + fast corrections) and `retrieveContext`
  *    (grounding for the caption refiner / sign composer).
- *  - Tushar's own notes engine and slide pointer.
+ *  - Tushar's own notes engine.
  *
  * In-process inside apps/server. MOCK_KNOWLEDGE=true swaps in the fixture-backed mock.
  * Rules: never throw for "nothing found" — return [] / null. Throw only on real failures (Qdrant down);
@@ -13,7 +13,7 @@
 import { z } from "zod";
 
 import { SessionId } from "../domain/common";
-import { GlossaryTerm, Slide, SlidePointer } from "../domain/context";
+import { GlossaryTerm, Slide } from "../domain/context";
 
 // --- ingestContext ---------------------------------------------------------
 
@@ -55,15 +55,6 @@ export const ContextChunk = z.object({
 });
 export type ContextChunk = z.infer<typeof ContextChunk>;
 
-// --- locateSlide (P1) ------------------------------------------------------
-
-export const LocateSlideInput = z.object({
-  sessionId: SessionId,
-  text: z.string(),
-  currentSlideIndex: z.number().int().nonnegative().nullable(),
-});
-export type LocateSlideInput = z.infer<typeof LocateSlideInput>;
-
 export interface KnowledgeEngine {
   /** "mock" or "qdrant" — surfaced in logs. */
   readonly name: string;
@@ -76,9 +67,6 @@ export interface KnowledgeEngine {
 
   /** Top-k chunks relevant to `query`. Called per caption segment — < 300 ms p95. */
   retrieveContext(input: RetrieveContextInput): Promise<ContextChunk[]>;
-
-  /** P1 — which slide/bullet the text is about. Null when unsure or no slides. < 500 ms. */
-  locateSlide(input: LocateSlideInput): Promise<SlidePointer | null>;
 
   /** Free per-session resources (Qdrant collection, caches). */
   dropSession(sessionId: string): Promise<void>;

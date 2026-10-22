@@ -14,7 +14,6 @@ const knowledge = (overrides: Partial<KnowledgeEngine> = {}): KnowledgeEngine =>
   },
   getGlossary: async () => glossary,
   retrieveContext: async () => [],
-  locateSlide: async () => null,
   dropSession: async () => {},
   ...overrides,
 });

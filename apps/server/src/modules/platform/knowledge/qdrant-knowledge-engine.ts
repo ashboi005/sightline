@@ -8,9 +8,7 @@ import type {
   IngestContextInput,
   IngestContextResult,
   KnowledgeEngine,
-  LocateSlideInput,
   RetrieveContextInput,
-  SlidePointer,
 } from "@sightline/contracts";
 
 import { notImplemented } from "../../../lib/errors";
@@ -41,11 +39,6 @@ export class QdrantKnowledgeEngine implements KnowledgeEngine {
   async retrieveContext(_input: RetrieveContextInput): Promise<ContextChunk[]> {
     // TODO(tushar): embed query → Qdrant search in `ctx_<sessionId>` → ContextChunk[] (< 300 ms p95).
     throw notImplemented("KnowledgeEngine.retrieveContext", OWNER);
-  }
-
-  async locateSlide(_input: LocateSlideInput): Promise<SlidePointer | null> {
-    // TODO(tushar, P1): nearest slide/bullet chunk; hysteresis around currentSlideIndex.
-    return null;
   }
 
   async dropSession(_sessionId: string): Promise<void> {
