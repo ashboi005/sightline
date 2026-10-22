@@ -15,6 +15,8 @@ import { ElevenLabsStt } from "./modules/live/speech/elevenlabs-stt";
 import { SarvamStt } from "./modules/live/speech/sarvam-stt";
 import { MockReplayStt } from "./modules/live/speech/mock-stt";
 import { CachedTts, ElevenLabsTts, MockTts, SarvamTts } from "./modules/live/speech/tts";
+import { KeyPool } from "./lib/key-pool";
+import type { GatewayConfig } from "./lib/llm-gateway";
 import { LocalObjectStorage, type ObjectStorage, S3ObjectStorage } from "./lib/storage";
 import { MemoryAssetIndex, ObjectAssetStore, PostgresAssetIndex } from "./modules/platform/assets/asset-store";
 import { RecordingService } from "./modules/recordings/recording-service";
@@ -35,7 +37,9 @@ import { JobRunner } from "./modules/platform/jobs/runner";
 
 export function createContainer() {
   const { mocks } = config;
-  const llmGateway = { url: ENV.LLM_GATEWAY_URL, apiKey: ENV.MERGE_GATEWAY_API_KEY };
+  // Gemini keys (up to 4 projects) rotate per call: embeddings, and any *_MODEL set to "gemini/<model>".
+  const geminiKeys = new KeyPool("gemini", [ENV.GEMINI_API_KEY, ENV.GEMINI_API_KEY_2, ENV.GEMINI_API_KEY_3, ENV.GEMINI_API_KEY_4]);
+  const llmGateway: GatewayConfig = { url: ENV.LLM_GATEWAY_URL, apiKey: ENV.MERGE_GATEWAY_API_KEY, gemini: { url: ENV.GEMINI_BASE_URL, pool: geminiKeys } };
   const assetUrl = (assetId: string) => `${config.publicUrl}/api/assets/${assetId}`;
 
   // --- surrounding (Tushar) ------------------------------------------------
@@ -65,7 +69,7 @@ export function createContainer() {
   const knowledge: KnowledgeEngine = mocks.knowledge
     ? new MockKnowledgeEngine()
     : new QdrantKnowledgeEngine({ client: new QdrantClient({ url: ENV.QDRANT_URL, port: qdrantPort(ENV.QDRANT_URL), apiKey: ENV.QDRANT_API_KEY || undefined, timeout: 30_000 }),
-        embeddings: new OpenAIEmbeddings(ENV.GEMINI_API_KEY, ENV.EMBEDDING_MODEL, { baseURL: ENV.GEMINI_BASE_URL, dimensions: ENV.EMBEDDING_DIMENSIONS }),
+        embeddings: new OpenAIEmbeddings(geminiKeys, ENV.EMBEDDING_MODEL, { baseURL: ENV.GEMINI_BASE_URL, dimensions: ENV.EMBEDDING_DIMENSIONS }),
         model, dimensions: ENV.EMBEDDING_DIMENSIONS });
   const notes: NotesEngine = mocks.notes ? new MockNotesEngine() : new LlmNotesEngine(knowledge, model);
   const resolveUser = createUserResolver({ mock: mocks.auth, auth });
@@ -130,7 +134,7 @@ export function createContainer() {
   const platform = new PlatformService({ store, knowledge, notes, slides, assets, storage, recordingCleanupDelayMs: (ENV.STORAGE_URL_TTL_SECONDS + 300) * 1000, events: live.events, lifecycle: live.lifecycle, jobs });
   const runner = new JobRunner(jobs, (job) => platform.executeJob(job));
   const initialize = async () => {
-    if (!mocks.knowledge && !ENV.GEMINI_API_KEY) throw new Error("Real knowledge requires GEMINI_API_KEY (embeddings)");
+    if (!mocks.knowledge && !geminiKeys.size) throw new Error("Real knowledge requires GEMINI_API_KEY (embeddings)");
     if ((!mocks.knowledge || !mocks.notes) && !ENV.MERGE_GATEWAY_API_KEY) throw new Error("Real knowledge/notes require MERGE_GATEWAY_API_KEY (LLM)");
     if (store instanceof PostgresStore && mocks.auth) await store.provisionDemoUser();
     if (knowledge instanceof QdrantKnowledgeEngine) knowledge.hydrate(await store.listReadyContexts());
