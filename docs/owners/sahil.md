@@ -60,6 +60,20 @@ services; then `bun run dev:web`. The sidebar badge shows which server modules a
 The gaze mock reads its terminal's keys (`b` board, `s` screen, `p` person, `m` auto). `MOCK_SIGN_AUTO=1` makes the
 sign mock recognise phrases without a webcam.
 
+### Real sign-in (demo mode off)
+
+With `MOCK_AUTH=false` the app uses better-auth for real: sign up / sign in create a session cookie that every REST
+call and the lecture socket send. It needs Postgres:
+
+```bash
+bun run infra:up && bun run db:migrate                         # Postgres (+ Qdrant) and the schema
+MOCK_AUTH=false MOCK_PERSISTENCE=false bun run dev:demo        # real accounts and storage, other modules mocked
+```
+
+The workspace redirects to `/sign-in?next=<page>` when there's no session or the API answers 401, and returns to
+that page after signing in. Signing out reloads the home page and forgets this browser's running lecture. With
+`MOCK_AUTH=true` every visitor is the demo student and the auth pages forward straight to the dashboard.
+
 For the **mic, live captions and look-to-hear**, don't touch Web Audio yourself. Use `@sightline/live-client` (Ashwath's):
 
 ```ts
