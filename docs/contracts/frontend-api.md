@@ -263,7 +263,7 @@ Mock: `bun run mock:speaker` · details: [speaker-service.md](speaker-service.md
 | Screen (`apps/web/src/app/(workspace)/…`) | REST | Sockets / services |
 | --- | --- | --- |
 | Sign in / sign up | `/api/auth/*`, `me` | – |
-| Dashboard | `listSessions`, `createSession`, `deleteSession` | – |
+| Dashboard | `listSessions`, `createSession`, `deleteSession` (also on draft preparation) | – |
 | Setup (hardware check + calibration) | `health` | gaze bridge `device.status`, `calibration.*`; speaker `/health`; sign `service.ready` |
 | Lecture prep (`lecture/`) | `createSession`, `setContextText`, `uploadSlides`, `getSlides`, `getContext`, `updateSession` (mode) | gaze bridge `mode.set` |
 | Live (`lecture/[sessionId]`) | `startSession`, `endSession`, `getTranscript`, `uploadSnapshot`, recordings (§2.4) | session socket, gaze bridge, speaker service, mic |
@@ -277,15 +277,20 @@ Mock: `bun run mock:speaker` · details: [speaker-service.md](speaker-service.md
 `live-lecture-provider.tsx`, recordings via `createRecordingUploader`). ✅ Session socket, gaze bridge, sign service,
 mic, look → hear and smart snapshots are wired through the shared clients. ✅ Auth flows tested end to end.
 
+Also wired: `deleteSession` (lecture cards and draft preparation, with confirmation), socket `error` codes shown in
+the lecture (`STT_ERROR` = "Captions stopped", cleared when captions resume), `snapshot.request` without a scene
+camera (prompt to turn it on), `snapshot.captured` thumbnail toasts, `sign.utterance` speech for `SELF` (once per
+utterance across REST and socket), and a lecture ended or deleted elsewhere (this device saves its recording and
+releases the mic and cameras). `useGazeBridge` exposes `startCalibration()`, `confirmCalibration(step)`,
+`cancelCalibration()` and `setMode()`.
+
 Open on the frontend:
 
-1. **Setup page is a placeholder** (`app/(workspace)/setup/page.tsx`): build the hardware check (bridge
-   `device.status`, `api.health()`, mic/webcam permissions, speaker `/health`, sign `service.ready`) and the
-   calibration flow — this is what Arunya's real tracker needs.
-2. **`useGazeBridge` has no calibration commands yet**: expose `startCalibration()`, `confirmCalibration(step)`,
-   `cancelCalibration()` (`calibration.start/confirm/cancel`); draw the dot from `calibration.progress.target`, show
-   `calibration.result`. Optional: `lockFocus(targetId)` / `unlockFocus()` (`audio.focus.lock/unlock`).
-3. Handle the socket `error` with `code: "STT_ERROR"` visibly (captions stopped), not just in the console.
+1. **Setup page is a placeholder** (`app/(workspace)/setup/page.tsx`) until the tracker hardware is ready: build the
+   hardware check (bridge `device.status`, `api.health()`, mic/webcam permissions, speaker `/health`, sign
+   `service.ready`) and the calibration flow (draw the dot from `calibration.progress.target`, show
+   `calibration.result`).
+2. Optional: `audio.focus.lock/unlock` on the bridge (reserved while look → hear runs in the speaker service).
 
 ## 8. Running against the real backend
 
