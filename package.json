@@ -51,7 +51,9 @@
     "speaker:setup": "cd apps/speaker-service && uv sync --frozen && uv run python -m sightline_speaker.assets --dir data/assets",
     "speaker:dev": "cd apps/speaker-service && uv run sightline-speaker --device auto",
     "speaker:test": "cd apps/speaker-service && uv run pytest -q",
-    "mock:speaker": "bun run --filter @sightline/mocks speaker"
+    "mock:speaker": "bun run --filter @sightline/mocks speaker",
+    "gaze:dev": "cd apps/gaze-bridge && uv run gaze-bridge --tracker fake",
+    "gaze:test": "cd apps/gaze-bridge && uv run pytest -q"
   },
   "dependencies": {
     "zod": "catalog:"
