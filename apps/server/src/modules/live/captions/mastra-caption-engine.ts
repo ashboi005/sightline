@@ -18,6 +18,8 @@ import type {
   RefineCaptionResult,
 } from "@sightline/contracts";
 import katex from "katex";
+
+import { soundsLike } from "../../../lib/sounds-like";
 import { z } from "zod";
 
 import { refineWithGlossary } from "./glossary-refiner";
@@ -166,35 +168,8 @@ function isValidLatex(latex: string): boolean {
   }
 }
 
-const stem = (w: string) => w.replace(/'s$/, "").replace(/s$/, "");
-const bigrams = (s: string) => new Set(Array.from({ length: Math.max(0, s.length - 1) }, (_, i) => s.slice(i, i + 2)));
-
-/**
- * Is `term` a plausible correction of what STT heard (`original`)? Models also use "term" parts to swap correctly
- * heard words for glossary entries, which changes the meaning. Rejected (the spoken words are kept):
- *  - acronyms or lengthening: "KCL" → "Kirchhoff's current law", "Kirchhoff's laws" → "Kirchhoff's voltage law";
- *  - inflections of a real word: "resistors" → "Resistance";
- *  - anything that doesn't look like the heard words: "sigma I in equals sigma I out" → "Conservation of charge".
- * Accepted: real mis-hearings such as "kerchief's" → "Kirchhoff's", "mash analysis" → "mesh analysis".
- */
-export function plausibleMishearing(original: string, term: string): boolean {
-  const o = original.trim();
-  const t = term.trim();
-  if (o.toLowerCase() === t.toLowerCase()) return true;
-  if (/^[A-Z]{2,6}s?$/.test(o)) return false;
-  const ow = words(o).map(stem);
-  const tw = words(t).map(stem);
-  if (ow.length > 0 && ow.every((w) => tw.includes(w))) return false;
-  if (ow.length === 1 && tw.length === 1) {
-    let common = 0;
-    while (common < Math.min(ow[0]!.length, tw[0]!.length) && ow[0]![common] === tw[0]![common]) common++;
-    if (common >= 5) return false;
-  }
-  const a = bigrams(ow.join(""));
-  const b = bigrams(tw.join(""));
-  const shared = [...a].filter((g) => b.has(g)).length;
-  return a.size + b.size > 0 && (2 * shared) / (a.size + b.size) >= 0.2; // kerchief→Kirchhoff 0.27, unrelated phrases < 0.1
-}
+/** A glossary "term" swap must look like a mis-hearing of what was said (see lib/sounds-like.ts). */
+export const plausibleMishearing = soundsLike;
 
 function findGlossaryId(text: string, glossary: GlossaryTerm[]): string | null {
   const needle = text.trim().toLowerCase();
@@ -208,11 +183,15 @@ function findGlossaryId(text: string, glossary: GlossaryTerm[]): string | null {
 export function toRefined(output: LlmCaptionOutput, glossary: GlossaryTerm[], rawText: string): RefineCaptionResult | null {
   const parts: CaptionPart[] = [];
   const corrections: CaptionCorrection[] = [];
+  const spokenWords: string[] = words(rawText);
 
   for (const p of output.parts) {
     if (p.kind === "formula" && p.latex && p.latex.trim() && isValidLatex(p.latex)) {
       parts.push({ type: "formula", latex: p.latex.trim(), spoken: p.text, display: p.display ?? "INLINE" });
       corrections.push({ from: p.text, to: p.latex.trim(), reason: "FORMULA" });
+    } else if (p.kind === "term" && !p.original && p.text.trim() && !words(p.text).every((w) => spokenWords.includes(w))) {
+      // A glossary term with no spoken counterpart is an insertion, not a correction: drop it.
+      continue;
     } else if (p.kind === "term" && p.text.trim() && (!p.original || plausibleMishearing(p.original, p.text))) {
       const original = p.original && p.original.trim().toLowerCase() !== p.text.trim().toLowerCase() ? p.original : null;
       parts.push({ type: "term", text: p.text, glossaryTermId: findGlossaryId(p.text, glossary), original });
@@ -235,6 +214,11 @@ export function toRefined(output: LlmCaptionOutput, glossary: GlossaryTerm[], ra
   const raw = words(rawText);
   if (raw.length > 0 && raw.filter((w) => kept.has(w)).length / raw.length < MIN_KEPT_WORD_RATIO) return null;
   if (outWords.length > raw.length * 1.6 + 3) return null;
+  // Plain-text parts are the speaker's words with punctuation/casing fixed; words nobody said ("Sure, once more.
+  // Sridharacharya's formula: …") mean the model is writing, not correcting.
+  const heard = new Set(raw);
+  const inserted = words(parts.flatMap((p) => (p.type === "text" ? [p.text] : [])).join(" ")).filter((w) => !heard.has(w));
+  if (inserted.length > Math.max(2, Math.ceil(raw.length * 0.15))) return null;
 
   return {
     text: parts.map((p) => (p.type === "formula" ? p.latex : p.text)).join(""),

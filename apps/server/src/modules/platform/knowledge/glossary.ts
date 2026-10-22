@@ -12,6 +12,7 @@ import { randomUUID } from "node:crypto";
 import { GlossaryCategory, type GlossaryTerm, type IngestContextInput } from "@sightline/contracts";
 import { z } from "zod";
 
+import { soundsLike } from "../../../lib/sounds-like";
 import type { KnowledgeChunk } from "./chunks";
 
 const MAX_TERMS = 30;
@@ -35,8 +36,10 @@ export type GlossaryDraft = z.infer<typeof GlossaryDraft>;
 export const GLOSSARY_INSTRUCTIONS = `Build the glossary that live captions for this lecture must spell correctly.
 Return at most ${MAX_TERMS} terms, most important first, only terms present in the excerpts:
 - term: the canonical name, at most 40 characters, no brackets, no formulas (e.g. "Kirchhoff's voltage law", "Thevenin equivalent").
-- aliases: acronyms and how speech recognition may mis-hear the term (e.g. "KVL", "kerchief's voltage law").
-  Never a single letter, a symbol or a common English word.
+- aliases: the acronym, and how speech recognition may MIS-HEAR the term: sound-alikes such as "KVL",
+  "kerchief's voltage law", "Sridhar Acharya formula". Never synonyms or other names for the same idea ("quadratic
+  formula" is not an alias of "Sridharacharya's formula"; list it as its own term), never a single letter, a symbol
+  or a common English word.
 - category: one of ${GlossaryCategory.options.join(", ")}.
 - definition: at most 12 words.
 Also return up to 8 short lecture topics. Never invent content.`;
@@ -57,8 +60,10 @@ export function normalizeGlossary(draft: GlossaryDraft, input: Pick<IngestContex
     const term = raw.term.replace(/\([^)]*\)/g, "").replace(/\s+/g, " ").trim().slice(0, 60);
     if (term.length < 2 || /[=^_\\]/.test(term) || seen.has(term.toLowerCase())) continue;
     seen.add(term.toLowerCase());
+    // Keep acronyms (context for the LLM) and sound-alike mis-hearings; drop synonyms and other names, which would
+    // make captions swap correctly heard words ("quadratic formula" → "Sridharacharya's formula", "roots" → "solutions").
     const aliases = [...new Set([...brackets, ...(raw.aliases ?? [])].map((a) => a.trim()))].filter(
-      (a) => a.replace(/[^\p{L}\p{N}]/gu, "").length >= 3 && a.toLowerCase() !== term.toLowerCase() && !COMMON.has(a.toLowerCase()) && !/[=^_\\]/.test(a),
+      (a) => a.replace(/[^\p{L}\p{N}]/gu, "").length >= 3 && a.toLowerCase() !== term.toLowerCase() && !COMMON.has(a.toLowerCase()) && !/[=^_\\]/.test(a) && (/^[A-Z]{2,6}s?$/.test(a) || soundsLike(a, term)),
     );
     const category = GlossaryCategory.safeParse(raw.category?.toUpperCase()).data ?? (/\blaw\b/i.test(term) ? "LAW" : "TERM");
     terms.push({

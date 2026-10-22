@@ -4,7 +4,8 @@
  */
 
 const CUES: { pattern: RegExp; label: string }[] = [
-  { pattern: /\b(look|see|notice|observe)\s+(at\s+)?(this|that|the|here)\b/i, label: "look at this" },
+  // "look at the…" / "see this" point at something; "notice that…" / "see that…" are verbal ("notice that the sum…").
+  { pattern: /\b(look|see|notice|observe)\s+(at\s+)?(this|here)\b|\blook\s+at\s+(that|the)\b/i, label: "look at this" },
   { pattern: /\bas you can see\b/i, label: "as you can see" },
   { pattern: /\b(let me|i'?ll|i will|i'?m going to)\s+(draw|sketch|write|show)\b/i, label: "teacher is drawing" },
   { pattern: /\b(on|at) the (board|screen|slide)\b/i, label: "on the board" },

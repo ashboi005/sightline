@@ -5,14 +5,17 @@
  */
 import type { CaptionCorrection, CaptionPart, GlossaryTerm, RefineCaptionResult } from "@sightline/contracts";
 
+import { soundsLike } from "../../../lib/sounds-like";
+
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 export function refineWithGlossary(text: string, glossary: GlossaryTerm[]): RefineCaptionResult {
   const corrections: CaptionCorrection[] = [];
   const parts: CaptionPart[] = [];
   const aliases = glossary
-    // An alias under 3 letters ("I" for current, "V" for voltage) would rewrite ordinary words: never use one.
-    .flatMap((term) => term.aliases.filter((alias) => alias.replace(/[^\p{L}\p{N}]/gu, "").length >= 3).map((alias) => ({ pattern: new RegExp(`\\b${escapeRegExp(alias)}\\b`, "i"), term })))
+    // Only sound-alike mis-hearings: an alias under 3 letters ("I" for current) or a synonym ("quadratic formula" for
+    // "Sridharacharya's formula") would rewrite correctly heard words.
+    .flatMap((term) => term.aliases.filter((alias) => alias.replace(/[^\p{L}\p{N}]/gu, "").length >= 3 && soundsLike(alias, term.term)).map((alias) => ({ pattern: new RegExp(`\\b${escapeRegExp(alias)}\\b`, "i"), term })))
     .sort((a, b) => b.pattern.source.length - a.pattern.source.length);
 
   let rest = text;
