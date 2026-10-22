@@ -70,7 +70,7 @@ Clay utilities (defined in `globals.css`; pair each with a rounded class):
 | Utility | Use for |
 | --- | --- |
 | `clay` | Primary raised surfaces: cards, sidebar shell, panels |
-| `clay-sm` | Smaller raised things: selected nav item, list cards, chips that rise |
+| `clay-sm` | Smaller raised things: list cards, chips that rise, the icon tile of the current nav item |
 | `clay-sunken` | Wells: empty states, placeholders, tab tracks |
 | `clay-marigold` | Primary action and the one highlighted card on a page |
 | `clay-sage` / `clay-lilac` | Tinted quick actions, selected list items, icon tiles |
@@ -148,6 +148,8 @@ Extend these rather than restyling a one-off; add to `packages/ui` only when a p
 
 - **Shell**: every signed-in page lives in `app/(workspace)` and gets the sidebar, backdrop, auth gate and the
   running lecture for free. The sidebar collapses to an icon rail on desktop and becomes a drawer below `lg`.
+  Each nav item keeps its tone from `workspace/nav.ts`: tone-ink icon at rest, tone tint on hover, tone clay
+  on the current page.
 - **Page skeleton**: `<div className="mx-auto max-w-6xl space-y-6">` → `PageHeader` → content in `ClayCard`s. Widths:
   forms `max-w-3xl`; dashboard and preparation `max-w-6xl`; notes and recordings `max-w-7xl`; the live lecture uses
   nearly full width.

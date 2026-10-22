@@ -8,7 +8,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { Logo, LogoMark } from "@/components/brand/logo";
-import { IconTile } from "@/components/clay/clay";
+import type { Tone } from "@/components/clay/clay";
 import { useLiveLecture } from "@/providers/live-lecture-provider";
 
 import { AccountFooter } from "./account-footer";
@@ -16,6 +16,18 @@ import { ActiveLectureCard } from "./active-lecture-card";
 import { EnvironmentBadge } from "./environment-badge";
 import { NAV, isActive } from "./nav";
 import { RailTip } from "./rail-tip";
+
+/** Each destination keeps its tone: tinted icon at rest, tinted row on hover, tone clay when it's the current page. */
+const navTone: Record<Tone, { active: string; hover: string; ink: string }> = {
+  plain: { active: "clay-sm", hover: "hover:bg-foreground/5", ink: "text-foreground" },
+  marigold: {
+    active: "bg-[color-mix(in_oklch,var(--marigold)_26%,var(--card))] shadow-[var(--clay-shadow-sm)]",
+    hover: "hover:bg-marigold/12",
+    ink: "text-marigold-ink",
+  },
+  sage: { active: "clay-sage", hover: "hover:bg-sage/70", ink: "text-sage-ink" },
+  lilac: { active: "clay-lilac", hover: "hover:bg-lilac/70", ink: "text-lilac-ink" },
+};
 
 /**
  * The sidebar's contents, shared by the desktop sidebar and the mobile drawer. `collapsed` shows icons only;
@@ -67,6 +79,7 @@ export function SidebarContent({
             const live = item.href === "/lecture" && Boolean(lecture.activeId);
             // While a lecture runs, "Live lecture" goes straight to it.
             const href = (live ? `/lecture/${lecture.activeId}` : item.href) as Route;
+            const tone = navTone[item.tone];
             return (
               <li key={item.href} className={cn(collapsed && "flex justify-center")}>
                 <RailTip label={live ? `${item.label} (live now)` : item.label} show={collapsed}>
@@ -78,10 +91,15 @@ export function SidebarContent({
                     className={cn(
                       "group relative flex min-h-12 items-center gap-3 rounded-[1.1rem] text-[0.95rem] outline-none transition-[background,box-shadow] focus-visible:ring-2 focus-visible:ring-ring",
                       collapsed ? "size-12 justify-center" : "px-2 py-1.5",
-                      active ? "clay-sm font-bold" : "font-semibold text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
+                      active ? cn(tone.active, "font-bold text-foreground") : cn(tone.hover, "font-semibold text-muted-foreground hover:text-foreground"),
                     )}
                   >
-                    <IconTile icon={item.icon} tone={active ? item.tone : "plain"} size="sm" className={cn(!active && "bg-transparent shadow-none")} />
+                    <span
+                      aria-hidden="true"
+                      className={cn("inline-flex size-8 shrink-0 items-center justify-center rounded-xl", tone.ink, active && "clay-sm")}
+                    >
+                      <item.icon className="size-4" />
+                    </span>
                     {collapsed ? (
                       live && (
                         <span aria-hidden="true" className="absolute top-1.5 right-1.5 flex size-2.5">
@@ -93,7 +111,6 @@ export function SidebarContent({
                       <>
                         <span className="flex-1">{item.label}</span>
                         {live && <span className="rounded-full bg-live px-1.5 py-0.5 text-[0.65rem] font-extrabold tracking-wide text-white">LIVE</span>}
-                        {active && <span aria-hidden="true" className="mr-1 size-2 rounded-full bg-marigold" />}
                       </>
                     )}
                   </Link>
