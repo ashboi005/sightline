@@ -10,6 +10,7 @@
     "env:generate": "varlock codegen"
   },
   "dependencies": {
+    "@sightline/contracts": "workspace:*",
     "@sightline/ui": "workspace:*",
     "@swc/helpers": "^0.5.23",
     "@tanstack/react-form": "^1.33.5",
