@@ -1,6 +1,6 @@
 # Arunya — Eye Tracker Hardware & Gaze
 
-> Back to [overview](../00-overview.md). The bridge protocol your tracker ends up behind:
+> Back to [overview](../00-overview.md). **Hooking the tracker in: [arunya-gaze-integration.md](arunya-gaze-integration.md)** (what the frontend does with gaze, and the exact contracts for your agent). The bridge protocol your tracker ends up behind:
 > [contracts/gaze-bridge.md](../contracts/gaze-bridge.md).
 
 ## Mission

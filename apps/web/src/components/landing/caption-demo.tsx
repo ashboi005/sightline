@@ -54,7 +54,7 @@ export function CaptionDemo({ className }: { className?: string }) {
     <figure
       ref={ref}
       className={cn(
-        "overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-[0_1px_0_0_var(--border),0_24px_60px_-28px_color-mix(in_oklab,black_38%,transparent)]",
+        "overflow-hidden rounded-[1.5rem] bg-card text-card-foreground shadow-[var(--clay-sunken)]",
         className,
       )}
     >

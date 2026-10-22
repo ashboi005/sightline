@@ -52,12 +52,19 @@ export class MastraStructuredModel implements StructuredModel {
 export class OpenAIEmbeddings implements Embeddings {
   private readonly pool: KeyPool;
   private readonly clients = new Map<string, OpenAI>();
+  private readonly fallback: OpenAI | null;
   constructor(
     keys: string | undefined | KeyPool,
     private readonly model: string,
-    private readonly options: { baseURL?: string; dimensions?: number } = {},
+    private readonly options: {
+      baseURL?: string;
+      dimensions?: number;
+      /** The SAME model through another provider (Merge "google/gemini-embedding-001" returns identical vectors), used when every key is rate-limited. */
+      fallback?: { baseURL: string; apiKey: string | undefined; model: string };
+    } = {},
   ) {
     this.pool = keys instanceof KeyPool ? keys : new KeyPool("embeddings", [keys]);
+    this.fallback = options.fallback?.apiKey ? new OpenAI({ apiKey: options.fallback.apiKey, baseURL: options.fallback.baseURL, timeout: 30_000, maxRetries: 1 }) : null;
   }
 
   private client(key: string) {
@@ -69,7 +76,7 @@ export class OpenAIEmbeddings implements Embeddings {
   private async batch(input: string[]) {
     const model = this.model.replace(/^(openai|gemini|google)\//, "");
     const tried = new Set<PooledKey>();
-    let lastError: unknown = new Error(`No ${this.pool.provider} API key configured`);
+    let lastError: unknown = null;
     for (let key = this.pool.next(model, tried); key; key = this.pool.next(model, tried)) {
       tried.add(key);
       try {
@@ -87,7 +94,13 @@ export class OpenAIEmbeddings implements Embeddings {
         lastError = error;
       }
     }
-    throw lastError;
+    const fallback = this.options.fallback;
+    if (this.fallback && fallback) {
+      if (this.pool.size) console.warn(`[embeddings] every ${this.pool.provider} key is rate-limited; using ${fallback.model} via the fallback provider`);
+      return this.fallback.embeddings.create({ model: fallback.model, input, encoding_format: "float", ...(this.options.dimensions ? { dimensions: this.options.dimensions } : {}) });
+    }
+    if (!this.pool.size) throw new Error(`No ${this.pool.provider} API key configured`);
+    throw lastError ?? new Error(`Every ${this.pool.provider} key is rate-limited for ${model}; next one in ${Math.ceil(this.pool.soonestMs(model) / 1000)} s`);
   }
 
   async embed(texts: string[]) {

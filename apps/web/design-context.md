@@ -188,13 +188,19 @@ A screen is done when:
 
 ## Landing and auth pages
 
-`/`, `/sign-in` and `/sign-up` share the palette and type but are flatter and more editorial: no clay chrome, a
-centred marketing layout, the animated caption demo as the hero, and the `sl-rise` entrance. Workspace pages are the
-clay world. Keep the two families distinct.
+The landing page (`/`) shares the workspace's clay language: a floating rounded navigation bar, tactile CTA
+buttons, raised feature and lecture-flow cards, sage/lilac mode cards, and a marigold closing card. Preserve its
+centred marketing layout, content, section order, animated caption demo and `sl-rise` entrance when restyling.
+Use the shared backdrop and gaze-line motif to connect it visually to the workspace. Welcome and closing areas
+may carry restrained Memphis accents. The demo's captions and miniature reading examples remain flat on `bg-card`.
+
+Auth pages (`/sign-in` and `/sign-up`) retain their existing editorial layout and palette. A landing-page styling
+change does not imply an auth redesign.
 
 ## Building a new screen: checklist
 
-1. It lives in `app/(workspace)/…` and starts with `PageHeader` in the destination's tone.
+1. Signed-in screens live in `app/(workspace)/…` and start with `PageHeader` in the destination's tone. Public
+   landing/auth screens follow their page patterns above.
 2. Chrome is clay; reading content is flat on `bg-card`.
 3. It reuses the components above, with one `clay` primary action per area.
 4. Loading, empty, error and processing states all exist.

@@ -69,7 +69,12 @@ export function createContainer() {
   const knowledge: KnowledgeEngine = mocks.knowledge
     ? new MockKnowledgeEngine()
     : new QdrantKnowledgeEngine({ client: new QdrantClient({ url: ENV.QDRANT_URL, port: qdrantPort(ENV.QDRANT_URL), apiKey: ENV.QDRANT_API_KEY || undefined, timeout: 30_000 }),
-        embeddings: new OpenAIEmbeddings(geminiKeys, ENV.EMBEDDING_MODEL, { baseURL: ENV.GEMINI_BASE_URL, dimensions: ENV.EMBEDDING_DIMENSIONS }),
+        embeddings: new OpenAIEmbeddings(geminiKeys, ENV.EMBEDDING_MODEL, {
+          baseURL: ENV.GEMINI_BASE_URL,
+          dimensions: ENV.EMBEDDING_DIMENSIONS,
+          // Free-tier Gemini keys run out (100 texts/min each); Merge serves the same model with identical vectors.
+          fallback: { baseURL: ENV.LLM_GATEWAY_URL, apiKey: ENV.MERGE_GATEWAY_API_KEY, model: `google/${ENV.EMBEDDING_MODEL.replace(/^(google|gemini)\//, "")}` },
+        }),
         model, dimensions: ENV.EMBEDDING_DIMENSIONS });
   const notes: NotesEngine = mocks.notes ? new MockNotesEngine() : new LlmNotesEngine(knowledge, model);
   const resolveUser = createUserResolver({ mock: mocks.auth, auth });

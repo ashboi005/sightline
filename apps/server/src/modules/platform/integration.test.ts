@@ -140,6 +140,40 @@ describe.skipIf(!databaseUrl)("real Postgres and better-auth", () => {
     expect((await store.listSegments(session.id)).length).toBe(0);
   });
 
+  test("a connection stuck in a transaction never stalls other instances' claims", async () => {
+    const store = new PostgresStore(database);
+    for (const id of ["ses_claim_a", "ses_claim_b"]) {
+      await store.createSession("usr_demo", { ...session, id });
+      await new PostgresJobs(database).enqueue(id, "NOTES");
+    }
+    // An orphaned client (killed process behind a TCP proxy) still holding session A's lock. (Claims no longer take
+    // a global lock at all, so an orphan holding the old one — 913481 — can't block them either.)
+    const stuck = await database.$client.connect();
+    await stuck.query("begin");
+    await stuck.query("select pg_advisory_xact_lock(hashtextextended('ses_claim_a', 0))");
+    try {
+      const claimed: string[] = [];
+      const started = Date.now();
+      for (let i = 0; i < 5; i++) {
+        const job = await Promise.race([new PostgresJobs(database).claim(Date.now()), Bun.sleep(5000).then(() => "timeout" as const)]);
+        expect(job).not.toBe("timeout");
+        if (!job || job === "timeout") break;
+        claimed.push(job.sessionId);
+      }
+      expect(claimed).toContain("ses_claim_b");
+      expect(claimed).not.toContain("ses_claim_a");
+      expect(Date.now() - started).toBeLessThan(10_000);
+    } finally {
+      await stuck.query("rollback");
+      stuck.release();
+    }
+    expect((await new PostgresJobs(database).claim(Date.now()))?.sessionId).toBe("ses_claim_a");
+    // Leave nothing claimable behind for the tests that follow (they claim with a clock minutes ahead).
+    await database.execute(sql`delete from platform_work where key like 'ses_claim_%'`);
+    await database.execute(sql`delete from platform_job where session_id in ('ses_claim_a', 'ses_claim_b')`);
+    await database.execute(sql`delete from lecture_session where id in ('ses_claim_a', 'ses_claim_b')`);
+  });
+
   test("recording writes wait for the session deletion lock", async () => {
     const store = new PostgresStore(database);
     await store.createSession("usr_demo", { ...session, id: "ses_recording_lock" });

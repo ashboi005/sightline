@@ -31,6 +31,10 @@ bun run mock:speaker                           # mock look-to-hear service ws://
 
 Or in one terminal: `bun run dev:demo` (server in mock mode + the three device mocks), then `bun run dev:web`.
 
+**Everything real, one command:** `bun run live` starts the server (all modules real), the web app, the look → hear
+engine, the gaze bridge (keyboard-driven until the tracker is wired) and the sign mock, after checking keys, ports
+and models. Demo: [docs/demo/demo-script.md](docs/demo/demo-script.md) · diagrams: [docs/demo/architecture.md](docs/demo/architecture.md).
+
 The server prints which modules are mocked. A finished demo lecture is seeded, and any new session replays
 a live "Kirchhoff's Laws" lecture over the WebSocket. See [`docs/contracts/mock-mode.md`](docs/contracts/mock-mode.md).
 
@@ -73,3 +77,9 @@ Tushar's implementation, recovery, migration and Docker instructions: [platform 
 
 Bun · Elysia · Next.js 16 · better-auth · Postgres + Drizzle · Mastra · Qdrant · Deepgram · ElevenLabs /
 Sarvam · KaTeX · Python (OpenCV / MediaPipe) · Docker + Coolify.
+
+## Android USB camera app
+
+Native Kotlin/Jetpack Compose app in [`apps/mobile`](apps/mobile/README.md). Detects external USB webcams and serves separate MJPEG feeds to browsers on your local network. See its README for APK installation, Android Studio setup, wireless debugging, and hardware troubleshooting.
+
+Build with `bun run mobile:apk`; run checks with `bun run mobile:check`. The Android app runs independently of the web/backend services.

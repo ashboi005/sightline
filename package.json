@@ -32,6 +32,7 @@
     "dev:web": "bun run --filter web dev",
     "dev:server": "bun run --filter server dev",
     "dev:demo": "bun scripts/dev-demo.ts",
+    "live": "bun scripts/live.ts",
     "db:push": "bun run --filter @sightline/db db:push",
     "db:studio": "bun run --filter @sightline/db db:studio",
     "db:generate": "bun run --filter @sightline/db db:generate",
@@ -54,7 +55,10 @@
     "speaker:test": "cd apps/speaker-service && uv run pytest -q",
     "mock:speaker": "bun run --filter @sightline/mocks speaker",
     "gaze:dev": "cd apps/gaze-bridge && uv run gaze-bridge --tracker fake",
-    "gaze:test": "cd apps/gaze-bridge && uv run pytest -q"
+    "gaze:test": "cd apps/gaze-bridge && uv run pytest -q",
+    "mobile:apk": "cd apps/mobile && ./scripts/android.sh :app:assembleDebug",
+    "mobile:install": "cd apps/mobile && ./scripts/android.sh :app:installDebug",
+    "mobile:check": "cd apps/mobile && ./scripts/android.sh :app:testDebugUnitTest :app:lintDebug"
   },
   "dependencies": {
     "zod": "catalog:"

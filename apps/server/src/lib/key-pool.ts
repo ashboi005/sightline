@@ -74,6 +74,12 @@ export class KeyPool {
     console[c.allModels ? "error" : "warn"](`[llm] ${k.label}${c.allModels ? "" : ` (${model})`} cooling ${Math.round(c.ms / 1000)}s: ${c.reason}`);
   }
 
+  /** Ms until some key is healthy again for `model` (0 = one is healthy now). */
+  soonestMs(model: string): number {
+    const now = Date.now();
+    return Math.min(...this.keys.map((k) => Math.max(0, (coolingFor(k, model, now)?.until ?? now) - now)));
+  }
+
   status() {
     const now = Date.now();
     return this.keys.map((k) => ({

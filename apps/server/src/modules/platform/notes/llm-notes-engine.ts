@@ -85,7 +85,7 @@ export class LlmNotesEngine implements NotesEngine {
             summaries.push(draft.summary);
             for (const term of draft.keyTerms ?? []) keyTerms.set(term.term.toLowerCase(), term);
             for (const takeaway of draft.takeaways ?? []) takeaways.add(takeaway);
-            for (const segment of transcript) for (const part of segment.parts) if (part.type === "formula") formulas.set(part.latex.replace(/\s/g, ""), { latex: part.latex, description: part.spoken });
+            for (const segment of transcript) for (const part of segment.parts) if (part.type === "formula" && !/^[-+]?\d+(\.\d+)?$/.test(part.latex.trim())) formulas.set(part.latex.replace(/\s/g, ""), { latex: part.latex, description: part.spoken });
           }
         }
         placeSnapshots(sections, input.snapshots.filter((snapshot) => snapshot.sessionId === input.session.id), input.transcript);

@@ -121,3 +121,10 @@ describe("GatewayVisionDescriber → Merge Gateway", () => {
     expect(await vision.describe(new Uint8Array([1]), "image/jpeg", "")).toBeNull();
   });
 });
+
+describe("detectVisualCue", () => {
+  it("fires on pointing / drawing phrases but not on verbal 'notice that' / 'see that'", () => {
+    for (const text of ["Look at this graph", "look at the board", "see this curve", "Let me draw the three cases on the board.", "as you can see here"]) expect(detectVisualCue(text)).not.toBeNull();
+    for (const text of ["Notice that the sum of the roots is minus b over a", "I see that you are confused", "Observe that delta is positive"]) expect(detectVisualCue(text)).toBeNull();
+  });
+});

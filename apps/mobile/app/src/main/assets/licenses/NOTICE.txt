@@ -1,0 +1,6 @@
+Sightline USB includes UVCAndroid 1.0.13 (https://github.com/shiyinghan/UVCAndroid) and its native camera dependencies.
+UVCCamera copyright (c) 2014-2017 saki t_saki@serenegiant.com, licensed under Apache 2.0.
+UVCAndroid source, including its native library modifications, is available at https://github.com/shiyinghan/UVCAndroid/tree/1.0.13.
+AndroidX and Kotlin are licensed under Apache 2.0. Individual bundled native dependencies retain the licenses reproduced alongside this notice.
+This software is based in part on the work of the Independent JPEG Group.
+Atkinson Hyperlegible Next is bundled under the SIL Open Font License 1.1; its license and source details are included alongside this notice.

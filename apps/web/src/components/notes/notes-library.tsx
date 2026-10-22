@@ -168,7 +168,7 @@ export function NotesLibrary({ selectedId }: { selectedId: string | null }) {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <PageHeader icon={NotebookText} tone="sage" title="Notes" description="Written from each lecture's captions, with the formulas, definitions and board snapshots in place." />
+      <PageHeader icon={NotebookText} tone="sage" title="Notes" />
 
       {sessions.isError && <InlineAlert>Your lectures didn&apos;t load. {errorMessage(sessions.error)}</InlineAlert>}
       {sessions.isSuccess && lectures.length === 0 ? (
