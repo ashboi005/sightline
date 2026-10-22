@@ -37,7 +37,7 @@ uv run sightline-speaker --device auto             # ws://127.0.0.1:7799/live, G
 | Flag | Default | Notes |
 | --- | --- | --- |
 | `--port` | `7799` | Always binds to 127.0.0.1 |
-| `--origin` | `http://localhost:3001` | The exact web-app origin allowed (CORS + WebSocket origin check) |
+| `--origin` | `http://localhost:3001` | The exact web-app origin allowed (CORS + WebSocket origin check): `http://localhost:<port>` in dev, `https://<domain>` for the deployed web app |
 | `--device` | `auto` | `auto`/`mps` on Apple Silicon = visual encoder on MPS, audio model on CPU (`mps-video/cpu-audio`); `cpu` everywhere else |
 | `--engine` | `rtfs` | `rtfs` (RTFS-Net, 12 M params, default) or `av-mossformer2` (68 M params, larger and slower; needs its own assets) |
 | `--noise` | `auto` | RNNoise post-filter. `auto` uses it where the native wheel exists (Linux, Windows, macOS 26+), else passthrough. Reported as `noise_processor` in `/health` |

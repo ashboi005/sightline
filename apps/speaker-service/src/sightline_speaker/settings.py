@@ -2,6 +2,17 @@
 
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlsplit
+
+
+def _is_exact_origin(origin: str) -> bool:
+    """Local HTTP dev origins or the deployed web app's HTTPS origin; the service stays loopback."""
+    parts = urlsplit(origin)
+    if parts.path or parts.query or parts.fragment or parts.username or not parts.hostname:
+        return False
+    if parts.scheme == "http":
+        return parts.hostname in {"localhost", "127.0.0.1"} and parts.port is not None
+    return parts.scheme == "https"
 
 
 @dataclass(frozen=True)
@@ -39,5 +50,8 @@ class Settings:
             <= 0
         ):
             raise ValueError("Service limits must be positive")
-        if not self.origin.startswith(("http://localhost:", "http://127.0.0.1:")):
-            raise ValueError("Frontend origin must be an exact local HTTP origin")
+        if not _is_exact_origin(self.origin):
+            raise ValueError(
+                "Frontend origin must be an exact origin: http://localhost:<port>, "
+                "http://127.0.0.1:<port> or https://<host>[:port] (no path)"
+            )

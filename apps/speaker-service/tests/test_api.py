@@ -172,3 +172,16 @@ def test_cancelled_upload_removes_partial_session(client, monkeypatch):
         client.post("/clips", files={"file": ("x.mp4", b"partial", "video/mp4")})
     assert not client.app.state.store.clips
     assert not list(client.app.state.store.settings.data_dir.rglob("input.*"))
+
+
+def test_origin_validation_accepts_local_http_and_deployed_https():
+    import pytest
+
+    from sightline_speaker.settings import Settings
+
+    for ok in ["http://localhost:3001", "http://127.0.0.1:5173", "https://sightline.example.com"]:
+        assert Settings(origin=ok).origin == ok
+    bad_origins = ["http://example.com", "https://x.com/path", "http://localhost", "ftp://h:1", "*"]
+    for bad in bad_origins:
+        with pytest.raises(ValueError):
+            Settings(origin=bad)
