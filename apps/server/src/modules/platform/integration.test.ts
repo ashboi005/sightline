@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -15,7 +15,8 @@ import { QdrantKnowledgeEngine } from "./knowledge/qdrant-knowledge-engine";
 import { createUserResolver } from "./auth";
 import { OpenAIEmbeddings, MastraStructuredModel } from "./ai/structured-model";
 import { FileSlideProcessor } from "./slides/slide-processor";
-import { DiskAssetStore, MemoryAssetStore } from "./assets/asset-store";
+import { MemoryAssetStore, ObjectAssetStore, PostgresAssetIndex } from "./assets/asset-store";
+import { LocalObjectStorage } from "../../lib/storage";
 import { MemoryStore } from "./store/memory-store";
 import { lecturePdf } from "../../../scripts/fixtures";
 import { lecturePowerPoint } from "../../../scripts/powerpoint-fixture";
@@ -86,22 +87,21 @@ describe.skipIf(!databaseUrl)("real Postgres and better-auth", () => {
     expect((await store.listSegments(session.id)).length).toBe(0);
   });
 
-  test("disk assets survive recreation and cleanup includes uncommitted files", async () => {
+  test("object-storage assets survive recreation; ownership lives in Postgres; cleanup deletes objects", async () => {
     const store = new PostgresStore(database);
     const sessionId = "ses_disk";
     await store.createSession("usr_demo", { ...session, id: sessionId });
     const directory = await mkdtemp(join(tmpdir(), "sightline-asset-test-"));
     try {
-      const assets = new DiskAssetStore(directory, database);
+      const storage = new LocalObjectStorage({ dir: directory, publicUrl: "http://test", secret: "s".repeat(32) });
+      const assets = new ObjectAssetStore(storage, new PostgresAssetIndex(database));
       const id = await assets.put("image/png", new Uint8Array([1, 2, 3]), sessionId);
-      const fresh = new DiskAssetStore(directory, database);
+      const fresh = new ObjectAssetStore(storage, new PostgresAssetIndex(database));
       expect((await fresh.get(id))?.bytes).toEqual(new Uint8Array([1, 2, 3]));
       expect(await fresh.getSessionId(id)).toBe(sessionId);
-      const staged = join(directory, createHash("sha256").update(sessionId).digest("hex"), "ast_uncommitted.tmp");
-      await Bun.write(staged, "orphan");
       await fresh.deleteSession(sessionId);
       expect(await fresh.get(id)).toBeNull();
-      expect(await Bun.file(staged).exists()).toBe(false);
+      expect(await storage.stat(`assets/${sessionId}/${id}`)).toBeNull();
     } finally { await rm(directory, { recursive: true, force: true }); }
   });
 
@@ -219,10 +219,16 @@ test.skipIf(!process.env.TEST_REAL_CONVERTERS)("real PPTX and legacy PPT convers
   } finally { await rm(directory, { recursive: true, force: true }); }
 }, 300_000);
 
-test.skipIf(!process.env.TEST_PROVIDER || !process.env.OPENAI_API_KEY)("credentialed provider embeddings and structured glossary", async () => {
-  const embeddings = new OpenAIEmbeddings(process.env.OPENAI_API_KEY, process.env.EMBEDDING_MODEL ?? "openai/text-embedding-3-small");
+test.skipIf(!process.env.TEST_PROVIDER || !process.env.GEMINI_API_KEY || !process.env.MERGE_GATEWAY_API_KEY)("credentialed provider embeddings and structured glossary", async () => {
+  const embeddings = new OpenAIEmbeddings(process.env.GEMINI_API_KEY, process.env.EMBEDDING_MODEL ?? "gemini-embedding-001", {
+    baseURL: process.env.GEMINI_BASE_URL ?? "https://generativelanguage.googleapis.com/v1beta/openai/",
+    dimensions: 768,
+  });
   expect((await embeddings.embed(["Kirchhoff current law"]))[0]?.length).toBeGreaterThan(0);
-  const model = new MastraStructuredModel(process.env.LLM_MODEL ?? "openai/gpt-4.1-mini");
+  const model = new MastraStructuredModel(
+    { url: process.env.LLM_GATEWAY_URL ?? "https://api-gateway.merge.dev/v1/openai", apiKey: process.env.MERGE_GATEWAY_API_KEY },
+    process.env.LLM_MODEL ?? "zai/glm-5.3-flash",
+  );
   const { z } = await import("zod");
   const result = await model.generate(z.object({ term: z.string() }), "Extract the named law from the source.", { source: "Kirchhoff current law" });
   expect(result.term.toLowerCase()).toContain("kirchhoff");

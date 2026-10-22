@@ -20,7 +20,9 @@ import { ElevenLabsStt } from "../src/modules/live/speech/elevenlabs-stt";
 import { SarvamStt } from "../src/modules/live/speech/sarvam-stt";
 import { ElevenLabsTts, SarvamTts } from "../src/modules/live/speech/tts";
 import type { SpeechToText } from "../src/modules/live/speech/types";
+import { MastraStructuredModel, OpenAIEmbeddings } from "../src/modules/platform/ai/structured-model";
 import { MockKnowledgeEngine } from "../src/modules/platform/knowledge/mock-knowledge-engine";
+import { z } from "zod";
 
 const SENTENCE = "Kirchhoff's current law says the sum of currents entering a node equals the sum leaving it.";
 let failures = 0;
@@ -58,6 +60,28 @@ if (ENV.MERGE_GATEWAY_API_KEY) {
   const formulas = value.parts.filter((p) => p.type === "formula").length;
   result(`Merge Gateway ${ENV.CAPTION_MODEL} refine (${ms} ms)`, formulas > 0, value.text);
 } else skip("Merge Gateway", "MERGE_GATEWAY_API_KEY not set");
+
+// 1b. Platform (Tushar): structured model via Merge + Gemini embeddings ----------------
+if (ENV.MERGE_GATEWAY_API_KEY) {
+  const model = new MastraStructuredModel({ url: ENV.LLM_GATEWAY_URL, apiKey: ENV.MERGE_GATEWAY_API_KEY }, ENV.LLM_MODEL);
+  try {
+    const { value, ms } = await timed(() =>
+      model.generate(z.object({ term: z.string() }), "Extract the named law from the source.", { source: "Kirchhoff current law" }),
+    );
+    result(`Platform structured model ${ENV.LLM_MODEL} (${ms} ms)`, value.term.toLowerCase().includes("kirchhoff"), value.term);
+  } catch (error) {
+    result("Platform structured model", false, error instanceof Error ? error.message.slice(0, 200) : String(error));
+  }
+}
+if (ENV.GEMINI_API_KEY) {
+  const embeddings = new OpenAIEmbeddings(ENV.GEMINI_API_KEY, ENV.EMBEDDING_MODEL, { baseURL: ENV.GEMINI_BASE_URL, dimensions: ENV.EMBEDDING_DIMENSIONS });
+  try {
+    const { value, ms } = await timed(() => embeddings.embed(["Kirchhoff's current law", "sum of currents at a node"]));
+    result(`Gemini embeddings ${ENV.EMBEDDING_MODEL} (${ms} ms)`, value.length === 2 && value[0]!.length === ENV.EMBEDDING_DIMENSIONS, `${value.length} × ${value[0]?.length} dims`);
+  } catch (error) {
+    result("Gemini embeddings", false, error instanceof Error ? error.message.slice(0, 200) : String(error));
+  }
+} else skip("Gemini embeddings", "GEMINI_API_KEY not set");
 
 // 2 + 3. ElevenLabs TTS → PCM → STT providers -----------------------------------------
 async function elevenPcm(): Promise<Uint8Array | null> {

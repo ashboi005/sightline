@@ -82,6 +82,13 @@ const server = Bun.spawn(["bun", "run", "src/index.ts"], {
     PORT: String(SERVER_PORT),
     PUBLIC_SERVER_URL: `http://localhost:${SERVER_PORT}`,
     USE_MOCK_DATA: "true",
+    // Self-contained: only the speech + caption path is real; everything else mocked, local storage.
+    MOCK_KNOWLEDGE: "true",
+    MOCK_NOTES: "true",
+    MOCK_PERSISTENCE: "true",
+    MOCK_SLIDES: "true",
+    MOCK_AUTH: "true",
+    STORAGE_DRIVER: "local",
     MOCK_SPEECH: "false",
     MOCK_CAPTIONS: "false",
     STT_PROVIDER: provider,
