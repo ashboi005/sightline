@@ -50,7 +50,25 @@ export class LiveCaptions {
     };
     this.live.set(sessionId, state);
 
-    state.stream = stt.open({
+    try {
+      state.stream = this.openStream(stt, sessionId, format, keyterms, startedAt, state);
+    } catch (error) {
+      this.live.delete(sessionId);
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[live] could not open STT for ${sessionId}: ${message}`);
+      this.deps.events.publish(sessionId, { type: "error", code: "STT_ERROR", message, ts: Date.now() });
+    }
+  }
+
+  private openStream(
+    stt: SpeechToText,
+    sessionId: string,
+    format: AudioFormat,
+    keyterms: string[],
+    startedAt: number,
+    state: LiveState,
+  ): SttStream {
+    return stt.open({
       sessionId,
       format,
       keyterms,

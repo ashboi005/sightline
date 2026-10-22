@@ -39,7 +39,7 @@ export function createContainer() {
   const resolveUser = createUserResolver({ mock: mocks.auth, auth });
 
   // --- core (Ashwath) ------------------------------------------------------
-  const stt = mocks.speech ? new MockReplayStt(config.mockReplaySpeed) : new DeepgramStt(ENV.DEEPGRAM_API_KEY, ENV.DEEPGRAM_MODEL);
+  const stt = mocks.speech ? new MockReplayStt(config.mockReplaySpeed) : new DeepgramStt({ apiKey: ENV.DEEPGRAM_API_KEY, model: ENV.DEEPGRAM_MODEL, language: ENV.DEEPGRAM_LANGUAGE });
   const tts = mocks.speech
     ? new MockTts()
     : new CachedTts(
