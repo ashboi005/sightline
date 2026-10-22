@@ -5,9 +5,11 @@ import { Button } from "@sightline/ui/components/button";
 import { Input } from "@sightline/ui/components/input";
 import { Label } from "@sightline/ui/components/label";
 import { Captions, LoaderCircle, Play } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { ClayCard, InlineAlert, PageHeader, SectionTitle, StatusPill } from "@/components/clay/clay";
+import { DeleteLectureButton } from "@/components/dashboard/delete-lecture-button";
 import { useUpdateSession } from "@/hooks/use-sessions";
 import { errorMessage } from "@/lib/api";
 import { useLiveLecture } from "@/providers/live-lecture-provider";
@@ -50,6 +52,7 @@ function DetailsCard({ session }: { session: Session }) {
 
 /** Before the lecture: details, context, mode, recording, readiness, then Start. */
 export function LecturePrep({ session }: { session: Session }) {
+  const router = useRouter();
   const lecture = useLiveLecture();
   const update = useUpdateSession(session.id);
   const [capture, setCapture] = useState<CaptureChoice>({ record: null, sceneCamera: false });
@@ -76,7 +79,12 @@ export function LecturePrep({ session }: { session: Session }) {
         icon={Captions}
         title={session.title}
         description="Get the lecture ready. Everything here can be skipped, and captions work without it."
-        actions={<StatusPill kind="idle">Setting up</StatusPill>}
+        actions={
+          <>
+            <StatusPill kind="idle">Setting up</StatusPill>
+            <DeleteLectureButton session={session} label="text" onDeleted={() => router.replace("/dashboard")} />
+          </>
+        }
       />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">

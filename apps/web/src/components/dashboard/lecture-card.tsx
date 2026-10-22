@@ -8,6 +8,8 @@ import Link from "next/link";
 import { StatusPill } from "@/components/clay/clay";
 import { formatWhen, lectureMinutes, modeLabel, processingLabel, sessionStatus } from "@/lib/format";
 
+import { DeleteLectureButton } from "./delete-lecture-button";
+
 /** The next useful step for a lecture, by its state. */
 function actionsFor(s: Session): { label: string; href: string; primary?: boolean }[] {
   if (s.status === "DRAFT") return [{ label: "Continue setup", href: `/lecture/${s.id}`, primary: true }];
@@ -26,9 +28,12 @@ export function LectureCard({ session }: { session: Session }) {
 
   return (
     <li className="flex flex-col rounded-[1.6rem] clay p-5">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <StatusPill kind={status.kind}>{status.label}</StatusPill>
-        {session.status === "ENDED" && <StatusPill kind={notes.kind}>{notes.label}</StatusPill>}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <StatusPill kind={status.kind}>{status.label}</StatusPill>
+          {session.status === "ENDED" && <StatusPill kind={notes.kind}>{notes.label}</StatusPill>}
+        </div>
+        <DeleteLectureButton session={session} />
       </div>
       <h3 className="mt-3 text-lg leading-snug font-bold text-balance">{session.title}</h3>
       <p className="mt-1 text-sm text-muted-foreground">
