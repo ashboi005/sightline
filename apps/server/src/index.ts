@@ -14,8 +14,9 @@ import { recordingRoutes } from "./modules/recordings/routes";
 import { auth } from "./services";
 
 const c = createContainer();
+await c.initialize();
 
-const app = new Elysia()
+const app = new Elysia({ serve: { maxRequestBodySize: 51 * 1024 * 1024 } })
   .use(
     cors({
       origin: ENV.CORS_ORIGIN,
@@ -59,5 +60,16 @@ app.listen({ port: config.port, maxRequestBodySize: 1024 * 1024 * 1024 }, () => 
 });
 
 if (config.mocks.persistence && config.mocks.auth) {
-  seedDemoSession(c).catch((error) => console.error("[seed] failed", error));
+  if (config.mocks.slides && config.mocks.notes) seedDemoSession(c).catch((error) => console.error("[seed] failed", error));
 }
+
+let stopping = false;
+const shutdown = async () => {
+  if (stopping) return;
+  stopping = true;
+  await app.stop();
+  await c.runner.stop();
+  process.exit(0);
+};
+process.on("SIGINT", () => void shutdown());
+process.on("SIGTERM", () => void shutdown());

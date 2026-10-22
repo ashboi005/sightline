@@ -39,7 +39,7 @@ export class SnapshotService {
     const segments = await store.listSegments(sessionId);
     const nearby = nearbySegments(segments, atMs);
 
-    const assetId = await assets.put(image.mimeType, image.bytes);
+    const assetId = await assets.put(image.mimeType, image.bytes, sessionId);
     const snapshot: Snapshot = {
       id: newId("snp"),
       sessionId,

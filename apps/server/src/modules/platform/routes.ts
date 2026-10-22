@@ -31,14 +31,18 @@ export const platformRoutes = (deps: {
     new Elysia({ prefix: "/api" })
       // --- public ----------------------------------------------------------
       .get("/health", () => deps.health())
-      .get("/assets/:assetId", async ({ params }) => {
-        // S3: redirect to a short-lived presigned GET so bytes never pass through the API server.
+      .get("/assets/:assetId", async ({ params, request }) => {
+        const user = await resolveUser(request);
+        const sessionId = await assets.getSessionId(params.assetId);
+        if (!sessionId) throw notFound("Asset");
+        await svc.requireSession(user.id, sessionId);
+        // S3: after the ownership check, redirect to a short-lived presigned GET (bytes bypass the API server).
         const direct = await assets.directUrl?.(params.assetId);
-        if (direct) return new Response(null, { status: 302, headers: { location: direct, "cache-control": "private, max-age=600" } });
+        if (direct) return new Response(null, { status: 302, headers: { location: direct, "cache-control": "private, no-store" } });
         const asset = await assets.get(params.assetId);
         if (!asset) throw notFound("Asset");
         return new Response(asset.bytes, {
-          headers: { "content-type": asset.contentType, "cache-control": "public, max-age=31536000, immutable" },
+          headers: { "content-type": asset.contentType, "cache-control": "private, no-store", "x-content-type-options": "nosniff" },
         });
       })
 

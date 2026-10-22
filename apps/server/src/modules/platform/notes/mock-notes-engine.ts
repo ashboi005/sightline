@@ -5,6 +5,7 @@
  */
 import type { GenerateNotesInput, NoteBlock, NoteSection, NotesDraft, NotesEngine, Snapshot } from "@sightline/contracts";
 import { fixtures } from "@sightline/mocks";
+import { boardFocus, renderNotes } from "./render";
 
 export class MockNotesEngine implements NotesEngine {
   readonly name = "mock";
@@ -15,21 +16,16 @@ export class MockNotesEngine implements NotesEngine {
     const sections: NoteSection[] = fixtures.lecture.notes.sections.map((section) => {
       const segs = transcript.filter((s) => s.slidePointer && section.slideIndexes.includes(s.slidePointer.slideIndex));
       const segIds = new Set(segs.map((s) => s.id));
-      const awaySeconds = awayWindows
-        .filter((w) => w.zone === "BOARD" && w.missedSegmentIds.some((id) => segIds.has(id)))
-        .reduce((sum, w) => sum + (w.endedAt - w.startedAt) / 1000, 0);
       return {
         ...section,
         blocks: [...section.blocks],
         sourceSegmentIds: [...segIds],
-        boardFocus: awaySeconds > 0 ? { isBoardHeavy: awaySeconds >= 10, awaySeconds: Math.round(awaySeconds) } : section.boardFocus,
+        boardFocus: boardFocus(segs, awayWindows, input.session.startedAt ?? input.session.createdAt),
       };
     });
-
     placeSnapshots(sections, input.snapshots ?? [], transcript);
-
-    const markdown = appendSnapshotMarkdown(fixtures.lecture.notes.markdown, input.snapshots ?? []);
-    return { ...fixtures.lecture.notes, sessionId: input.session.id, title: `${input.session.title} — Notes`, sections, markdown };
+    const notes = { ...fixtures.lecture.notes, sessionId: input.session.id, title: `${input.session.title} — Notes`, sections };
+    return { ...notes, markdown: renderNotes(notes) };
   }
 }
 
@@ -47,10 +43,4 @@ export function placeSnapshots(sections: NoteSection[], snapshots: Snapshot[], t
     // After the first block (usually the definition) so the picture sits next to the explanation.
     target.blocks.splice(Math.min(1, target.blocks.length), 0, block);
   }
-}
-
-function appendSnapshotMarkdown(markdown: string, snapshots: Snapshot[]) {
-  if (snapshots.length === 0) return markdown;
-  const images = snapshots.map((s) => `![${(s.description ?? s.reason).replace(/[[\]]/g, "")}](${s.imageUrl})`).join("\n\n");
-  return `${markdown}\n## Board snapshots\n\n${images}\n`;
 }

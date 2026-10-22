@@ -1,0 +1,49 @@
+name: sightline-platform
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: sightline
+    ports: ["5432:5432"]
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  qdrant:
+    image: qdrant/qdrant:v1.15.4
+    ports: ["6333:6333"]
+    volumes: ["qdrant-data:/qdrant/storage"]
+  server:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile.dev
+    ports: ["3000:3000"]
+    env_file:
+      - path: apps/server/.env
+        required: false
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgres://postgres:password@postgres:5432/sightline
+      BETTER_AUTH_URL: http://localhost:3000
+      BETTER_AUTH_SECRET: local-development-secret-change-before-deploy
+      CORS_ORIGIN: http://localhost:3001
+      PUBLIC_SERVER_URL: http://localhost:3000
+      STORAGE_DIR: /data/uploads
+      QDRANT_URL: http://qdrant:6333
+      USE_MOCK_DATA: "true"
+      MOCK_PERSISTENCE: "false"
+      MOCK_SLIDES: "false"
+    volumes: ["uploads:/data/uploads"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+volumes:
+  postgres-data:
+  qdrant-data:
+  uploads:

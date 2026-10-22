@@ -24,6 +24,7 @@ type Row = {
   snapshots: Map<string, Snapshot>;
   recordings: Map<string, Recording>;
   notes: LectureNotes | null;
+  notesError: string | null;
 };
 
 export const emptyContext = (sessionId: string): ContextState => ({
@@ -61,6 +62,7 @@ export class MemoryStore implements SessionStore {
       snapshots: new Map(),
       recordings: new Map(),
       notes: null,
+      notesError: null,
     });
     return session;
   }
@@ -69,7 +71,7 @@ export class MemoryStore implements SessionStore {
     const all = [...this.rows.values()]
       .filter((r) => r.userId === userId)
       .map((r) => r.session)
-      .sort((a, b) => b.createdAt - a.createdAt);
+      .sort((a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id));
     return { items: all.slice((page - 1) * pageSize, page * pageSize), total: all.length };
   }
 
@@ -109,7 +111,10 @@ export class MemoryStore implements SessionStore {
   }
 
   async upsertSegment(segment: CaptionSegment) {
-    this.row(segment.sessionId).segments.set(segment.id, segment);
+    const segments = this.row(segment.sessionId).segments;
+    const previous = segments.get(segment.id);
+    const rank = { INTERIM: 0, FINAL: 1, REFINED: 2 };
+    if (!previous || rank[segment.status] >= rank[previous.status]) segments.set(segment.id, segment);
   }
 
   async listSegments(sessionId: string) {
@@ -158,5 +163,17 @@ export class MemoryStore implements SessionStore {
 
   async saveNotes(notes: LectureNotes) {
     this.row(notes.sessionId).notes = notes;
+  }
+
+  async listReadyContexts() {
+    return [...this.rows.values()].map((row) => row.context);
+  }
+
+  async getNotesError(sessionId: string) {
+    return this.row(sessionId).notesError;
+  }
+
+  async setNotesError(sessionId: string, error: string | null) {
+    this.row(sessionId).notesError = error;
   }
 }

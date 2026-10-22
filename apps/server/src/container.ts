@@ -5,6 +5,7 @@
  *   surrounding (Tushar)  modules/platform  — sessions, store, slides, knowledge (RAG), notes, auth
  */
 import type { HealthResponse, KnowledgeEngine, NotesEngine } from "@sightline/contracts";
+import { QdrantClient } from "@qdrant/js-client-rest";
 
 import { config } from "./config";
 import { ENV } from "./env.server";
@@ -15,7 +16,7 @@ import { SarvamStt } from "./modules/live/speech/sarvam-stt";
 import { MockReplayStt } from "./modules/live/speech/mock-stt";
 import { CachedTts, ElevenLabsTts, MockTts, SarvamTts } from "./modules/live/speech/tts";
 import { LocalObjectStorage, type ObjectStorage, S3ObjectStorage } from "./lib/storage";
-import { ObjectAssetStore } from "./modules/platform/assets/asset-store";
+import { MemoryAssetIndex, ObjectAssetStore, PostgresAssetIndex } from "./modules/platform/assets/asset-store";
 import { RecordingService } from "./modules/recordings/recording-service";
 import { createUserResolver } from "./modules/platform/auth";
 import { MockKnowledgeEngine } from "./modules/platform/knowledge/mock-knowledge-engine";
@@ -27,6 +28,10 @@ import { FileSlideProcessor, MockSlideProcessor } from "./modules/platform/slide
 import { MemoryStore } from "./modules/platform/store/memory-store";
 import { PostgresStore } from "./modules/platform/store/postgres-store";
 import { auth, db } from "./services";
+import { MastraStructuredModel, OpenAIEmbeddings } from "./modules/platform/ai/structured-model";
+import { MemoryJobs } from "./modules/platform/jobs/memory-jobs";
+import { PostgresJobs } from "./modules/platform/jobs/postgres-jobs";
+import { JobRunner } from "./modules/platform/jobs/runner";
 
 export function createContainer() {
   const { mocks } = config;
@@ -51,13 +56,21 @@ export function createContainer() {
           secret: ENV.BETTER_AUTH_SECRET,
           urlTtlSeconds: ENV.STORAGE_URL_TTL_SECONDS,
         });
-  const assets = new ObjectAssetStore(storage);
+  // Bytes in ObjectStorage (S3 in prod); ownership metadata in Postgres (or memory in mock mode).
+  const assets = new ObjectAssetStore(storage, mocks.persistence ? new MemoryAssetIndex(store) : new PostgresAssetIndex(db));
   const recordings = new RecordingService({ store, storage, urlTtlSeconds: ENV.STORAGE_URL_TTL_SECONDS });
-  const slides = mocks.slides ? new MockSlideProcessor(assets, assetUrl) : new FileSlideProcessor();
+  const slides = mocks.slides ? new MockSlideProcessor(assets, assetUrl) : new FileSlideProcessor(assets, assetUrl);
+  // All LLM calls go through Merge Gateway (LLM_MODEL, default zai/glm-5.3-flash).
+  const model = new MastraStructuredModel(llmGateway, ENV.LLM_MODEL);
+  // Embeddings: Gemini via its OpenAI-compatible endpoint.
+  const embeddings = new OpenAIEmbeddings(ENV.GEMINI_API_KEY, ENV.EMBEDDING_MODEL, {
+    baseURL: ENV.GEMINI_BASE_URL,
+    dimensions: ENV.EMBEDDING_DIMENSIONS,
+  });
   const knowledge: KnowledgeEngine = mocks.knowledge
     ? new MockKnowledgeEngine()
-    : new QdrantKnowledgeEngine(ENV.QDRANT_URL, ENV.QDRANT_API_KEY, ENV.EMBEDDING_MODEL);
-  const notes: NotesEngine = mocks.notes ? new MockNotesEngine() : new LlmNotesEngine(knowledge);
+    : new QdrantKnowledgeEngine({ client: new QdrantClient({ url: ENV.QDRANT_URL, apiKey: ENV.QDRANT_API_KEY || undefined, timeout: 30_000 }), embeddings, model });
+  const notes: NotesEngine = mocks.notes ? new MockNotesEngine() : new LlmNotesEngine(knowledge, model);
   const resolveUser = createUserResolver({ mock: mocks.auth, auth });
 
   // --- core (Ashwath) ------------------------------------------------------
@@ -116,12 +129,22 @@ export function createContainer() {
   const live = createLiveModule({ captions, stt, tts, store, assets, knowledge, resolveUser, assetUrl });
 
   // --- platform uses the live module only via lifecycle + events -----------
-  const platform = new PlatformService({ store, knowledge, notes, slides, assets, events: live.events, lifecycle: live.lifecycle });
+  const jobs = mocks.persistence ? new MemoryJobs(store) : new PostgresJobs(db);
+  const platform = new PlatformService({ store, knowledge, notes, slides, assets, events: live.events, lifecycle: live.lifecycle, jobs });
+  const runner = new JobRunner(jobs, (job) => platform.executeJob(job));
+  const initialize = async () => {
+    if (!mocks.knowledge && !ENV.GEMINI_API_KEY) throw new Error("Real knowledge requires GEMINI_API_KEY (embeddings)");
+    if ((!mocks.knowledge || !mocks.notes) && !ENV.MERGE_GATEWAY_API_KEY) throw new Error("Real knowledge/notes require MERGE_GATEWAY_API_KEY (LLM)");
+    if (store instanceof PostgresStore && mocks.auth) await store.provisionDemoUser();
+    if (knowledge instanceof QdrantKnowledgeEngine) knowledge.hydrate(await store.listReadyContexts());
+    if (slides instanceof FileSlideProcessor) await slides.checkDependencies();
+    runner.start();
+  };
 
   const health = (): HealthResponse => ({ status: "ok", version: "0.1.0", mocks: { ...mocks }, ts: Date.now() });
   const engines = { storage: storage.driver, captions: live.captions.name, stt: stt.name, tts: tts.name, knowledge: knowledge.name, notes: notes.name, store: store.name };
 
-  return { store, storage, assets, assetUrl, recordings, slides, knowledge, notes, resolveUser, live, platform, health, engines };
+  return { store, storage, assets, assetUrl, recordings, slides, knowledge, notes, resolveUser, live, platform, jobs, runner, initialize, health, engines };
 }
 
 export type Container = ReturnType<typeof createContainer>;

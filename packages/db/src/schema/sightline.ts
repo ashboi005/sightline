@@ -33,6 +33,7 @@ export const lectureSession = pgTable(
     contextStatus: text("context_status").notNull().default("EMPTY"),
     slidesStatus: text("slides_status").notNull().default("EMPTY"),
     notesStatus: text("notes_status").notNull().default("EMPTY"),
+    notesError: text("notes_error"),
     createdAt: epochMs("created_at").notNull(),
     startedAt: epochMs("started_at"),
     endedAt: epochMs("ended_at"),
@@ -130,6 +131,30 @@ export const lectureNotes = pgTable("lecture_notes", {
   generatedAt: epochMs("generated_at").notNull(),
 });
 
+export const platformJob = pgTable("platform_job", {
+  id: text("id").primaryKey(),
+  sessionId: text("session_id").notNull(),
+  kind: text("kind").notNull(),
+  payload: jsonb("payload").$type<{ assetId?: string; fileName?: string }>().notNull(),
+  status: text("status").notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  availableAt: epochMs("available_at").notNull(),
+  leaseUntil: epochMs("lease_until"),
+  token: text("token"),
+  error: text("error"),
+  createdAt: epochMs("created_at").notNull(),
+}, (table) => [index("platform_job_pending_idx").on(table.status, table.availableAt), index("platform_job_session_idx").on(table.sessionId)]);
+
+export const platformWork = pgTable("platform_work", {
+  key: text("key").primaryKey(),
+  jobId: text("job_id").notNull(),
+});
+
+export const platformAsset = pgTable("platform_asset", {
+  id: text("id").primaryKey(),
+  sessionId: text("session_id").notNull(),
+  contentType: text("content_type").notNull(),
+}, (table) => [index("platform_asset_session_idx").on(table.sessionId)]);
 /** Board/diagram snapshots (rows written by Ashwath's live module; the image itself is an asset). */
 export const snapshot = pgTable(
   "snapshot",

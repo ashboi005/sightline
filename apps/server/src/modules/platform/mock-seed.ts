@@ -81,7 +81,7 @@ export async function seedDemoSession(deps: {
   // A snapshot of the worked KCL example on the board (the real pipeline captures these live).
   const segments = await store.listSegments(sessionId);
   const boardSegments = segments.filter((seg) => seg.startMs >= 42_000 && seg.startMs <= 57_000).map((seg) => seg.id);
-  const boardAsset = await assets.put("image/svg+xml", new TextEncoder().encode(BOARD_SVG));
+  const boardAsset = await assets.put("image/svg+xml", new TextEncoder().encode(BOARD_SVG), sessionId);
   await store.upsertSnapshot({
     id: newId("snp"),
     sessionId,
@@ -98,7 +98,7 @@ export async function seedDemoSession(deps: {
   await store.addGazeTransition(sessionId, { from: "SCREEN", to: "BOARD", targetId: "teacher", ts: startedAt + 42_000 });
   await store.addGazeTransition(sessionId, { from: "BOARD", to: "SCREEN", targetId: null, ts: startedAt + 57_500 });
 
-  await platform.generateNotes(sessionId);
+  await platform.regenerateNotes(DEMO_USER.id, sessionId);
   console.log(`[seed] demo session ${sessionId} ready`);
 }
 

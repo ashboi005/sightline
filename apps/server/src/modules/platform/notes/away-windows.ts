@@ -16,14 +16,15 @@ export function deriveAwayWindows(
   let open: { zone: AwayWindow["zone"]; startedAt: number } | null = null;
 
   for (const t of [...transitions].sort((a, b) => a.ts - b.ts)) {
-    if (t.to === "UNKNOWN") continue;
-    if (!open && AWAY_ZONES.has(t.to)) open = { zone: t.to, startedAt: t.ts };
-    else if (open && t.to === "SCREEN") {
-      windows.push({ ...open, endedAt: t.ts, missedSegmentIds: [] });
+    if (t.to === "UNKNOWN" || t.ts > endedAt) continue;
+    const boundary = Math.max(startedAt, t.ts);
+    if (open && t.to !== open.zone) {
+      if (boundary > open.startedAt) windows.push({ ...open, endedAt: boundary, missedSegmentIds: [] });
       open = null;
     }
+    if (!open && AWAY_ZONES.has(t.to)) open = { zone: t.to, startedAt: boundary };
   }
-  if (open) windows.push({ ...open, endedAt, missedSegmentIds: [] });
+  if (open && endedAt > open.startedAt) windows.push({ ...open, endedAt, missedSegmentIds: [] });
 
   for (const w of windows) {
     w.missedSegmentIds = segments

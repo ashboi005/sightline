@@ -29,7 +29,7 @@ export class SignUtterances {
     if (input.speak) {
       try {
         const audio = await tts.synthesize(composed.text);
-        audioUrl = this.deps.assetUrl(await assets.put(audio.contentType, audio.bytes));
+        audioUrl = this.deps.assetUrl(await assets.put(audio.contentType, audio.bytes, sessionId));
       } catch (error) {
         console.warn("[live] TTS failed, returning text only", error);
       }

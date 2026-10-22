@@ -37,7 +37,7 @@ describe("detectVisualCue", () => {
 describe("SnapshotService", () => {
   const setup = async () => {
     const store = new MemoryStore();
-    const assets = new MemoryAssetStore();
+    const assets = new MemoryAssetStore(store);
     const published: SessionServerMessage[] = [];
     const startedAt = Date.now() - 60_000;
     await store.createSession("usr", {
