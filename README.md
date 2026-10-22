@@ -73,3 +73,9 @@ Tushar's implementation, recovery, migration and Docker instructions: [platform 
 
 Bun · Elysia · Next.js 16 · better-auth · Postgres + Drizzle · Mastra · Qdrant · Deepgram · ElevenLabs /
 Sarvam · KaTeX · Python (OpenCV / MediaPipe) · Docker + Coolify.
+
+## Android USB camera app
+
+Native Kotlin/Jetpack Compose app in [`apps/mobile`](apps/mobile/README.md). Detects external USB webcams and serves separate MJPEG feeds to browsers on your local network. See its README for APK installation, Android Studio setup, wireless debugging, and hardware troubleshooting.
+
+Build with `bun run mobile:apk`; run checks with `bun run mobile:check`. The Android app runs independently of the web/backend services.
