@@ -5,6 +5,7 @@
 import type { KnowledgeEngine } from "@sightline/contracts";
 
 import type { AssetStore, SessionLifecycle, SessionStore, UserResolver } from "../../shared/ports";
+import { createMastraGenerate } from "./captions/llm";
 import { MastraCaptionEngine } from "./captions/mastra-caption-engine";
 import { MockCaptionEngine } from "./captions/mock-caption-engine";
 import { captionDevRoutes } from "./dev-routes";
@@ -15,8 +16,12 @@ import { liveRoutes } from "./routes";
 import { SignUtterances } from "./sign-utterances";
 import type { SpeechToText, TextToSpeech } from "./speech/types";
 
+export type CaptionConfig =
+  | { mock: true }
+  | { mock: false; captionModel: string; signModel: string; timeoutMs: number; useRag: boolean };
+
 export function createLiveModule(deps: {
-  mockCaptions: boolean;
+  captions: CaptionConfig;
   stt: SpeechToText;
   tts: TextToSpeech;
   store: SessionStore;
@@ -27,7 +32,14 @@ export function createLiveModule(deps: {
 }) {
   const { store, knowledge, resolveUser } = deps;
   const hub = new SessionHub();
-  const captions = deps.mockCaptions ? new MockCaptionEngine(knowledge) : new MastraCaptionEngine(knowledge);
+  const captions = deps.captions.mock
+    ? new MockCaptionEngine(knowledge)
+    : new MastraCaptionEngine({
+        generate: createMastraGenerate(deps.captions),
+        knowledge,
+        captionTimeoutMs: deps.captions.timeoutMs,
+        useRag: deps.captions.useRag,
+      });
   const live = new LiveCaptions({ store, stt: deps.stt, captions, knowledge, events: hub });
   const sign = new SignUtterances({ store, captions, tts: deps.tts, assets: deps.assets, events: hub, assetUrl: deps.assetUrl });
 

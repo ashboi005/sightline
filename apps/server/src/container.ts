@@ -56,7 +56,16 @@ export function createContainer() {
               modelId: ENV.ELEVENLABS_MODEL_ID,
             }),
       );
-  const live = createLiveModule({ mockCaptions: mocks.captions, stt, tts, store, assets, knowledge, resolveUser, assetUrl });
+  const captions = mocks.captions
+    ? ({ mock: true } as const)
+    : {
+        mock: false as const,
+        captionModel: ENV.CAPTION_MODEL,
+        signModel: ENV.SIGN_MODEL,
+        timeoutMs: ENV.CAPTION_TIMEOUT_MS,
+        useRag: ENV.CAPTIONS_USE_RAG,
+      };
+  const live = createLiveModule({ captions, stt, tts, store, assets, knowledge, resolveUser, assetUrl });
 
   // --- platform uses the live module only via lifecycle + events -----------
   const platform = new PlatformService({ store, knowledge, notes, slides, assets, events: live.events, lifecycle: live.lifecycle });

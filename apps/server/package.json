@@ -11,7 +11,8 @@
     "env:generate": "varlock codegen",
     "auth:generate": "varlock run -- bun x auth@latest generate --config src/services.ts --output ../../packages/db/src/schema/auth.ts --yes",
     "smoke": "bun scripts/smoke.ts",
-    "test": "bun test src"
+    "test": "bun test src",
+    "eval:captions": "bun scripts/eval-captions.ts"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.2",
