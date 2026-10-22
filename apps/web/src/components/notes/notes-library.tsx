@@ -12,10 +12,11 @@ import { useState } from "react";
 
 import { InlineAlert, PageHeader, StatusPill } from "@/components/clay/clay";
 import { EmptyState } from "@/components/clay/empty-state";
-import { useNotes, useRegenerateNotes, useTranscript } from "@/hooks/use-lecture-data";
+import { useNotes, useRegenerateNotes, useSnapshots, useTranscript } from "@/hooks/use-lecture-data";
 import { useSessions, useSyncLectureData, useSession } from "@/hooks/use-sessions";
-import { api, errorMessage } from "@/lib/api";
+import { api, assetUrl, errorMessage } from "@/lib/api";
 import { formatWhen, processingLabel } from "@/lib/format";
+import { formatClock } from "@/lib/recordings/timeline";
 
 import { NotesReader } from "./notes-reader";
 import { NotesStatus } from "./notes-status";
@@ -79,6 +80,7 @@ function NotesView({ sessionId }: { sessionId: string }) {
   useSyncLectureData(session.data);
   const notes = useNotes(sessionId);
   const transcript = useTranscript(sessionId);
+  const snapshots = useSnapshots(sessionId);
   const regenerate = useRegenerateNotes(sessionId);
   const [exportError, setExportError] = useState<string | null>(null);
   const s = session.data;
@@ -130,6 +132,30 @@ function NotesView({ sessionId }: { sessionId: string }) {
             {ended ? "Rewrite the notes to generate them from the captions." : "They're written from the captions when you press End lecture."}
           </EmptyState>
         )
+      )}
+
+      {snapshots.data && snapshots.data.length > 0 && (
+        <section aria-labelledby="board-snapshots" className="rounded-[1.75rem] bg-card px-5 py-6 shadow-[var(--clay-shadow-sm)] sm:px-10">
+          <h2 id="board-snapshots" className="text-xl font-bold tracking-tight">
+            Board snapshots
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">Everything Sightline saved from the board during this lecture.</p>
+          <ul className="mt-4 grid gap-4 sm:grid-cols-2">
+            {snapshots.data.map((snap) => (
+              <li key={snap.id}>
+                <figure>
+                  <img src={assetUrl(snap.imageUrl)} alt={snap.description ?? snap.reason ?? "Board snapshot"} className="aspect-video w-full rounded-2xl border bg-muted object-cover" loading="lazy" />
+                  <figcaption className="mt-2 text-sm">
+                    <Link href={`/recordings/${s.id}?t=${snap.atMs}` as Route} className="font-semibold text-marigold-ink underline-offset-4 hover:underline">
+                      {formatClock(snap.atMs)}
+                    </Link>{" "}
+                    <span className="text-muted-foreground">{snap.description ?? snap.reason}</span>
+                  </figcaption>
+                </figure>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </div>
   );
