@@ -114,6 +114,17 @@
         "varlock": "catalog:",
       },
     },
+    "packages/live-client": {
+      "name": "@sightline/live-client",
+      "dependencies": {
+        "@sightline/contracts": "workspace:*",
+      },
+      "devDependencies": {
+        "@sightline/config": "workspace:*",
+        "@types/bun": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
     "packages/mocks": {
       "name": "@sightline/mocks",
       "dependencies": {
@@ -510,6 +521,8 @@
     "@sightline/contracts": ["@sightline/contracts@workspace:packages/contracts"],
 
     "@sightline/db": ["@sightline/db@workspace:packages/db"],
+
+    "@sightline/live-client": ["@sightline/live-client@workspace:packages/live-client"],
 
     "@sightline/mocks": ["@sightline/mocks@workspace:packages/mocks"],
 

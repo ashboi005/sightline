@@ -1,0 +1,19 @@
+{
+  "name": "@sightline/live-client",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "test": "bun test src"
+  },
+  "dependencies": {
+    "@sightline/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@sightline/config": "workspace:*",
+    "@types/bun": "catalog:",
+    "typescript": "catalog:"
+  }
+}
