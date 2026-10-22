@@ -1,23 +1,34 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Atkinson_Hyperlegible_Mono, Atkinson_Hyperlegible_Next } from "next/font/google";
 
+import "katex/dist/katex.min.css";
 import "../index.css";
-import Header from "@/components/header";
 import Providers from "@/components/providers";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Atkinson Hyperlegible was drawn by the Braille Institute for low-vision readers:
+// letterforms that can't be mistaken for each other (I l 1, O 0, rn m) matter when captions are the product.
+const atkinson = Atkinson_Hyperlegible_Next({
+  variable: "--font-atkinson",
   subsets: ["latin"],
+  // next/font has no metric overrides for this family yet, so name the fallbacks ourselves.
+  adjustFontFallback: false,
+  fallback: ["ui-sans-serif", "system-ui", "sans-serif"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const atkinsonMono = Atkinson_Hyperlegible_Mono({
+  variable: "--font-atkinson-mono",
   subsets: ["latin"],
+  adjustFontFallback: false,
+  fallback: ["ui-monospace", "monospace"],
 });
 
 export const metadata: Metadata = {
-  title: "sightline",
-  description: "sightline",
+  title: {
+    default: "Sightline: live captions that follow your eyes",
+    template: "%s · Sightline",
+  },
+  description:
+    "A classroom workspace for deaf and hard-of-hearing students. Captions pause when you look at the board, fix subject jargon, render spoken formulas, and turn your signs into speech.",
 };
 
 export default function RootLayout({
@@ -27,13 +38,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <Providers>
-          <div className="grid grid-rows-[auto_1fr] h-svh">
-            <Header />
-            {children}
-          </div>
-        </Providers>
+      <body className={`${atkinson.variable} ${atkinsonMono.variable} antialiased`}>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
