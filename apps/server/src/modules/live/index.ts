@@ -20,7 +20,15 @@ import type { SpeechToText, TextToSpeech } from "./speech/types";
 
 export type CaptionConfig =
   | { mock: true }
-  | { mock: false; gateway: GatewayConfig; captionModel: string; signModel: string; timeoutMs: number; useRag: boolean };
+  | {
+      mock: false;
+      gateway: GatewayConfig;
+      captionModel: string;
+      signModel: string;
+      signLanguage: "english" | "hinglish";
+      timeoutMs: number;
+      useRag: boolean;
+    };
 
 export function createLiveModule(deps: {
   captions: CaptionConfig;

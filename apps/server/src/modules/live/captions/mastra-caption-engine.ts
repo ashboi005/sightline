@@ -139,7 +139,8 @@ export function buildCaptionPrompt(
     .join("\n\n");
 }
 
-const words = (s: string) => s.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+// Unicode-aware so Hinglish / Devanagari transcripts are counted correctly by the drop/padding guard.
+const words = (s: string) => s.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
 
 function isValidLatex(latex: string): boolean {
   try {

@@ -10,6 +10,7 @@ import { config } from "./config";
 import { ENV } from "./env.server";
 import { createLiveModule } from "./modules/live";
 import { DeepgramStt } from "./modules/live/speech/deepgram-stt";
+import { SarvamStt } from "./modules/live/speech/sarvam-stt";
 import { MockReplayStt } from "./modules/live/speech/mock-stt";
 import { CachedTts, ElevenLabsTts, MockTts, SarvamTts } from "./modules/live/speech/tts";
 import { DiskAssetStore, MemoryAssetStore } from "./modules/platform/assets/asset-store";
@@ -40,12 +41,22 @@ export function createContainer() {
   const resolveUser = createUserResolver({ mock: mocks.auth, auth });
 
   // --- core (Ashwath) ------------------------------------------------------
-  const stt = mocks.speech ? new MockReplayStt(config.mockReplaySpeed) : new DeepgramStt({
-        apiKey: ENV.DEEPGRAM_API_KEY,
-        model: ENV.DEEPGRAM_MODEL,
-        language: ENV.DEEPGRAM_LANGUAGE,
-        baseUrl: ENV.DEEPGRAM_URL || undefined,
-      });
+  const stt = mocks.speech
+    ? new MockReplayStt(config.mockReplaySpeed)
+    : ENV.STT_PROVIDER === "sarvam"
+      ? new SarvamStt({
+          apiKey: ENV.SARVAM_API_KEY,
+          model: ENV.SARVAM_STT_MODEL,
+          mode: ENV.SARVAM_STT_MODE,
+          language: ENV.SARVAM_STT_LANGUAGE,
+          baseUrl: ENV.SARVAM_STT_URL || undefined,
+        })
+      : new DeepgramStt({
+          apiKey: ENV.DEEPGRAM_API_KEY,
+          model: ENV.DEEPGRAM_MODEL,
+          language: ENV.DEEPGRAM_LANGUAGE,
+          baseUrl: ENV.DEEPGRAM_URL || undefined,
+        });
   const tts = mocks.speech
     ? new MockTts()
     : new CachedTts(
@@ -69,6 +80,7 @@ export function createContainer() {
         gateway: llmGateway,
         captionModel: ENV.CAPTION_MODEL,
         signModel: ENV.SIGN_MODEL,
+        signLanguage: ENV.SIGN_OUTPUT_LANGUAGE,
         timeoutMs: ENV.CAPTION_TIMEOUT_MS,
         useRag: ENV.CAPTIONS_USE_RAG,
       };

@@ -140,6 +140,28 @@ describe("MastraCaptionEngine.refineCaption", () => {
     expect((await broken.refineCaption({ sessionId: "ses_1", segment: segment("hello class"), previous: [] })).text).toBe("Hello class");
   });
 
+  it("keeps Hinglish / Devanagari output (unicode-aware drop guard) with the term fix", async () => {
+    const raw = "ab kerchief ka current law dekhte hain, हर node पर current का sum zero होता है";
+    const out = {
+      parts: [
+        p("text", "Ab "),
+        p("term", "Kirchhoff", { original: "kerchief" }),
+        p("text", " ka current law dekhte hain, हर node पर current का sum zero होता है"),
+      ],
+      confidence: 0.9,
+    };
+    const result = await engine(returning(out)).refineCaption({ sessionId: "ses_1", segment: segment(raw), previous: [] });
+    expect(result.text).toBe("Ab Kirchhoff ka current law dekhte hain, हर node पर current का sum zero होता है");
+    expect(result.corrections).toEqual([{ from: "kerchief", to: "Kirchhoff", reason: "GLOSSARY" }]);
+  });
+
+  it("rejects an LLM that translates a Hindi caption into English", async () => {
+    const raw = "हर node पर आने वाला current जाने वाले current के बराबर होता है";
+    const out = { parts: [p("text", "At every node, incoming current equals outgoing current.")], confidence: 0.9 };
+    const result = await engine(returning(out)).refineCaption({ sessionId: "ses_1", segment: segment(raw), previous: [] });
+    expect(result.text).toContain("बराबर"); // fell back to the original-language transcript
+  });
+
   it("puts glossary aliases and previous lines into the prompt", () => {
     const prompt = buildCaptionPrompt(
       { sessionId: "ses_1", segment: segment("kerchief"), previous: [] },
@@ -181,5 +203,13 @@ describe("MastraCaptionEngine.composeSignSentence", () => {
     }) as StructuredGenerate;
     const result = await engine(failing).composeSignSentence({ sessionId: "ses_1", tokens, source: "SELF", recentCaptions: [] });
     expect(result).toEqual({ text: "Please repeat formula.", alternatives: [], confidence: 0.4 });
+  });
+});
+
+describe("sign language output", () => {
+  it("adds the Hinglish rule only when configured", async () => {
+    const { signInstructions } = await import("./prompts");
+    expect(signInstructions("hinglish")).toContain("Hinglish");
+    expect(signInstructions("english")).not.toContain("Hinglish as Indian students");
   });
 });

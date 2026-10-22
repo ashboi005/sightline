@@ -6,7 +6,7 @@ import { Agent } from "@mastra/core/agent";
 import type { z } from "zod";
 
 import { type GatewayConfig, gatewayModel } from "../../../lib/llm-gateway";
-import { CAPTION_INSTRUCTIONS, SIGN_INSTRUCTIONS } from "./prompts";
+import { CAPTION_INSTRUCTIONS, type SignLanguage, signInstructions } from "./prompts";
 
 export type LlmTask = "captions" | "sign";
 
@@ -21,6 +21,7 @@ export function createMastraGenerate(options: {
   gateway: GatewayConfig;
   captionModel: string;
   signModel: string;
+  signLanguage?: SignLanguage;
 }): StructuredGenerate {
   const agents: Record<LlmTask, Agent> = {
     captions: new Agent({
@@ -32,7 +33,7 @@ export function createMastraGenerate(options: {
     sign: new Agent({
       id: "sign-composer",
       name: "Sign sentence composer",
-      instructions: SIGN_INSTRUCTIONS,
+      instructions: signInstructions(options.signLanguage ?? "english"),
       model: gatewayModel(options.gateway, options.signModel),
     }),
   };

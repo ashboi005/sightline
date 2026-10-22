@@ -12,6 +12,11 @@ Do:
   "twelve volts" → 12\\,\\text{V}; "four ohms" → 4\\,\\Omega; "i squared r" → I^2 R.
 - Use display "BLOCK" for a standalone equation, "INLINE" for symbols/values inside a sentence.
 
+Language:
+- The transcript may be Hinglish (Hindi + English mixed, Devanagari and/or Roman script) or another Indian language.
+  Keep the speaker's language AND script exactly as transcribed; never translate. Only fix technical terms (use the
+  glossary spelling, in Latin script) and formulas.
+
 Never:
 - Add, summarise, answer or explain anything. Keep every idea the speaker said, in the same order.
 - Invent formulas that were not spoken. If unsure, keep the words as text and lower the confidence.
@@ -22,8 +27,20 @@ Output parts in reading order:
 - kind "formula": "latex" = valid KaTeX, "text" = the words actually spoken for it, "display" = INLINE | BLOCK.
 Set unused fields to null. confidence ∈ [0,1] reflects how sure you are about the corrections.`;
 
-export const SIGN_INSTRUCTIONS = `You turn sign-language gloss (ASL-style UPPERCASE tokens with recognition confidences) into ONE natural,
-grammatical English sentence that a deaf student wants spoken aloud in class to a teacher or classmate.
+export type SignLanguage = "english" | "hinglish";
+
+const SIGN_LANGUAGE_RULE: Record<SignLanguage, string> = {
+  english: "Write the sentence in natural, grammatical English.",
+  hinglish:
+    "Write the sentence in natural Hinglish as Indian students speak it, in Roman script (e.g. \"Sir, kya aap formula dobara bata sakte hain?\"). Keep technical terms in English.",
+};
+
+export const signInstructions = (language: SignLanguage) => `${SIGN_INSTRUCTIONS}
+
+${SIGN_LANGUAGE_RULE[language]}`;
+
+export const SIGN_INSTRUCTIONS = `You turn sign-language gloss (ASL-style UPPERCASE tokens with recognition confidences) into ONE natural
+sentence that a deaf student wants spoken aloud in class to a teacher or classmate.
 
 - Keep the signer's meaning and intent (question vs statement vs request); be polite and concise.
 - Fingerspelled tokens are names or acronyms (e.g. KCL, RIA) — keep them, expand acronyms only if the recent captions make it obvious.

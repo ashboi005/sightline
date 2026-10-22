@@ -2,7 +2,8 @@
  * Core pipeline check WITHOUT any API keys: real DeepgramStt + real caption engine wiring, with Deepgram replaced
  * by a local fake that "transcribes" the Kirchhoff script whenever audio arrives.
  *
- *   bun run --filter server check:pipeline
+ *   bun run --filter server check:pipeline            # Deepgram path
+ *   bun run --filter server check:pipeline sarvam     # Sarvam (Hinglish) path
  *
  * Spawns the server with MOCK_SPEECH=false / MOCK_CAPTIONS=false and DEEPGRAM_URL pointing at the fake, streams
  * LINEAR16 audio over the session socket the way @sightline/live-client does, and asserts captions come back.
@@ -12,6 +13,7 @@ import { floatToLinear16 } from "@sightline/live-client/pcm"; // DOM-free entry
 import { fixtures } from "@sightline/mocks";
 
 const SERVER_PORT = 13100;
+const provider = process.argv[2] === "sarvam" ? "sarvam" : "deepgram";
 const lines = fixtures.lecture.script.segments.slice(0, 3);
 
 // --- fake Deepgram -----------------------------------------------------------
@@ -21,27 +23,37 @@ let keyterms: string[] = [];
 const fake = Bun.serve({
   port: 0,
   fetch(req, server) {
-    auth = req.headers.get("authorization");
+    auth = req.headers.get("authorization") ?? req.headers.get("api-subscription-key");
     keyterms = new URL(req.url).searchParams.getAll("keyterm");
     if (server.upgrade(req)) return;
     return new Response("upgrade required", { status: 426 });
   },
   websocket: {
     message(ws, msg) {
+      let bytes: number;
       if (typeof msg === "string") {
-        if (JSON.parse(msg).type === "CloseStream") ws.close(1000);
-        return;
+        const parsed = JSON.parse(msg);
+        if (parsed.type === "CloseStream") ws.close(1000);
+        if (!parsed.audio) return;
+        bytes = Buffer.from(parsed.audio.data, "base64").byteLength; // Sarvam: base64 PCM inside JSON
+      } else {
+        bytes = msg.byteLength; // Deepgram: binary PCM
       }
       const before = audioBytes;
-      audioBytes += msg.byteLength;
+      audioBytes += bytes;
       // Every ~0.5 s of audio, emit an interim + final for the next scripted line.
       const index = Math.floor(audioBytes / 16000) - 1;
       if (index >= 0 && index < lines.length && Math.floor(before / 16000) - 1 < index) {
         const raw = lines[index]!.raw;
-        const result = (text: string, isFinal: boolean) =>
-          ws.send(JSON.stringify({ type: "Results", start: index, duration: 1, is_final: isFinal, channel: { alternatives: [{ transcript: text, confidence: 0.9 }] } }));
-        result(raw.split(" ").slice(0, 3).join(" "), false);
-        result(raw, true);
+        if (provider === "sarvam") {
+          ws.send(JSON.stringify({ type: "events", data: { signal_type: "START_SPEECH" } }));
+          ws.send(JSON.stringify({ type: "data", data: { request_id: "r", transcript: raw, metrics: { audio_duration: 1 } } }));
+        } else {
+          const result = (text: string, isFinal: boolean) =>
+            ws.send(JSON.stringify({ type: "Results", start: index, duration: 1, is_final: isFinal, channel: { alternatives: [{ transcript: text, confidence: 0.9 }] } }));
+          result(raw.split(" ").slice(0, 3).join(" "), false);
+          result(raw, true);
+        }
       }
     },
   },
@@ -57,8 +69,11 @@ const server = Bun.spawn(["bun", "run", "src/index.ts"], {
     USE_MOCK_DATA: "true",
     MOCK_SPEECH: "false",
     MOCK_CAPTIONS: "false",
+    STT_PROVIDER: provider,
     DEEPGRAM_API_KEY: "fake-key",
     DEEPGRAM_URL: `ws://localhost:${fake.port}`,
+    SARVAM_API_KEY: "fake-key",
+    SARVAM_STT_URL: `ws://localhost:${fake.port}`,
     CAPTION_TIMEOUT_MS: "1500",
   },
   stdout: "ignore",
@@ -103,9 +118,12 @@ try {
   await Bun.sleep(300);
 
   const types = (t: string) => seen.filter((m) => m.type === t);
-  check("fake Deepgram got Token auth", auth === "Token fake-key", String(auth));
-  check("keyterms from the glossary reached Deepgram", keyterms.includes("Kirchhoff"), keyterms.slice(0, 4).join(", "));
-  check("LINEAR16 audio reached Deepgram", audioBytes >= 20 * 3200, `${audioBytes} bytes`);
+  console.log(`provider: ${provider}`);
+  check(`fake ${provider} got the API key`, auth === (provider === "sarvam" ? "fake-key" : "Token fake-key"), String(auth));
+  if (provider === "deepgram") {
+    check("keyterms from the glossary reached Deepgram", keyterms.includes("Kirchhoff"), keyterms.slice(0, 4).join(", "));
+  }
+  check(`PCM audio reached ${provider}`, audioBytes >= 20 * 3200, `${audioBytes} bytes`);
   check("caption.interim received", types("caption.interim").length >= 3, `${types("caption.interim").length}`);
   check("caption.final received", types("caption.final").length === 3, `${types("caption.final").length}`);
   const refined = types("caption.refined") as Extract<SessionServerMessage, { type: "caption.refined" }>[];
