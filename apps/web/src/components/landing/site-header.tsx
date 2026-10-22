@@ -34,7 +34,7 @@ export function SiteHeader() {
       )}
     >
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-        <Link href="/" className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <Link href="/" className="rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <Logo />
         </Link>
 
@@ -43,7 +43,7 @@ export function SiteHeader() {
             <a
               key={s.href}
               href={s.href}
-              className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              className="rounded-xl px-3 py-2 text-sm font-medium text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
             >
               {s.label}
             </a>

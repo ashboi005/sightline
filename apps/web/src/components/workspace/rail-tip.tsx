@@ -8,7 +8,7 @@ export function RailTip({ label, show, children }: { label: string; show: boolea
   return (
     <Tooltip>
       <TooltipTrigger render={children} />
-      <TooltipContent side="right" sideOffset={10} className="rounded-xl px-2.5 py-1.5 text-sm font-semibold">
+      <TooltipContent side="right" sideOffset={10}>
         {label}
       </TooltipContent>
     </Tooltip>

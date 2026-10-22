@@ -81,7 +81,8 @@ Radius follows hierarchy, larger outside, smaller inside:
 - Sidebar shell and hero cards: `rounded-[2rem]`
 - Cards: `rounded-[1.6rem]`–`rounded-[1.75rem]`
 - Panels: `rounded-[1.5rem]`
-- Controls and inputs: `rounded-2xl` / `rounded-xl`
+- Controls: `Button`, `Input`, `Textarea`, native `<select>` and menus are `rounded-2xl` at 36–44px tall;
+  `sm` buttons and menu items `rounded-xl`; 24px chips `rounded-lg`
 - Icon tiles: about `0.9rem`
 
 Spacing is generous: card padding `p-5`–`p-8`, page sections `space-y-6`, grids `gap-4`–`gap-6`.
@@ -93,6 +94,9 @@ Buttons (`@sightline/ui/components/button`):
 - `variant="ghost"`: toolbar and icon actions.
 - `variant="destructive"`: End lecture, Sign out anyway.
 - Sizes: `sm`, default, `lg` (hero CTAs), `icon` / `icon-sm`.
+- The size owns the radius. `cn` does not merge Tailwind classes, so never add a second `rounded-*` to a
+  button, input or skeleton through `className`: two radius classes resolve by stylesheet order, which differs
+  between pages. Change the kit component instead.
 - For a link styled as a button, use `className={buttonVariants({ variant: "clay" })}` on a Next `<Link>`.
 
 ## Decoration: Memphis accents and the backdrop

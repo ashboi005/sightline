@@ -72,7 +72,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         <Button variant="clay-soft" size="icon-lg" aria-label="Open navigation" onClick={() => setDrawerOpen(true)}>
           <Menu />
         </Button>
-        <Link href="/dashboard" className="rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <Link href="/dashboard" className="rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <Logo />
         </Link>
         {lecture.activeId && pathname !== lectureHref && (

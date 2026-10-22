@@ -46,7 +46,7 @@ export function FormAlert({ message }: { message: string | null | undefined }) {
   return (
     <div
       role="alert"
-      className="flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/8 px-3.5 py-3 text-sm font-medium text-destructive"
+      className="flex items-start gap-3 rounded-2xl border border-destructive/30 bg-destructive/8 px-3.5 py-3 text-sm font-medium text-destructive"
     >
       <CircleAlert className="mt-0.5 size-4 shrink-0" />
       <p>{message}</p>

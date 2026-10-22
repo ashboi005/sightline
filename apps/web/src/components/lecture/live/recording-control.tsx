@@ -66,7 +66,7 @@ export function RecordingControl() {
         <DropdownMenuTrigger render={<Button variant="clay-soft" size="sm" />}>
           <Circle className="fill-live text-live" /> Record
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-52 rounded-2xl p-1.5">
+        <DropdownMenuContent align="end" className="min-w-52">
           <DropdownMenuItem onClick={() => void start("SCENE_CAMERA")}>Record the scene camera</DropdownMenuItem>
           <DropdownMenuItem onClick={() => void start("WEBCAM")}>Record the webcam</DropdownMenuItem>
           <DropdownMenuItem onClick={() => void start("SCREEN")}>Record a screen or window</DropdownMenuItem>

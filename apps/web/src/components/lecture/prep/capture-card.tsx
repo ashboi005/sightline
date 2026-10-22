@@ -59,7 +59,7 @@ function SceneCameraSelect() {
             setSelected(e.target.value);
             saveSceneCameraId(e.target.value || null);
           }}
-          className="h-11 w-full rounded-xl border border-input bg-card px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="h-11 w-full rounded-2xl border border-input bg-card px-3.5 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <option value="">The browser&apos;s default camera</option>
           {named.map((d) => (

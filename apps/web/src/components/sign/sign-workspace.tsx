@@ -60,7 +60,7 @@ export function SignWorkspace() {
                 id="sign-lecture"
                 value={chosen ?? ""}
                 onChange={(e) => choose(e.target.value)}
-                className="h-11 w-full max-w-xl rounded-xl border border-input bg-card px-3 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="h-11 w-full max-w-xl rounded-2xl border border-input bg-card px-3.5 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {lectures.map((s) => (
                   <option key={s.id} value={s.id}>

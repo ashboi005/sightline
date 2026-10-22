@@ -192,7 +192,7 @@ export function NotesLibrary({ selectedId }: { selectedId: string | null }) {
           <section aria-label="Notes" className={cn(!selectedId && "hidden lg:block")}>
             {selectedId ? (
               <>
-                <Link href="/notes" className="mb-3 inline-flex items-center gap-1.5 rounded-lg text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden">
+                <Link href="/notes" className="mb-3 inline-flex items-center gap-1.5 rounded-xl text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden">
                   <ArrowLeft className="size-4" /> All notes
                 </Link>
                 <NotesView key={selectedId} sessionId={selectedId} />

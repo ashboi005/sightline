@@ -154,7 +154,7 @@ function TopicText({ sessionId, initial }: { sessionId: string; initial: string 
         maxLength={20_000}
         aria-label="What the lecture covers"
         placeholder="Kirchhoff's laws: current law (KCL) at nodes, voltage law (KVL) around loops, Ohm's law recap, mesh analysis."
-        className="min-h-32 rounded-2xl bg-card px-4 py-3 text-base"
+        className="min-h-32"
       />
       <div className="flex flex-wrap items-center gap-3">
         <Button variant="clay-soft" disabled={!text.trim() || save.isPending} onClick={() => save.mutate(text.trim())}>

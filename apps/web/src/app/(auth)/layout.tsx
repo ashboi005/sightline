@@ -9,7 +9,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     <div className="grid min-h-svh lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
       <div className="flex flex-col px-4 sm:px-8 lg:px-12">
         <header className="flex h-16 items-center justify-between">
-          <Link href="/" className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <Link href="/" className="rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <Logo />
           </Link>
           <ModeToggle />
