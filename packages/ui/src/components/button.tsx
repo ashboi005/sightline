@@ -16,6 +16,10 @@ const buttonVariants = cva(
           "border-transparent hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
         destructive:
           "border-transparent bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
+        /** Workspace primary action: marigold clay that sinks when pressed. */
+        clay: "clay-marigold clay-press rounded-2xl border-transparent font-bold hover:brightness-105",
+        /** Workspace secondary action: white clay. */
+        "clay-soft": "clay-sm clay-press rounded-2xl border-transparent text-foreground",
         link: "border-transparent text-foreground underline decoration-marigold decoration-2 underline-offset-4 hover:decoration-foreground",
       },
       size: {
