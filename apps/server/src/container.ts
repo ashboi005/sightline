@@ -26,6 +26,7 @@ import { auth, db } from "./services";
 
 export function createContainer() {
   const { mocks } = config;
+  const llmGateway = { url: ENV.LLM_GATEWAY_URL, apiKey: ENV.MERGE_GATEWAY_API_KEY };
   const assetUrl = (assetId: string) => `${config.publicUrl}/api/assets/${assetId}`;
 
   // --- surrounding (Tushar) ------------------------------------------------
@@ -65,6 +66,7 @@ export function createContainer() {
     ? ({ mock: true } as const)
     : {
         mock: false as const,
+        gateway: llmGateway,
         captionModel: ENV.CAPTION_MODEL,
         signModel: ENV.SIGN_MODEL,
         timeoutMs: ENV.CAPTION_TIMEOUT_MS,

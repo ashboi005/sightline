@@ -4,6 +4,7 @@
  */
 import type { KnowledgeEngine } from "@sightline/contracts";
 
+import type { GatewayConfig } from "../../lib/llm-gateway";
 import type { AssetStore, SessionLifecycle, SessionStore, UserResolver } from "../../shared/ports";
 import { createMastraGenerate } from "./captions/llm";
 import { MastraCaptionEngine } from "./captions/mastra-caption-engine";
@@ -18,7 +19,7 @@ import type { SpeechToText, TextToSpeech } from "./speech/types";
 
 export type CaptionConfig =
   | { mock: true }
-  | { mock: false; captionModel: string; signModel: string; timeoutMs: number; useRag: boolean };
+  | { mock: false; gateway: GatewayConfig; captionModel: string; signModel: string; timeoutMs: number; useRag: boolean };
 
 export function createLiveModule(deps: {
   captions: CaptionConfig;

@@ -16,7 +16,11 @@ import { MockKnowledgeEngine } from "../src/modules/platform/knowledge/mock-know
 
 const limit = Number(process.argv[2] ?? fixtures.lecture.script.segments.length);
 const engine = new MastraCaptionEngine({
-  generate: createMastraGenerate({ captionModel: ENV.CAPTION_MODEL, signModel: ENV.SIGN_MODEL }),
+  generate: createMastraGenerate({
+    gateway: { url: ENV.LLM_GATEWAY_URL, apiKey: ENV.MERGE_GATEWAY_API_KEY },
+    captionModel: ENV.CAPTION_MODEL,
+    signModel: ENV.SIGN_MODEL,
+  }),
   knowledge: new MockKnowledgeEngine(),
   captionTimeoutMs: Math.max(ENV.CAPTION_TIMEOUT_MS, 5000), // eval measures quality; latency is reported separately
   useRag: false,
