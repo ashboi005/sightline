@@ -23,7 +23,8 @@ You own the **core of the problem**: what the student hears and reads, live.
 | **CaptionEngine (Mastra)** | `…/live/captions/mastra-caption-engine.ts` | ⛔ stub (mock + glossary fast path exist) |
 | **Deepgram streaming STT** | `…/live/speech/deepgram-stt.ts` | ⛔ stub (replay mock exists) |
 | **ElevenLabs / Sarvam TTS** | `…/live/speech/tts.ts` (`ProviderTts`) | ⛔ stub (chime mock exists) |
-| **Gaze bridge + voice isolation** | `apps/gaze-bridge/` | skeleton speaks the protocol, real logic next |
+| **Look-to-hear speaker service** | `apps/speaker-service/` + `protocols/speaker-service.ts` | ✅ working with the real model (see its README for measurements) |
+| **Gaze bridge** (zones + `gaze.scene`) | `apps/gaze-bridge/` | skeleton speaks the protocol; plug in Arunya's tracker output |
 | Deploy (Coolify, compose, Dockerfiles, VPS Qdrant/Postgres) | repo root | todo |
 
 ## You do NOT own
@@ -60,9 +61,12 @@ Deps to add as you go: `bun add --cwd apps/server @mastra/core @deepgram/sdk` (+
   glossary (already passed in `SttStreamOptions.keyterms`). Use one segment id per utterance for its interims and
   final, and send keep-alives during silence.
 - **TTS:** ElevenLabs by default, Sarvam via `TTS_PROVIDER=sarvam`. Return `audio/mpeg` bytes and cache by text.
-- **Gaze bridge:** zones from tracker output (screen rectangle from calibration; above the screen = BOARD;
-  azimuth → person target), 150 ms debounce, 1 Hz heartbeat. Voice isolation steers toward the focused target
-  and routes to the earphones; publish `audio.focus` on each switch.
+- **Gaze bridge:** zones from tracker output (screen rectangle from calibration; above the screen = BOARD),
+  150 ms debounce, 1 Hz heartbeat, plus `gaze.scene` (gaze in scene-camera coordinates) for look-to-hear.
+- **Speaker service** (`bun run speaker:setup`, `bun run speaker:dev`): scene frames + room mic → faces → the
+  web app selects a face from `gaze.scene` with `createGazeTargetSelector` → the RTFS-Net-extracted voice is
+  streamed back. Next steps: on-device latency tuning, an RNNoise wheel on macOS 26+ (or `--noise off`), and
+  testing with the real tracker's scene camera.
 - **Deploy:** Coolify runs server + web from the Dockerfiles, with Postgres + Qdrant as services, a volume on
   `STORAGE_DIR`, and `wss://` for `NEXT_PUBLIC_SERVER_WS_URL`. Give Tushar the Qdrant URL/key when it's up.
 

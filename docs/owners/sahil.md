@@ -25,6 +25,7 @@ All of [`apps/web`](../../apps/web) (Next.js 16, Tailwind 4, shadcn-style `packa
 | Live workspace | Caption stream, KaTeX formulas, term tooltips, slide preview, focus indicator | session socket + gaze bridge |
 | Gaze-pause (Deaf) | Pause scroll + bookmark on away, highlight missed lines, catch-up then resume | gaze bridge zones (client-side logic) |
 | Sign panel | Webcam preview, live partial gloss, sentence, play audio, SELF/PEER toggle | sign service + `createSignUtterance` |
+| HoH look-to-hear | Scene preview with face boxes, highlight the selected face, "listening to …", delay readout, earphone playback | [speaker service](../contracts/speaker-service.md) + gaze bridge `gaze.scene` + `createGazeTargetSelector` |
 | Notes | Sections, formulas (KaTeX), definitions, BOARD callouts, export .md | `getNotes`, `notesExportUrl` |
 
 ## You do NOT own
@@ -60,6 +61,7 @@ cp apps/server/.env.example apps/server/.env    # USE_MOCK_DATA=true is the defa
 bun run dev:server                              # MOCK_REPLAY_SPEED=2 in .env for faster captions
 bun run dev:web
 bun run mock:gaze                               # press b (board) / s (screen) to test gaze-pause by hand
+bun run mock:speaker                            # look-to-hear: 2 fake faces, echoes mic audio as "focused"
 MOCK_SIGN_AUTO=1 bun run mock:sign              # sign tokens without a webcam
 ```
 

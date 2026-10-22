@@ -24,6 +24,7 @@ cp apps/web/.env.example apps/web/.env
 bun run dev                                    # web :3001 + server :3000
 bun run mock:gaze                              # mock eye tracker  ws://localhost:7777
 bun run mock:sign                              # mock sign service ws://localhost:7788/ws
+bun run mock:speaker                           # mock look-to-hear service ws://127.0.0.1:7799/live
 ```
 
 The server prints which modules are mocked. A finished demo lecture is seeded, and any new session replays
@@ -36,6 +37,7 @@ apps/web            Next.js frontend                      (Sahil)
 apps/server         Bun + Elysia API + WebSocket          (Ashwath: modules/live, Tushar: modules/platform)
 apps/gaze-bridge    Python local gaze + audio-focus daemon (Ashwath; tracker hardware: Arunya)
 apps/sign-service   Python recogniser                     (Harnoor)
+apps/speaker-service Python look-to-hear voice extraction (Ashwath) — see its README
 packages/contracts  zod schemas, types, JSON Schema, typed clients  ← source of truth for every boundary
 packages/mocks      fixtures + mock gaze/sign servers
 packages/db         Drizzle schema (better-auth + Sightline tables)
@@ -48,7 +50,8 @@ docs/               overview, owner briefs, contract references
 | Command | What |
 | --- | --- |
 | `bun run dev` / `dev:web` / `dev:server` | Run apps |
-| `bun run mock:gaze` / `mock:sign` | Mock device services |
+| `bun run mock:gaze` / `mock:sign` / `mock:speaker` | Mock device services |
+| `bun run speaker:setup` / `speaker:dev` / `speaker:test` | Real look-to-hear service (uv + PyTorch, downloads pinned weights once) |
 | `bun run mock:validate` | Validate fixtures against contracts |
 | `bun run --filter server smoke` | End-to-end contract check against a running server |
 | `bun run contracts:json-schema` | Regenerate JSON Schemas for the Python services |

@@ -32,7 +32,7 @@ flip the matching flag to `true` to keep working.
 
 | Who | Flags | Also run |
 | --- | --- | --- |
-| Sahil (frontend) | `USE_MOCK_DATA=true`, `MOCK_REPLAY_SPEED=2` | `bun run mock:gaze`, `bun run mock:sign` |
+| Sahil (frontend) | `USE_MOCK_DATA=true`, `MOCK_REPLAY_SPEED=2` | `bun run mock:gaze`, `bun run mock:sign`, `bun run mock:speaker` |
 | Ashwath (core) | `USE_MOCK_DATA=true`, `MOCK_CAPTIONS=false`, later `MOCK_SPEECH=false` | gaze bridge on :7777 |
 | Tushar (surrounding) | `USE_MOCK_DATA=true`, `MOCK_KNOWLEDGE=false`, `MOCK_NOTES=false`, later `MOCK_PERSISTENCE=false` | `bun run infra:up` (local Qdrant + Postgres) |
 | Harnoor (sign) | – | her service on :7788 + web app |
@@ -56,6 +56,7 @@ Validated against the contracts on import (`bun run mock:validate`). Plain JSON 
 ```bash
 bun run mock:gaze     # ws://localhost:7777 — auto timeline; keys: s b p a u (manual), m (auto), q
 bun run mock:sign     # ws://localhost:7788/ws — recognises scripted phrases while frames stream in
+bun run mock:speaker  # ws://127.0.0.1:7799/live — 2 fixed faces; echoes mic PCM as "focused" after 600 ms
 MOCK_SIGN_AUTO=1 bun run mock:sign   # …or on a timer without any frames
 ```
 
