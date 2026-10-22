@@ -172,10 +172,6 @@ export function DashboardView() {
               <span className="block text-sm text-muted-foreground">Sign a question, hear it spoken</span>
             </span>
           </Link>
-          <p className="px-1 text-sm text-muted-foreground">
-            <StatusPill kind="ready" className="mr-1.5">Tip</StatusPill>
-            Look up at the board any time. Missed lines stay highlighted until you resume.
-          </p>
         </aside>
       </div>
     </div>

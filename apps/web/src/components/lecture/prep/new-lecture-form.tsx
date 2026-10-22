@@ -47,7 +47,7 @@ export function NewLectureForm() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <PageHeader icon={Captions} title="New lecture" description="Name it now; you'll add slides or the topic on the next step." />
+      <PageHeader icon={Captions} title="New lecture"/>
 
       {lecture.activeId && (
         <ClayCard tone="marigold" className="flex flex-wrap items-center justify-between gap-3 p-4">

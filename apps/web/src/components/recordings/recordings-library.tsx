@@ -89,7 +89,6 @@ export function RecordingsLibrary() {
         icon={Clapperboard}
         tone="lilac"
         title="Recorded lectures"
-        description="Watch a lecture again with its captions lined up, or read the transcript when there's no video."
       />
 
       {sessions.isPending && (
