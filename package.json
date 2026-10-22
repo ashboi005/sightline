@@ -41,7 +41,9 @@
     "docker:logs": "docker compose logs -f",
     "env:generate": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/",
     "postinstall": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/",
-    "auth:generate": "cd apps/server && bun run auth:generate"
+    "auth:generate": "cd apps/server && bun run auth:generate",
+    "infra:up": "docker compose -f docker-compose.dev.yml up -d",
+    "infra:down": "docker compose -f docker-compose.dev.yml down"
   },
   "dependencies": {
     "zod": "catalog:"
