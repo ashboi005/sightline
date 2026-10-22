@@ -58,9 +58,12 @@ export type CurrentUser = z.infer<typeof CurrentUser>;
 export const HealthResponse = z.object({
   status: z.literal("ok"),
   version: z.string(),
+  /** Which modules are mocked. Core (Ashwath): captions, speech. Surrounding (Tushar): the rest. */
   mocks: z.object({
-    intelligence: z.boolean(),
+    captions: z.boolean(),
     speech: z.boolean(),
+    knowledge: z.boolean(),
+    notes: z.boolean(),
     persistence: z.boolean(),
     slides: z.boolean(),
     auth: z.boolean(),

@@ -1,5 +1,5 @@
 /**
- * OWNER: Tushar. Speech ports. MOCK_SPEECH=true → MockReplayStt + MockTts.
+ * OWNER: Ashwath. Speech ports. MOCK_SPEECH=true → MockReplayStt + MockTts.
  */
 import type { AudioFormat, RawTranscriptSegment } from "@sightline/contracts";
 

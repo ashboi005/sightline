@@ -1,7 +1,7 @@
 /**
- * OWNER: Tushar — Deepgram streaming STT (MOCK_SPEECH=false).
+ * OWNER: Ashwath — Deepgram streaming STT (MOCK_SPEECH=false).
  *
- * TODO(tushar):
+ * TODO(ashwath):
  *  - open a live connection (model = DEEPGRAM_MODEL, encoding=linear16, sample_rate=format.sampleRate,
  *    interim_results=true, smart_format=true, punctuate=true, keyterm=options.keyterms)
  *  - push(chunk) → connection.send(chunk); keep-alive every 8 s while idle
@@ -22,6 +22,6 @@ export class DeepgramStt implements SpeechToText {
   ) {}
 
   open(_options: SttStreamOptions): SttStream {
-    throw notImplemented("DeepgramStt.open", "Tushar");
+    throw notImplemented("DeepgramStt.open", "Ashwath");
   }
 }

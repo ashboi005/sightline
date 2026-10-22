@@ -2,7 +2,7 @@
 
 **Source of truth:** [`packages/contracts/src/protocols/session-socket.ts`](../../packages/contracts/src/protocols/session-socket.ts).
 **Client:** `connectSessionSocket(wsBaseUrl, sessionId, { onMessage, onStatus })` from `@sightline/contracts/client`.
-**Implementation owner:** Tushar (`apps/server/src/modules/platform/realtime/`).
+**Implementation owner:** Ashwath (`apps/server/src/modules/live/realtime/`).
 
 ```
 URL:  ${NEXT_PUBLIC_SERVER_WS_URL}/ws/sessions/:sessionId      (local: ws://localhost:3000/ws/sessions/ses_…)
@@ -21,7 +21,7 @@ web                                   server
  │──── audio.start {LINEAR16,16k,mono} ─►│  (ignored in mock-speech: a lecture replay is already running)
  │════ binary PCM chunks (~100 ms) ════►│──► Deepgram
  │◄─── caption.interim (replace line)   │
- │◄─── caption.final   (append)         │──► IntelligenceEngine.refineCaption
+ │◄─── caption.final   (append)         │──► CaptionEngine.refineCaption
  │◄─── caption.refined (replace by id)  │
  │◄─── slide.pointer   (P1)             │
  │──── gaze.transition (on every zone change from the gaze bridge)

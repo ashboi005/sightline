@@ -1,21 +1,25 @@
 /**
  * Composition root: picks real vs mock implementations from the MOCK_* flags (see config.ts).
- * Shared file — Tushar owns the platform wiring, Ashwath owns the intelligence line.
+ *
+ *   core (Ashwath)        modules/live      — captions, speech, realtime socket, sign sentences
+ *   surrounding (Tushar)  modules/platform  — sessions, store, slides, knowledge (RAG), notes, auth
  */
-import type { HealthResponse } from "@sightline/contracts";
+import type { HealthResponse, KnowledgeEngine, NotesEngine } from "@sightline/contracts";
 
 import { config } from "./config";
 import { ENV } from "./env.server";
-import { createIntelligenceEngine } from "./modules/intelligence";
+import { createLiveModule } from "./modules/live";
+import { DeepgramStt } from "./modules/live/speech/deepgram-stt";
+import { MockReplayStt } from "./modules/live/speech/mock-stt";
+import { MockTts, ProviderTts } from "./modules/live/speech/tts";
 import { DiskAssetStore, MemoryAssetStore } from "./modules/platform/assets/asset-store";
 import { createUserResolver } from "./modules/platform/auth";
+import { MockKnowledgeEngine } from "./modules/platform/knowledge/mock-knowledge-engine";
+import { QdrantKnowledgeEngine } from "./modules/platform/knowledge/qdrant-knowledge-engine";
+import { LlmNotesEngine } from "./modules/platform/notes/llm-notes-engine";
+import { MockNotesEngine } from "./modules/platform/notes/mock-notes-engine";
 import { PlatformService } from "./modules/platform/platform-service";
-import { SessionHub } from "./modules/platform/realtime/hub";
-import { LiveCaptions } from "./modules/platform/realtime/live-captions";
 import { FileSlideProcessor, MockSlideProcessor } from "./modules/platform/slides/slide-processor";
-import { DeepgramStt } from "./modules/platform/speech/deepgram-stt";
-import { MockReplayStt } from "./modules/platform/speech/mock-stt";
-import { MockTts, ProviderTts } from "./modules/platform/speech/tts";
 import { MemoryStore } from "./modules/platform/store/memory-store";
 import { PostgresStore } from "./modules/platform/store/postgres-store";
 import { auth, db } from "./services";
@@ -24,11 +28,17 @@ export function createContainer() {
   const { mocks } = config;
   const assetUrl = (assetId: string) => `${config.publicUrl}/api/assets/${assetId}`;
 
-  const hub = new SessionHub();
-  const intelligence = createIntelligenceEngine({ mock: mocks.intelligence });
+  // --- surrounding (Tushar) ------------------------------------------------
   const store = mocks.persistence ? new MemoryStore() : new PostgresStore(db);
   const assets = mocks.persistence ? new MemoryAssetStore() : new DiskAssetStore(config.storageDir);
   const slides = mocks.slides ? new MockSlideProcessor(assets, assetUrl) : new FileSlideProcessor();
+  const knowledge: KnowledgeEngine = mocks.knowledge
+    ? new MockKnowledgeEngine()
+    : new QdrantKnowledgeEngine(ENV.QDRANT_URL, ENV.QDRANT_API_KEY, ENV.EMBEDDING_MODEL);
+  const notes: NotesEngine = mocks.notes ? new MockNotesEngine() : new LlmNotesEngine(knowledge);
+  const resolveUser = createUserResolver({ mock: mocks.auth, auth });
+
+  // --- core (Ashwath) ------------------------------------------------------
   const stt = mocks.speech ? new MockReplayStt(config.mockReplaySpeed) : new DeepgramStt(ENV.DEEPGRAM_API_KEY, ENV.DEEPGRAM_MODEL);
   const tts = mocks.speech
     ? new MockTts()
@@ -37,13 +47,15 @@ export function createContainer() {
         ENV.TTS_PROVIDER === "sarvam" ? ENV.SARVAM_API_KEY : ENV.ELEVENLABS_API_KEY,
         ENV.ELEVENLABS_VOICE_ID,
       );
-  const live = new LiveCaptions({ store, stt, intelligence, hub });
-  const platform = new PlatformService({ store, intelligence, tts, slides, assets, hub, live, assetUrl });
-  const resolveUser = createUserResolver({ mock: mocks.auth, auth });
+  const live = createLiveModule({ mockCaptions: mocks.captions, stt, tts, store, assets, knowledge, resolveUser, assetUrl });
+
+  // --- platform uses the live module only via lifecycle + events -----------
+  const platform = new PlatformService({ store, knowledge, notes, slides, assets, events: live.events, lifecycle: live.lifecycle });
 
   const health = (): HealthResponse => ({ status: "ok", version: "0.1.0", mocks: { ...mocks }, ts: Date.now() });
+  const engines = { captions: live.captions.name, stt: stt.name, tts: tts.name, knowledge: knowledge.name, notes: notes.name, store: store.name };
 
-  return { hub, intelligence, store, assets, slides, stt, tts, live, platform, resolveUser, health };
+  return { store, assets, slides, knowledge, notes, resolveUser, live, platform, health, engines };
 }
 
 export type Container = ReturnType<typeof createContainer>;

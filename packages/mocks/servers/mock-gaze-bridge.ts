@@ -1,5 +1,5 @@
 /**
- * Mock gaze bridge — stands in for Arun's eye tracker daemon until the hardware is plugged in.
+ * Mock gaze bridge — stands in for the real gaze bridge (eye tracker + audio focus) during UI work.
  * Speaks the exact protocol in @sightline/contracts (protocols/gaze-bridge.ts).
  *
  *   bun run mock:gaze                    (from repo root)

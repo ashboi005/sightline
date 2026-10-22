@@ -11,16 +11,16 @@ This file is the **entry point**. It explains the whole system, who owns what, a
 
 | Doc | What it is |
 | --- | --- |
-| [`owners/arun.md`](owners/arun.md) | Arun — eye tracker hardware, gaze bridge, gaze-directed voice isolation |
+| [`owners/arunya.md`](owners/arunya.md) | Arunya — eye tracker hardware + gaze estimation |
 | [`owners/harnoor.md`](owners/harnoor.md) | Harnoor — sign language recognition (webcam → gloss tokens) |
 | [`owners/sahil.md`](owners/sahil.md) | Sahil — the entire frontend (landing, auth, workspace, notes) |
-| [`owners/ashwath.md`](owners/ashwath.md) | Ashwath — backend **Intelligence** module (RAG, caption refinement, formulas, notes, sign sentences) |
-| [`owners/tushar.md`](owners/tushar.md) | Tushar — backend **Platform & Realtime** module (sessions, uploads, WS gateway, STT/TTS, persistence) |
+| [`owners/ashwath.md`](owners/ashwath.md) | Ashwath — **core**: live pipeline (STT, captions, formulas, WS), gaze software + look→hear, sign sentences + TTS, deploy |
+| [`owners/tushar.md`](owners/tushar.md) | Tushar — **surrounding**: sessions + persistence, slides, knowledge (RAG/Qdrant), post-lecture notes, auth |
 | [`contracts/rest-api.md`](contracts/rest-api.md) | HTTP API (frontend ↔ server) |
 | [`contracts/realtime-ws.md`](contracts/realtime-ws.md) | Session WebSocket (frontend ↔ server): audio up, captions down |
-| [`contracts/gaze-bridge.md`](contracts/gaze-bridge.md) | Local gaze bridge protocol (Arun ↔ frontend) |
+| [`contracts/gaze-bridge.md`](contracts/gaze-bridge.md) | Local gaze bridge protocol (gaze/audio-focus daemon ↔ frontend) |
 | [`contracts/sign-service.md`](contracts/sign-service.md) | Sign service protocol (Harnoor ↔ frontend) |
-| [`contracts/intelligence-engine.md`](contracts/intelligence-engine.md) | In-process interface between Tushar's and Ashwath's backend modules |
+| [`contracts/backend-modules.md`](contracts/backend-modules.md) | In-process interfaces between Ashwath's core and Tushar's surrounding modules |
 | [`contracts/mock-mode.md`](contracts/mock-mode.md) | `USE_MOCK_DATA`, fixtures, and the mock services everyone can run today |
 
 **Source of truth for every shape is code:** [`packages/contracts`](../packages/contracts) (zod schemas + TS
@@ -42,19 +42,19 @@ types). The markdown docs explain intent; if a doc and a schema disagree, the sc
 
 ## 2. User flow → which system handles it
 
-| Phase / step | Frontend (Sahil) | Server (Tushar / Ashwath) | Devices (Arun / Harnoor) |
+| Phase / step | Frontend (Sahil) | Server (Ashwath / Tushar) | Devices (gaze: Arunya hw + Ashwath sw / sign: Harnoor) |
 | --- | --- | --- | --- |
 | 1.1 Launch & hardware check | Device check screen (bridge, webcam, mic) | `GET /api/health` | Gaze bridge reports `device.status` |
 | 1.2 Gaze calibration | Calibration UI (dots / "look at board") | — | Bridge runs calibration, returns `calibration.result` |
-| 1.3a Upload PPT/PDF | Upload + slide preview pane | Tushar: store, render pages, extract text → Ashwath: ingest into Qdrant, build glossary | — |
-| 1.3b Type context | Context textarea | Ashwath: ingest text, build glossary | — |
+| 1.3a Upload PPT/PDF | Upload + slide preview pane | Tushar: store, render pages, extract text, ingest into Qdrant, build glossary | — |
+| 1.3b Type context | Context textarea | Tushar: ingest text, build glossary | — |
 | 1.4 Choose mode | Mode toggle (HoH / Deaf), switchable live | `PATCH /api/sessions/:id` | Bridge `mode.set` enables/disables audio focus |
-| 2A Audio focus | Shows current focus target + captions as backup | Captions as below | Arun: gaze → target → isolate voice → earphones |
-| 2B Smart captions | Caption stream w/ KaTeX formula blocks | Tushar: mic audio → Deepgram (glossary keyterms) → Ashwath: refine + formulas → WS | — |
-| 2B Look up at board | Pause scroll, bookmark, highlight missed lines | Tushar: persist gaze transitions | Bridge emits `gaze.zone` = `BOARD` |
+| 2A Audio focus | Shows current focus target + captions as backup | Captions as below | Tracker (Arunya) → bridge (Ashwath): gaze → target → isolate voice → earphones |
+| 2B Smart captions | Caption stream w/ KaTeX formula blocks | Ashwath: mic audio → Deepgram (keyterms from Tushar's glossary) → refine + formulas → WS | — |
+| 2B Look up at board | Pause scroll, bookmark, highlight missed lines | Ashwath: socket stores gaze transitions (Tushar's store) | Bridge emits `gaze.zone` = `BOARD` |
 | 2B Look back | Show missed block, resume live scroll | — | Bridge emits `gaze.zone` = `SCREEN` |
-| 3 Sign a question | Sign panel with webcam preview, sentence, play audio | Ashwath: gloss → sentence; Tushar: TTS → audio URL | Harnoor: frames → gloss tokens |
-| 4 End lecture & notes | Notes view + export | Tushar: orchestrate job; Ashwath: generate notes | — |
+| 3 Sign a question | Sign panel with webcam preview, sentence, play audio | Ashwath: gloss → sentence → TTS → audio URL | Harnoor: frames → gloss tokens |
+| 4 End lecture & notes | Notes view + export | Tushar: notes job + NotesEngine (RAG-grounded) | — |
 
 ## 3. Architecture
 
@@ -62,19 +62,20 @@ types). The markdown docs explain intent; if a doc and a schema disagree, the sc
  STUDENT LAPTOP                                                       VPS (Coolify)
 ┌──────────────────────────────────────────────────────────┐        ┌──────────────────────────────────────┐
 │                                                          │        │ server  (Bun + Elysia)  :3000         │
-│  Eye tracker ─USB─► gaze-bridge (Arun, Python) :7777     │        │ ┌──────────────────────────────────┐ │
-│  Mic array  ─────►   • gaze → zone / person target       │        │ │ platform/   (Tushar)             │ │
-│  Earphones  ◄─────   • isolate focused voice → earbuds   │        │ │  sessions · uploads · slides     │ │
-│                         │ ws (gaze.zone, audio.focus…)   │        │ │  WS gateway · Deepgram STT       │ │
-│                         ▼                                │  REST  │ │  TTS (ElevenLabs/Sarvam) · notes │ │
-│  web (Sahil, Next.js in the browser) ────────────────────┼───────►│ │  job · Postgres persistence      │ │
-│   • workspace, captions, slides, notes                   │   WS   │ └───────────────┬──────────────────┘ │
-│   • mic PCM ─────────────────────────────────────────────┼───────►│                 │ IntelligenceEngine │
-│   • forwards gaze transitions ───────────────────────────┼───────►│ ┌───────────────▼──────────────────┐ │
-│   • webcam frames ─┐                                     │        │ │ intelligence/  (Ashwath)         │ │
-│                    ▼                                     │        │ │  Mastra agents · Qdrant RAG      │ │
-│  sign-service (Harnoor, Python) :7788  ◄── frames        │        │ │  caption refiner · formulas      │ │
-│     returns sign.token (gloss) ──► web                   │        │ │  sign sentence · notes · slides  │ │
+│  Eye tracker ─USB─► gaze-bridge (Python) :7777           │        │ ┌──────────────────────────────────┐ │
+│  (Arunya hw) │       • gaze → zone / person target       │        │ │ live/   (Ashwath — core)         │ │
+│  Mic array  ─────►   • isolate focused voice → earbuds   │        │ │  WS gateway · Deepgram STT       │ │
+│  Earphones  ◄─────   (bridge software: Ashwath)          │        │ │  CaptionEngine (Mastra):         │ │
+│                         │ ws (gaze.zone, audio.focus…)   │        │ │   jargon fix · formulas → LaTeX  │ │
+│                         ▼                                │  REST  │ │  sign sentence · TTS             │ │
+│  web (Sahil, Next.js in the browser) ────────────────────┼───────►│ └──────┬─────────────────▲─────────┘ │
+│   • workspace, captions, slides, notes                   │   WS   │  KnowledgeEngine │  Lifecycle/Events │
+│   • mic PCM ─────────────────────────────────────────────┼───────►│  SessionStore    │                   │
+│   • forwards gaze transitions ───────────────────────────┼───────►│ ┌──────▼─────────────────┴─────────┐ │
+│   • webcam frames ─┐                                     │        │ │ platform/  (Tushar — surrounding)│ │
+│                    ▼                                     │        │ │  sessions · auth · slides        │ │
+│  sign-service (Harnoor, Python) :7788  ◄── frames        │        │ │  KnowledgeEngine (Qdrant RAG)    │ │
+│     returns sign.token (gloss) ──► web                   │        │ │  NotesEngine · Postgres store    │ │
 │  (may also be deployed on the VPS — URL is config)       │        │ └──────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────┘        │  Postgres · Qdrant (self-hosted)     │
                                                                     └──────────────────────────────────────┘
@@ -85,74 +86,73 @@ Key decisions:
 1. **The gaze bridge runs locally** next to the hardware and talks straight to the browser
    (`ws://localhost:7777`). Caption pausing must react in < 100 ms; a VPS round-trip is not needed for that.
    The browser forwards *transitions* (not raw samples) to the server only for persistence/notes.
-2. **Voice isolation is fully local** (Arun's bridge → earphones). The server never touches that audio.
+2. **Voice isolation is fully local** (gaze bridge → earphones). The server never touches that audio.
+   Hardware + gaze estimation: Arunya. Bridge software + look→hear: Ashwath.
    Captions are transcribed from the browser mic. (Stretch: bridge can expose the isolated stream for STT.)
 3. **Sign recognition is its own service** so Harnoor can use Python/MediaPipe freely. It returns *gloss
-   tokens only*; turning gloss into a fluent sentence is Ashwath's LLM job, speaking it is Tushar's TTS job.
-4. **The backend is one deployable** (`apps/server`) split into two modules with an in-process interface
-   (`IntelligenceEngine`). Tushar's code only ever calls Ashwath's module through that interface, so a mock
-   implementation can be swapped in with one env flag.
+   tokens only*; turning gloss into a fluent sentence and speaking it are both Ashwath's (core) job.
+4. **The backend is one deployable** (`apps/server`) split into two modules. `live/` (Ashwath, the core) and
+   `platform/` (Tushar, the surrounding) only see each other through interfaces (`CaptionEngine`,
+   `KnowledgeEngine`, `NotesEngine`, `SessionStore`, `SessionLifecycle`, `SessionEvents`), each with a mock that
+   one env flag swaps in. See [contracts/backend-modules.md](contracts/backend-modules.md).
 5. **Shared contracts package** (`@sightline/contracts`) holds every schema/type used across a boundary. Sahil,
-   Tushar and Ashwath import it directly; Arun and Harnoor get generated JSON Schemas
+   Tushar and Ashwath import it directly; the Python services get generated JSON Schemas
    (`packages/contracts/json-schema/`) for their Python code.
 
 ## 4. Ownership matrix
 
 | Area | Owner | Lives in | Depends on | Unblocked today by |
 | --- | --- | --- | --- | --- |
-| Eye tracker hardware + firmware | **Arun** | (hardware) | — | — |
-| Gaze bridge (zones, targets, calibration) | **Arun** | `apps/gaze-bridge` | contracts | — |
-| Gaze-directed voice isolation | **Arun** | `apps/gaze-bridge` | — | — |
+| Eye tracker hardware, firmware, gaze estimation | **Arunya** | (hardware) | — | — |
+| Gaze bridge software (zones, targets, calibration flow) | **Ashwath** | `apps/gaze-bridge` | tracker output | fake tracker in the bridge |
+| Gaze-directed voice isolation (look → hear) | **Ashwath** | `apps/gaze-bridge` | tracker output | fake tracker |
 | Sign recognition (frames → gloss tokens) | **Harnoor** | `apps/sign-service` | contracts | — |
-| Landing, auth screens, dashboard | **Sahil** | `apps/web` | REST API | server in mock mode |
-| Session setup, upload, mode toggle | **Sahil** | `apps/web` | REST API | server in mock mode |
-| Live workspace: captions, formulas, gaze-pause, slides | **Sahil** | `apps/web` | WS, gaze bridge | mock server + `bun run mock:gaze` |
-| Sign panel | **Sahil** | `apps/web` | sign service, REST | `bun run mock:sign` |
-| Notes view & export | **Sahil** | `apps/web` | REST API | server in mock mode |
-| Context ingestion (RAG / Qdrant), glossary | **Ashwath** | `apps/server/src/modules/intelligence` | — | fixtures |
-| Caption refinement + formula → LaTeX | **Ashwath** | same | — | fixtures |
-| Sign gloss → fluent sentence | **Ashwath** | same | — | fixtures |
-| Notes generation, slide pointer (P1), board markers (P1) | **Ashwath** | same | — | fixtures |
-| Sessions, auth guard, DB schema, persistence | **Tushar** | `apps/server/src/modules/platform` + `packages/db` | — | in-memory store |
+| Landing, auth screens, dashboard, setup, workspace, sign panel, notes UI | **Sahil** | `apps/web` | REST, WS, local sockets | mock server + `bun run mock:gaze` / `mock:sign` |
+| Live WS gateway, Deepgram STT, caption pipeline | **Ashwath** | `apps/server/src/modules/live` | `KnowledgeEngine`, `SessionStore` | `MOCK_KNOWLEDGE`, `MOCK_PERSISTENCE` |
+| CaptionEngine: jargon correction + spoken formula → LaTeX | **Ashwath** | same | `KnowledgeEngine` | `MOCK_KNOWLEDGE` |
+| Sign gloss → sentence, TTS (ElevenLabs / Sarvam) | **Ashwath** | same | — | mock TTS |
+| Deploy (Coolify), VPS Postgres + Qdrant, env | **Ashwath** → hands Qdrant to Tushar | `docker-compose*.yml` | — | local `infra:up` |
+| Sessions, auth guard, DB schema, persistence | **Tushar** | `apps/server/src/modules/platform` + `packages/db` | `SessionLifecycle` | `MOCK_SPEECH` replay |
 | Uploads, PDF/PPT → slide images + text | **Tushar** | same | — | mock slides |
-| Realtime WS gateway, Deepgram streaming STT | **Tushar** | same | `IntelligenceEngine` | `MOCK_INTELLIGENCE=true` |
-| TTS (ElevenLabs / Sarvam), audio serving | **Tushar** | same | — | mock TTS |
-| Notes job orchestration, notes export | **Tushar** | same | `IntelligenceEngine` | `MOCK_INTELLIGENCE=true` |
+| KnowledgeEngine: RAG over context (Qdrant), glossary | **Tushar** | same | — | local Qdrant |
+| NotesEngine + notes job, export; P1 slide pointer + board markers | **Tushar** | same | transcript via `SessionStore` | replay lecture (`MOCK_CAPTIONS`) |
 | `@sightline/contracts` | **Everyone (PR-reviewed)** | `packages/contracts` | — | — |
-| Deploy (Coolify), env, infra | **Tushar** (Ashwath backup) | `docker-compose*.yml` | — | — |
 
 ### Who relies on whom
 
 ```
-Sahil  ──REST/WS──►  Tushar  ──IntelligenceEngine──►  Ashwath
-  │                    ▲
-  ├─ws─►  Arun (gaze bridge)          Ashwath relies on nobody at runtime; he receives inputs through
-  └─ws─►  Harnoor (sign service)      the interface and returns outputs. Tushar relies on Ashwath only
-                                      through that interface (mockable). Sahil relies on Tushar's API
-                                      (mockable) and on Arun/Harnoor's local sockets (mockable).
+Sahil ──REST/WS──► server ─┬─ live/ (Ashwath, core) ──KnowledgeEngine, SessionStore──► platform/ (Tushar)
+  │                        └─ platform/ (Tushar) ──SessionLifecycle, SessionEvents──► live/ (Ashwath)
+  ├─ws─► gaze bridge (Ashwath software on Arunya's tracker)
+  └─ws─► sign service (Harnoor)
+
+Every arrow is an interface with a mock behind a MOCK_* flag, so nobody blocks anybody.
 ```
 
 ## 5. Mock mode (how everyone starts on day one)
 
 `apps/server/.env` has a master switch **`USE_MOCK_DATA=true`** plus optional per-module overrides:
 
-| Flag | When `true` |
-| --- | --- |
-| `USE_MOCK_DATA` | Default for every flag below |
-| `MOCK_INTELLIGENCE` | Ashwath's module is replaced by fixture-driven `MockIntelligenceEngine` |
-| `MOCK_SPEECH` | STT replays a scripted lecture (no mic, no Deepgram); TTS returns a generated tone |
-| `MOCK_PERSISTENCE` | In-memory store instead of Postgres (no DB needed); seeds a finished demo lecture |
-| `MOCK_SLIDES` | Any upload becomes the fixture deck rendered as SVG slides |
-| `MOCK_AUTH` | `/api/*` acts as a fixed demo user (better-auth still mounted for Sahil's auth screens) |
+| Flag | Owner | When `true` |
+| --- | --- | --- |
+| `USE_MOCK_DATA` | – | Default for every flag below |
+| `MOCK_CAPTIONS` | Ashwath | Fixture-driven `MockCaptionEngine` (golden refinements + glossary fast path) |
+| `MOCK_SPEECH` | Ashwath | STT replays a scripted lecture (no mic, no Deepgram); TTS returns a generated tone |
+| `MOCK_KNOWLEDGE` | Tushar | Fixture glossary + naive retrieval instead of Qdrant |
+| `MOCK_NOTES` | Tushar | Fixture notes linked to the real transcript |
+| `MOCK_PERSISTENCE` | Tushar | In-memory store instead of Postgres; seeds a finished demo lecture |
+| `MOCK_SLIDES` | Tushar | Any upload becomes the fixture deck rendered as SVG slides |
+| `MOCK_AUTH` | Tushar | `/api` + `/ws` act as a fixed demo user (better-auth screens still work) |
 
 Typical setups:
 
 - **Sahil:** `USE_MOCK_DATA=true` → full API + live caption stream with zero services. Run
   `bun run mock:gaze` and `bun run mock:sign` for the device sockets.
-- **Tushar:** `USE_MOCK_DATA=false`, `MOCK_INTELLIGENCE=true` → real Postgres + Deepgram, fake intelligence.
-- **Ashwath:** `USE_MOCK_DATA=true`, `MOCK_INTELLIGENCE=false` → real Mastra/Qdrant fed by the mock lecture
-  replay; or test the engine directly via the dev routes (`/api/dev/intelligence/*`).
-- **Arun / Harnoor:** run their Python service and point the web app (or the protocol test client) at it.
+- **Ashwath:** `USE_MOCK_DATA=true`, `MOCK_CAPTIONS=false` (then `MOCK_SPEECH=false`) → your real engines,
+  Tushar's side mocked.
+- **Tushar:** `USE_MOCK_DATA=true`, `MOCK_KNOWLEDGE=false`, `MOCK_NOTES=false` (then `MOCK_PERSISTENCE=false`,
+  `MOCK_SLIDES=false`) → your real engines on local Qdrant/Postgres, fed by the replay lecture.
+- **Harnoor:** runs her Python service and points the web app at it.
 
 Details, fixture list and the mock device servers: [`contracts/mock-mode.md`](contracts/mock-mode.md).
 
@@ -162,12 +162,13 @@ Details, fixture list and the mock device servers: [`contracts/mock-mode.md`](co
 sightline/
 ├── apps/
 │   ├── web/                  Sahil   — Next.js frontend
-│   ├── server/               Tushar + Ashwath — Bun/Elysia API + WS
+│   ├── server/               Ashwath + Tushar — Bun/Elysia API + WS
 │   │   └── src/
-│   │       ├── modules/platform/      Tushar
-│   │       ├── modules/intelligence/  Ashwath
+│   │       ├── modules/live/          Ashwath (core)
+│   │       ├── modules/platform/      Tushar (surrounding)
+│   │       ├── shared/ports.ts        the seams between the two
 │   │       └── container.ts           picks real vs mock implementations from the MOCK_* flags
-│   ├── gaze-bridge/          Arun    — Python, local daemon (skeleton speaks the protocol)
+│   ├── gaze-bridge/          Ashwath — Python, local gaze + audio-focus daemon (tracker hw: Arunya)
 │   └── sign-service/         Harnoor — Python service (skeleton speaks the protocol)
 ├── packages/
 │   ├── contracts/            Everyone — zod schemas, TS types, JSON Schema export, typed clients
@@ -197,10 +198,10 @@ sightline/
 | # | Checkpoint | Proves |
 | - | --- | --- |
 | M0 | Everyone runs against mocks | Contracts are complete enough to build on |
-| M1 | Real gaze bridge → web pauses/resumes captions (mock server) | Arun ↔ Sahil |
+| M1 | Real tracker → gaze bridge → web pauses/resumes captions (mock server) | Arunya ↔ Ashwath ↔ Sahil |
 | M2 | Real sign-service → web → mock compose → tone | Harnoor ↔ Sahil |
-| M3 | Real Deepgram + mock intelligence → web captions | Tushar ↔ Sahil |
-| M4 | Real intelligence refines captions + formulas, notes generated | Ashwath ↔ Tushar |
+| M3 | Real Deepgram + real CaptionEngine → web captions (Tushar's side mocked) | Ashwath ↔ Sahil |
+| M4 | Real KnowledgeEngine feeds live captions; real notes generated | Tushar ↔ Ashwath |
 | M5 | Full demo run (Kirchhoff lecture) with hardware, flags all `false` | Demo ready |
 
 ## 9. Tech stack

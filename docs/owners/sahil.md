@@ -30,7 +30,7 @@ All of [`apps/web`](../../apps/web) (Next.js 16, Tailwind 4, shadcn-style `packa
 ## You do NOT own
 
 Any server logic, recognition, or the LLM. If you need a field that doesn't exist, propose it in
-`packages/contracts` (additive, optional) and ping Tushar/Ashwath.
+`packages/contracts` (additive, optional) and ping Ashwath (live/captions/sign) or Tushar (sessions/slides/notes).
 
 ## What you consume — use the ready-made clients
 
@@ -81,5 +81,5 @@ MOCK_SIGN_AUTO=1 bun run mock:sign              # sign tokens without a webcam
 ## Done when
 
 - [ ] Every screen above works end-to-end on mocks (checkpoint **M0**)
-- [ ] Switching to Arun's real bridge / Harnoor's real service needs only the env URLs (M1, M2)
+- [ ] Switching to the real gaze bridge / Harnoor's real service needs only the env URLs (M1, M2)
 - [ ] Demo run with all flags `false` (M5)

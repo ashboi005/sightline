@@ -1,69 +1,75 @@
-# Ashwath — Backend: Intelligence module
+# Ashwath — Core: Live Pipeline, Smart Captions, Gaze/Audio Focus, Deploy
 
-> Back to [overview](../00-overview.md). Your contract: [contracts/intelligence-engine.md](../contracts/intelligence-engine.md).
+> Back to [overview](../00-overview.md). Your contracts: [backend modules](../contracts/backend-modules.md) ·
+> [session socket](../contracts/realtime-ws.md) · [gaze bridge](../contracts/gaze-bridge.md).
 
 ## Mission
 
-Everything that needs understanding: lecture context RAG, context-locked caption correction, spoken-formula →
-LaTeX, gloss → natural sentence, structured lecture notes (and P1: slide auto-pointer, board-heavy markers).
+You own the **core of the problem**: what the student hears and reads, live.
+
+1. Live captions: mic → Deepgram STT → captions over the WebSocket, with the lowest possible latency.
+2. Context-locked correction and spoken formulas → LaTeX (module 3, `CaptionEngine`).
+3. Gaze software: turning tracker output into zones/targets, plus the look → hear voice isolation (modules 1 & 2).
+4. Sign sentences + speech: gloss → sentence (`CaptionEngine`) → ElevenLabs/Sarvam TTS (module 4).
+5. Deployment: Coolify on the VPS, including Postgres + Qdrant, which you then hand over to Tushar.
 
 ## You own
 
-| Thing | Where |
-| --- | --- |
-| `MastraIntelligenceEngine` (real engine) | [`apps/server/src/modules/intelligence/mastra-engine.ts`](../../apps/server/src/modules/intelligence/mastra-engine.ts) |
-| Mastra agents / workflows, prompts, structured outputs | `apps/server/src/modules/intelligence/**` |
-| Qdrant collections (`ctx_<sessionId>`), embeddings | same |
-| `MockIntelligenceEngine` + dev routes | same (keep the mock in sync with the contract) |
-| Golden test set | `packages/mocks/fixtures/kirchhoff.*.json`, `sign.phrases.json` |
+| Thing | Where | Status |
+| --- | --- | --- |
+| Session WebSocket + hub | `apps/server/src/modules/live/realtime/` | ✅ working |
+| Live caption pipeline (STT → final → refine → refined → slide pointer) | `…/live/realtime/live-captions.ts` | ✅ working |
+| Transcript + sign utterance routes | `…/live/routes.ts`, `sign-utterances.ts` | ✅ working |
+| **CaptionEngine (Mastra)** | `…/live/captions/mastra-caption-engine.ts` | ⛔ stub (mock + glossary fast path exist) |
+| **Deepgram streaming STT** | `…/live/speech/deepgram-stt.ts` | ⛔ stub (replay mock exists) |
+| **ElevenLabs / Sarvam TTS** | `…/live/speech/tts.ts` (`ProviderTts`) | ⛔ stub (chime mock exists) |
+| **Gaze bridge + voice isolation** | `apps/gaze-bridge/` | skeleton speaks the protocol, real logic next |
+| Deploy (Coolify, compose, Dockerfiles, VPS Qdrant/Postgres) | repo root | todo |
 
 ## You do NOT own
 
-Sessions, sockets, Deepgram, TTS, uploads/slide rendering, Postgres (Tushar). You never import from
-`modules/platform`. You get everything as method arguments and return contract types.
-
-## What you produce
-
-An implementation of `IntelligenceEngine` (`packages/contracts/src/services/intelligence.ts`):
-`ingestContext`, `getGlossary`, `refineCaption`, `locateSlide` (P1), `composeSignSentence`, `generateNotes`,
-`dropSession`. Budgets and rules: [intelligence-engine.md](../contracts/intelligence-engine.md).
-
-## What you consume
-
-Only the inputs of those methods. Tushar calls you; Tushar's real pipeline falls back gracefully if you throw.
+Sessions/DB/auth, slides, the RAG index, or notes; those are Tushar's. You use them through `SessionStore`,
+`AssetStore`, `UserResolver` and `KnowledgeEngine` (all mockable), and Tushar calls you only through
+`SessionLifecycle` + `SessionEvents`.
 
 ## How you work without anyone else
 
 ```bash
-bun run infra:up                                  # Qdrant (+ Postgres) via docker-compose.dev.yml
-# apps/server/.env: USE_MOCK_DATA=true, MOCK_INTELLIGENCE=false, OPENAI_API_KEY / ANTHROPIC_API_KEY, LLM_MODEL
+# apps/server/.env
+USE_MOCK_DATA=true          # Tushar's side mocked (knowledge/notes/store/slides/auth)
+MOCK_CAPTIONS=false         # your real CaptionEngine
+MOCK_SPEECH=true            # replay lecture (no mic) — set false when Deepgram is wired
 bun run dev:server
-curl -XPOST localhost:3000/api/dev/intelligence/refine -H 'content-type: application/json' -d '{
+curl -XPOST localhost:3000/api/dev/captions/refine -H 'content-type: application/json' -d '{
   "sessionId":"ses_test","previous":[],
   "segment":{"id":"seg_1","sessionId":"ses_test","seq":0,"startMs":0,"endMs":4000,
              "text":"the summation of i k from k equals one to n equals zero","isFinal":true,"speaker":null,"confidence":0.9}}'
 ```
 
-With `MOCK_SPEECH=true` the replay lecture flows through **your real engine** in the full app, so you see
-your corrections live in Sahil's UI without a mic.
+The replay lecture runs through **your real engine** in the full app, so you see corrections live in the UI.
+The mock KnowledgeEngine gives you the Kirchhoff glossary and a naive `retrieveContext`.
 
-Add deps when you start: `bun add --cwd apps/server @mastra/core @qdrant/js-client-rest` (+ the AI SDK provider
-for the model you choose).
+Deps to add as you go: `bun add --cwd apps/server @mastra/core @deepgram/sdk` (+ the AI SDK provider for your model).
 
-## Suggested design
+## Implementation notes
 
-| Method | Approach |
-| --- | --- |
-| `ingestContext` | Chunk slide text (per slide/bullet) + free text → embed → Qdrant. Glossary agent (structured output `GlossaryTerm[]`) that also predicts likely STT mis-hearings as `aliases`. Return ≤ 100 `sttKeyterms` for Deepgram keyterm prompting (Tushar passes them) |
-| `refineCaption` | Two-tier: (1) deterministic alias replacement from the glossary (instant), (2) small fast LLM with retrieved chunks + previous segments → `CaptionPart[]` with LaTeX for spoken maths. Cache per segment. Must be < 1.5 s p95 — use a fast model |
-| `locateSlide` (P1) | Embed refined text → nearest slide/bullet; hysteresis around `currentSlideIndex` to avoid flicker |
-| `composeSignSentence` | Prompt with gloss + confidences + recent captions so "REPEAT FORMULA" resolves to the formula just taught |
-| `generateNotes` | Mastra workflow: outline from topics/slides → per-section writer over transcript ranges → collect formulas/terms → render `markdown`. Mark sections overlapping long BOARD `awayWindows` as `boardFocus` (P1) |
-
-Evaluate against the fixtures: every `raw` in `kirchhoff.script.json` should come out close to its `refined`.
+- **CaptionEngine.refineCaption:** pass 1 is `refineWithGlossary` (`live/captions/glossary-refiner.ts`, instant).
+  Pass 2 is a fast LLM with structured output `CaptionPart[]`, grounded with `knowledge.retrieveContext` and the
+  previous segments. Spoken maths becomes KaTeX LaTeX. The golden set is `kirchhoff.script.json` (raw → refined).
+- **DeepgramStt:** live websocket with `linear16`, `interim_results`, `smart_format`, and `keyterm` set from the
+  glossary (already passed in `SttStreamOptions.keyterms`). Use one segment id per utterance for its interims and
+  final, and send keep-alives during silence.
+- **TTS:** ElevenLabs by default, Sarvam via `TTS_PROVIDER=sarvam`. Return `audio/mpeg` bytes and cache by text.
+- **Gaze bridge:** zones from tracker output (screen rectangle from calibration; above the screen = BOARD;
+  azimuth → person target), 150 ms debounce, 1 Hz heartbeat. Voice isolation steers toward the focused target
+  and routes to the earphones; publish `audio.focus` on each switch.
+- **Deploy:** Coolify runs server + web from the Dockerfiles, with Postgres + Qdrant as services, a volume on
+  `STORAGE_DIR`, and `wss://` for `NEXT_PUBLIC_SERVER_WS_URL`. Give Tushar the Qdrant URL/key when it's up.
 
 ## Done when
 
-- [ ] Kirchhoff replay through the real engine matches the golden refinements (terms + formulas)
-- [ ] Notes for a real 10-minute lecture with no slides are genuinely useful
-- [ ] Real engine wired with Tushar's real pipeline (checkpoint **M4**)
+- [ ] Real mic → Deepgram → captions in the UI, interims < 1 s
+- [ ] Kirchhoff replay through the real CaptionEngine matches the golden refinements (terms + formulas)
+- [ ] Looking at teacher vs classmate switches the earphone audio
+- [ ] Sign phrase → spoken sentence end-to-end
+- [ ] Deployed on the VPS; Qdrant handed to Tushar

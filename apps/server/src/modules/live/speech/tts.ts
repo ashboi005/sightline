@@ -15,8 +15,8 @@ export class MockTts implements TextToSpeech {
 }
 
 /**
- * OWNER: Tushar — ElevenLabs (default) or Sarvam (Indian languages/voices) TTS.
- * TODO(tushar): POST text → audio/mpeg bytes; pick provider by TTS_PROVIDER; cache by hash(text+voice).
+ * OWNER: Ashwath — ElevenLabs (default) or Sarvam (Indian languages/voices) TTS.
+ * TODO(ashwath): POST text → audio/mpeg bytes; pick provider by TTS_PROVIDER; cache by hash(text+voice).
  */
 export class ProviderTts implements TextToSpeech {
   constructor(
@@ -30,7 +30,7 @@ export class ProviderTts implements TextToSpeech {
   }
 
   async synthesize(_text: string): Promise<SynthesizedAudio> {
-    throw notImplemented(`${this.provider} TTS`, "Tushar");
+    throw notImplemented(`${this.provider} TTS`, "Ashwath");
   }
 }
 

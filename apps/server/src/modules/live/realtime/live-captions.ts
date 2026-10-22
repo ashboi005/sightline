@@ -1,19 +1,19 @@
 /**
- * OWNER: Tushar. The live caption pipeline for one server:
- *   STT (Deepgram or replay) → caption.interim / caption.final → IntelligenceEngine.refineCaption
- *   → caption.refined (+ slide.pointer) — persisted and broadcast through the hub.
+ * OWNER: Ashwath. The live caption pipeline:
+ *   STT (Deepgram or replay) → caption.interim / caption.final → CaptionEngine.refineCaption
+ *   → caption.refined (+ slide.pointer via KnowledgeEngine) — persisted and broadcast.
  */
 import type {
   AudioFormat,
+  CaptionEngine,
   CaptionSegment,
-  IntelligenceEngine,
+  KnowledgeEngine,
   RawTranscriptSegment,
   SlidePointer,
 } from "@sightline/contracts";
 
+import type { SessionEvents, SessionStore } from "../../../shared/ports";
 import type { SpeechToText, SttStream } from "../speech/types";
-import type { SessionStore } from "../store/types";
-import type { SessionHub } from "./hub";
 
 const REPLAY_FORMAT: AudioFormat = { encoding: "LINEAR16", sampleRate: 16000, channels: 1 };
 
@@ -26,8 +26,9 @@ export class LiveCaptions {
     private readonly deps: {
       store: SessionStore;
       stt: SpeechToText;
-      intelligence: IntelligenceEngine;
-      hub: SessionHub;
+      captions: CaptionEngine;
+      knowledge: KnowledgeEngine;
+      events: SessionEvents;
     },
   ) {}
 
@@ -35,17 +36,13 @@ export class LiveCaptions {
     return this.deps.stt.isReplay;
   }
 
-  isRunning(sessionId: string) {
-    return this.live.has(sessionId);
-  }
-
   /** Open the STT stream. Replay mode calls this on session start; real mode on `audio.start`. */
   async start(sessionId: string, startedAt: number, format: AudioFormat = REPLAY_FORMAT): Promise<void> {
     if (this.live.has(sessionId)) return;
-    const { store, stt, intelligence } = this.deps;
+    const { store, stt, knowledge } = this.deps;
 
     const existing = await store.listSegments(sessionId);
-    const keyterms = (await intelligence.getGlossary(sessionId).catch(() => [])).map((t) => t.term);
+    const keyterms = (await knowledge.getGlossary(sessionId).catch(() => [])).map((t) => t.term);
     const state: LiveState = {
       nextSeq: existing.length === 0 ? 0 : Math.max(...existing.map((s) => s.seq)) + 1,
       pointer: null,
@@ -64,7 +61,7 @@ export class LiveCaptions {
       },
       onError: (error) => {
         console.error(`[live] STT error for ${sessionId}`, error);
-        this.deps.hub.publish(sessionId, { type: "error", code: "STT_ERROR", message: error.message, ts: Date.now() });
+        this.deps.events.publish(sessionId, { type: "error", code: "STT_ERROR", message: error.message, ts: Date.now() });
       },
     });
   }
@@ -81,11 +78,11 @@ export class LiveCaptions {
   }
 
   private async handleSegment(raw: RawTranscriptSegment): Promise<void> {
-    const { store, hub, intelligence } = this.deps;
+    const { store, events, captions, knowledge } = this.deps;
     const sessionId = raw.sessionId;
 
     if (!raw.isFinal) {
-      hub.publish(sessionId, {
+      events.publish(sessionId, {
         type: "caption.interim",
         segmentId: raw.id,
         seq: raw.seq,
@@ -112,28 +109,28 @@ export class LiveCaptions {
       confidence: raw.confidence,
     };
     await store.upsertSegment(finalSegment);
-    hub.publish(sessionId, { type: "caption.final", segment: finalSegment, ts: Date.now() });
+    events.publish(sessionId, { type: "caption.final", segment: finalSegment, ts: Date.now() });
 
     try {
       const previous = (await store.listSegments(sessionId)).filter((s) => s.status === "REFINED").slice(-5);
-      const refined = await intelligence.refineCaption({ sessionId, segment: raw, previous });
+      const refined = await captions.refineCaption({ sessionId, segment: raw, previous });
 
       const deck = await store.getSlideDeck(sessionId);
       const state = this.live.get(sessionId);
       const pointer =
         deck?.status === "READY"
-          ? await intelligence
+          ? await knowledge
               .locateSlide({ sessionId, text: refined.text, currentSlideIndex: state?.pointer?.slideIndex ?? null })
               .catch(() => null)
           : null;
 
       const refinedSegment: CaptionSegment = { ...finalSegment, ...refined, status: "REFINED", slidePointer: pointer };
       await store.upsertSegment(refinedSegment);
-      hub.publish(sessionId, { type: "caption.refined", segment: refinedSegment, ts: Date.now() });
+      events.publish(sessionId, { type: "caption.refined", segment: refinedSegment, ts: Date.now() });
 
       if (pointer && state && (pointer.slideIndex !== state.pointer?.slideIndex || pointer.bulletIndex !== state.pointer?.bulletIndex)) {
         state.pointer = pointer;
-        hub.publish(sessionId, { type: "slide.pointer", pointer, ts: Date.now() });
+        events.publish(sessionId, { type: "slide.pointer", pointer, ts: Date.now() });
       }
     } catch (error) {
       // Refinement is best-effort: the FINAL caption is already on screen.

@@ -10,6 +10,8 @@ export * from "./protocols/session-socket";
 export * from "./protocols/gaze-bridge";
 export * from "./protocols/sign-service";
 
-export * from "./services/intelligence";
+export * from "./services/captions";
+export * from "./services/knowledge";
+export * from "./services/notes";
 
 export * from "./api";

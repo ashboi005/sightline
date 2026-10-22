@@ -16,7 +16,7 @@ All frames are JSON text. Protocol version: "1".
 ```
 webcam ─frames─► sign-service ─gloss tokens─► web ─POST /sign/utterances─► server
                  (Harnoor)                    (Sahil)                       (Ashwath: gloss → sentence,
-                                                                             Tushar: TTS → audioUrl)
+                                                                             + TTS → audioUrl)
 ```
 
 The service outputs **gloss only** (UPPERCASE sign labels: `PLEASE`, `REPEAT`, fingerspelled `OHM`). It never

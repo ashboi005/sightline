@@ -2,7 +2,8 @@
 
 **Source of truth:** [`packages/contracts/src/api.ts`](../../packages/contracts/src/api.ts) (route table) and
 `src/domain/*.ts` (shapes). **Typed client:** `createSightlineApi()` from `@sightline/contracts/client`.
-**Owner of the implementation:** Tushar (`apps/server/src/modules/platform/routes.ts`).
+**Implementation owners:** Tushar — sessions / context / slides / notes (`apps/server/src/modules/platform/routes.ts`);
+Ashwath — transcript + sign utterances (`apps/server/src/modules/live/routes.ts`).
 
 ## Basics
 

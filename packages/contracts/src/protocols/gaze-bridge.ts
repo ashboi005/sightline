@@ -1,7 +1,7 @@
 /**
- * Gaze bridge protocol — Arun's local daemon ↔ web app.   URL: ws://localhost:7777 (NEXT_PUBLIC_GAZE_BRIDGE_URL)
+ * Gaze bridge protocol — local gaze / audio-focus daemon ↔ web app.   URL: ws://localhost:7777 (NEXT_PUBLIC_GAZE_BRIDGE_URL)
  *
- * The bridge owns the eye tracker and the voice-isolation pipeline. It is the WebSocket *server*;
+ * The bridge wraps the eye tracker (hardware: Arunya) and runs gaze-directed voice isolation (software: Ashwath). It is the WebSocket *server*;
  * the browser connects as a client. All frames are JSON text. Python implementers: see
  * packages/contracts/json-schema/gaze-bridge.*.json and docs/contracts/gaze-bridge.md.
  */

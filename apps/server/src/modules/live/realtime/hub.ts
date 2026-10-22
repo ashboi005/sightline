@@ -1,11 +1,13 @@
 /**
- * OWNER: Tushar. Fan-out of SessionServerMessage to every socket watching a session.
+ * OWNER: Ashwath. Fan-out of SessionServerMessage to every socket watching a session.
  */
 import type { SessionServerMessage } from "@sightline/contracts";
 
+import type { SessionEvents } from "../../../shared/ports";
+
 export type Subscriber = { id: string; send: (data: string) => void };
 
-export class SessionHub {
+export class SessionHub implements SessionEvents {
   private readonly subscribers = new Map<string, Map<string, Subscriber>>();
 
   subscribe(sessionId: string, subscriber: Subscriber): () => void {

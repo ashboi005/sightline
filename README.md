@@ -9,11 +9,11 @@ to every contract and owner brief.
 
 | Owner | Brief |
 | --- | --- |
-| Arunya | [Eye tracker, gaze bridge, voice isolation](docs/owners/arun.md) |
+| Arunya | [Eye tracker hardware + gaze estimation](docs/owners/arunya.md) |
 | Harnoor | [Sign language recognition](docs/owners/harnoor.md) |
 | Sahil | [Frontend](docs/owners/sahil.md) |
-| Ashwath | [Backend: Intelligence (RAG, captions, formulas, notes)](docs/owners/ashwath.md) |
-| Tushar | [Backend: Platform & Realtime (sessions, STT/TTS, storage, deploy)](docs/owners/tushar.md) |
+| Ashwath | [Core: live captions + formulas, STT/TTS, gaze software + look→hear, sign sentences, deploy](docs/owners/ashwath.md) |
+| Tushar | [Backend surrounding: sessions, knowledge (RAG), notes, slides, persistence](docs/owners/tushar.md) |
 
 ## Quick start (everything mocked, no external services)
 
@@ -33,8 +33,8 @@ a live "Kirchhoff's Laws" lecture over the WebSocket. See [`docs/contracts/mock-
 
 ```
 apps/web            Next.js frontend                      (Sahil)
-apps/server         Bun + Elysia API + WebSocket          (Tushar: modules/platform, Ashwath: modules/intelligence)
-apps/gaze-bridge    Python local daemon                   (Arun)
+apps/server         Bun + Elysia API + WebSocket          (Ashwath: modules/live, Tushar: modules/platform)
+apps/gaze-bridge    Python local gaze + audio-focus daemon (Ashwath; tracker hardware: Arunya)
 apps/sign-service   Python recogniser                     (Harnoor)
 packages/contracts  zod schemas, types, JSON Schema, typed clients  ← source of truth for every boundary
 packages/mocks      fixtures + mock gaze/sign servers

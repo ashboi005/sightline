@@ -1,5 +1,5 @@
 """
-Sightline gaze bridge — OWNER: Arun.
+Sightline gaze bridge — OWNER: Ashwath (software). Eye tracker hardware + gaze estimation: Arunya.
 
 Runs on the student's laptop next to the eye tracker. WebSocket SERVER on ws://localhost:7777 that speaks
 the protocol in packages/contracts/src/protocols/gaze-bridge.ts (JSON Schemas in
@@ -43,7 +43,7 @@ class GazeReading:
 
 
 class FakeTracker:
-    """TODO(arun): replace with the real tracker. read() is called ~30x/second and must not block."""
+    """TODO(arunya → ashwath): plug in the real tracker. read() is called ~30x/second and must not block."""
 
     targets = [
         {"id": "teacher", "label": "Teacher", "kind": "TEACHER", "azimuthDeg": 0},
@@ -63,7 +63,7 @@ class FakeTracker:
 
 
 class AudioFocus:
-    """TODO(arun): voice isolation. Steer beamforming / source separation toward the target and route to earphones."""
+    """TODO(ashwath): voice isolation. Steer beamforming / source separation toward the target and route to earphones."""
 
     def __init__(self) -> None:
         self.enabled = False  # only in HARD_OF_HEARING mode
@@ -138,7 +138,7 @@ class Bridge:
             await asyncio.sleep(TICK_S)
 
     async def calibrate(self) -> None:
-        # TODO(arun): real calibration — wait for a stable fixation on each target before advancing.
+        # TODO(ashwath): real calibration — wait for a stable fixation on each target before advancing.
         steps = [
             ("Look at the dot in the top-left corner", {"x": 0.1, "y": 0.1}),
             ("Look at the dot in the top-right corner", {"x": 0.9, "y": 0.1}),
@@ -186,7 +186,7 @@ class Bridge:
         elif kind == "audio.focus.unlock":
             self.audio.locked = False
             await self.broadcast(self.focus_msg())
-        # TODO(arun): calibration.confirm, calibration.cancel, gaze.point.subscribe
+        # TODO(ashwath): calibration.confirm, calibration.cancel, gaze.point.subscribe
 
 
 async def run() -> None:

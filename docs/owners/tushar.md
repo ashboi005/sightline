@@ -1,67 +1,82 @@
-# Tushar — Backend: Platform & Realtime module
+# Tushar — Surrounding: Sessions, Knowledge (RAG), Notes, Slides, Persistence
 
-> Back to [overview](../00-overview.md). Contracts you implement: [REST](../contracts/rest-api.md) ·
-> [session socket](../contracts/realtime-ws.md). Contract you call: [IntelligenceEngine](../contracts/intelligence-engine.md).
+> Back to [overview](../00-overview.md). Your contracts: [backend modules](../contracts/backend-modules.md) ·
+> [REST API](../contracts/rest-api.md).
 
 ## Mission
 
-Make the backend real: sessions and persistence, uploads and slide rendering, the realtime caption pipeline
-(mic audio → Deepgram → captions over WebSocket), TTS, notes orchestration, auth, and deployment on Coolify.
+Everything around the live core: session lifecycle and storage, slide uploads, the lecture-context RAG index
+(used live by Ashwath's caption pipeline and mostly by your notes), and the post-lecture notes.
 
 ## You own
 
 | Thing | Where | Status |
 | --- | --- | --- |
-| REST routes | `apps/server/src/modules/platform/routes.ts` | ✅ done (contract-complete) |
-| Session socket + hub | `…/platform/realtime/socket.ts`, `hub.ts` | ✅ done |
-| Live caption pipeline | `…/platform/realtime/live-captions.ts` | ✅ done (STT → final → refine → refined → slide pointer) |
-| Business logic | `…/platform/platform-service.ts` | ✅ done |
-| Auth resolver | `…/platform/auth.ts` | ✅ done (better-auth + MOCK_AUTH) |
-| **Postgres store** | `…/platform/store/postgres-store.ts` + `packages/db/src/schema/sightline.ts` | ⛔ stub — **yours** |
-| **Deepgram STT** | `…/platform/speech/deepgram-stt.ts` | ⛔ stub — **yours** |
-| **ElevenLabs / Sarvam TTS** | `…/platform/speech/tts.ts` (`ProviderTts`) | ⛔ stub — **yours** |
-| **PDF/PPTX → images + text** | `…/platform/slides/slide-processor.ts` (`FileSlideProcessor`) | ⛔ stub — **yours** |
-| Disk asset store | `…/platform/assets/asset-store.ts` | ✅ basic, harden as needed |
-| Composition root | `apps/server/src/container.ts` | shared with Ashwath |
-| Docker / Coolify deploy, Postgres + Qdrant services | `docker-compose*.yml`, Dockerfiles | yours |
-
-The plumbing already works end-to-end in mock mode — your job is replacing the four ⛔ stubs with real
-adapters behind the **existing interfaces** (`SessionStore`, `SpeechToText`, `TextToSpeech`, `SlideProcessor`),
-so nothing above them changes.
+| Session / context / slides / notes routes | `apps/server/src/modules/platform/routes.ts` | ✅ working |
+| Business logic + notes job | `…/platform/platform-service.ts` | ✅ working |
+| Auth resolver (better-auth) | `…/platform/auth.ts` | ✅ working |
+| Away windows (gaze → missed segments) | `…/platform/notes/away-windows.ts` | ✅ working |
+| **KnowledgeEngine (Qdrant RAG + glossary)** | `…/platform/knowledge/qdrant-knowledge-engine.ts` | ⛔ stub (mock exists) |
+| **NotesEngine (Mastra workflow)** | `…/platform/notes/llm-notes-engine.ts` | ⛔ stub (mock exists) |
+| **Postgres store** | `…/platform/store/postgres-store.ts` + `packages/db/src/schema/sightline.ts` | ⛔ stub (memory store exists) |
+| **PDF/PPTX → slide images + text** | `…/platform/slides/slide-processor.ts` (`FileSlideProcessor`) | ⛔ stub (SVG mock exists) |
+| P1: slide auto-pointer (`locateSlide`), board-heavy note markers | KnowledgeEngine / NotesEngine | stretch |
 
 ## You do NOT own
 
-Anything inside `modules/intelligence` (Ashwath). You call it only through `IntelligenceEngine`; if it throws,
-keep the raw caption / mark FAILED — never block the UI.
+The live pipeline, STT/TTS, the WebSocket, caption refinement, sign sentences, the gaze software, or deployment.
+Those are Ashwath's. You reach the live module only through `SessionLifecycle` (start/end/delete) and
+`SessionEvents` (publish `notes.status`, `session.status`), both in `apps/server/src/shared/ports.ts`.
+
+## Step 1 — local Qdrant (do this first)
+
+Ashwath will deploy a shared Qdrant on the VPS and hand it to you later. Until then, run it locally:
+
+```bash
+bun run infra:up                      # docker-compose.dev.yml → Qdrant :6333 (+ Postgres :5432)
+# or just Qdrant:
+docker run -d --name sightline-qdrant -p 6333:6333 -p 6334:6334 -v sightline-qdrant:/qdrant/storage qdrant/qdrant:v1.15.4
+open http://localhost:6333/dashboard  # Qdrant UI
+```
+
+`apps/server/.env`: `QDRANT_URL=http://localhost:6333` (no `QDRANT_API_KEY` needed locally). When Ashwath hands
+over the VPS instance, only `QDRANT_URL` / `QDRANT_API_KEY` change.
 
 ## How you work without anyone else
 
 ```bash
-bun run infra:up                                   # Postgres + Qdrant
-# apps/server/.env: USE_MOCK_DATA=false, MOCK_INTELLIGENCE=true, DEEPGRAM_API_KEY, ELEVENLABS_API_KEY
-bun run db:push                                    # creates the tables in packages/db/src/schema
+# apps/server/.env
+USE_MOCK_DATA=true        # Ashwath's side mocked (captions, speech) — the replay lecture still produces a transcript
+MOCK_KNOWLEDGE=false      # your real RAG
+MOCK_NOTES=false          # your real notes
+MOCK_PERSISTENCE=true     # flip to false when PostgresStore is done (then: bun run db:push)
 bun run dev:server
-bun run --filter server smoke                      # contract check (needs MOCK_SPEECH=true for the replay part)
+curl -XPOST localhost:3000/api/dev/knowledge/ingest -H 'content-type: application/json' -d '{
+  "sessionId":"ses_test","title":"EE101 L7","subject":null,
+  "text":"Kirchhoff current law KCL, voltage law KVL, Ohm law V = IR","slides":[]}'
+curl -XPOST localhost:3000/api/dev/knowledge/retrieve -H 'content-type: application/json' -d '{"sessionId":"ses_test","query":"what is KCL"}'
+bun run --filter server smoke       # full contract check (keep MOCK_SPEECH=true)
 ```
 
-Turn on one real adapter at a time with the per-module flags (`MOCK_PERSISTENCE=false` first, then
-`MOCK_SLIDES=false`, then `MOCK_SPEECH=false`).
+Add deps as you go: `bun add --cwd apps/server @qdrant/js-client-rest @mastra/core` (+ an embeddings provider).
 
 ## Implementation notes
 
-- **PostgresStore:** tables are drafted in `packages/db/src/schema/sightline.ts` (`lecture_session`, not
-  `session` — that's better-auth's). jsonb columns hold contract types. `listSegments` ordered by `seq`.
-- **DeepgramStt:** live websocket, `linear16`, `interim_results`, `smart_format`, `keyterm` = glossary terms
-  (passed in `SttStreamOptions.keyterms`). One `RawTranscriptSegment` id per utterance; same id for its interims
-  and final. Keep-alive while the mic is silent.
-- **ProviderTts:** ElevenLabs default, Sarvam via `TTS_PROVIDER=sarvam`. Return `audio/mpeg` bytes; cache by text.
-- **FileSlideProcessor:** `pdftoppm -png` + `pdftotext -layout` per page; PPT/PPTX → PDF with LibreOffice headless
-  (add `poppler-utils libreoffice-impress` to the server Dockerfile). Slide `bullets` = non-empty lines after the title.
-- **Deploy:** Coolify — server + web from the Dockerfiles, Postgres + Qdrant as services, volume on `STORAGE_DIR`,
-  `wss://` for `NEXT_PUBLIC_SERVER_WS_URL`.
+- **KnowledgeEngine:** collection `ctx_<sessionId>`. Chunk per slide and per bullet, and split free text by
+  paragraph. Payload `{ text, source, slideIndex, bulletIndex }`. A glossary agent produces `GlossaryTerm[]` with
+  likely STT mis-hearings as `aliases` (e.g. "kerchief" → Kirchhoff); this is what makes Ashwath's captions
+  correct. **`getGlossary` must be served from a cache**, because it's on the live hot path.
+- **NotesEngine:** outline from topics/slides → per-section writer over transcript ranges (`retrieveContext`
+  for grounding) → collect formulas from caption `formula` parts → render `markdown`. Mark sections overlapping
+  long BOARD `awayWindows` as `boardFocus`. Target the shape and quality of `kirchhoff.notes.json`.
+- **PostgresStore:** tables drafted in `packages/db/src/schema/sightline.ts` (`lecture_session`, because
+  `session` is better-auth's). jsonb columns hold contract types.
+- **FileSlideProcessor:** `pdftoppm -png` + `pdftotext -layout` per page. PPT/PPTX → PDF via LibreOffice headless
+  (Ashwath adds `poppler-utils libreoffice-impress` to the server image when deploying; tell him).
 
 ## Done when
 
-- [ ] All four stubs implemented; smoke test passes with `USE_MOCK_DATA=false, MOCK_INTELLIGENCE=true` (checkpoint **M3**)
-- [ ] Real mic → Deepgram → captions in Sahil's UI with < 1 s latency for interims
-- [ ] Deployed on the VPS with real Postgres/Qdrant (M5)
+- [ ] Real ingest + retrieval on local Qdrant; Ashwath's live pipeline gets a real glossary
+- [ ] Notes for a 10-minute lecture with no slides are genuinely useful
+- [ ] PostgresStore passes the smoke test with `MOCK_PERSISTENCE=false`
+- [ ] Real PDF upload → slide images in the UI

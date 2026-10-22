@@ -19,7 +19,7 @@ are entirely yours.
 ## You do NOT own
 
 - Turning gloss into a fluent English sentence → Ashwath's LLM (`composeSignSentence`).
-- Speaking it aloud → Tushar's TTS.
+- Speaking it aloud → Ashwath's TTS.
 - The webcam UI / sign panel → Sahil.
 
 ## What you produce (your contract)

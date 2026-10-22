@@ -1,9 +1,9 @@
 /**
- * OWNER: Tushar. REST routes — must match packages/contracts/src/api.ts (docs/contracts/rest-api.md).
+ * OWNER: Tushar. Session / context / slides / notes REST routes — must match packages/contracts/src/api.ts.
+ * Transcript + sign utterance routes live in modules/live/routes.ts (Ashwath).
  */
 import {
   CreateSessionInput,
-  CreateSignUtteranceInput,
   ExportNotesQuery,
   PaginationQuery,
   SetContextTextInput,
@@ -78,16 +78,6 @@ export const platformRoutes = (deps: {
       })
       .get("/sessions/:sessionId/slides", ({ user, params }) => svc.getSlides(user.id, params.sessionId))
 
-      .get("/sessions/:sessionId/transcript", ({ user, params }) => svc.getTranscript(user.id, params.sessionId))
-      .post(
-        "/sessions/:sessionId/sign/utterances",
-        async ({ user, params, body, status }) =>
-          status(201, await svc.createSignUtterance(user.id, params.sessionId, body)),
-        { body: CreateSignUtteranceInput },
-      )
-      .get("/sessions/:sessionId/sign/utterances", ({ user, params }) =>
-        svc.listSignUtterances(user.id, params.sessionId),
-      )
 
       .get("/sessions/:sessionId/notes", ({ user, params }) => svc.getNotes(user.id, params.sessionId))
       .post("/sessions/:sessionId/notes", async ({ user, params, status }) =>

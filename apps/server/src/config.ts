@@ -8,8 +8,12 @@ export const config = {
   publicUrl: ENV.PUBLIC_SERVER_URL.replace(/\/$/, ""),
   isProduction: ENV.NODE_ENV === "production",
   mocks: {
-    intelligence: inherit(ENV.MOCK_INTELLIGENCE),
+    // core — Ashwath
+    captions: inherit(ENV.MOCK_CAPTIONS),
     speech: inherit(ENV.MOCK_SPEECH),
+    // surrounding — Tushar
+    knowledge: inherit(ENV.MOCK_KNOWLEDGE),
+    notes: inherit(ENV.MOCK_NOTES),
     persistence: inherit(ENV.MOCK_PERSISTENCE),
     slides: inherit(ENV.MOCK_SLIDES),
     auth: inherit(ENV.MOCK_AUTH),

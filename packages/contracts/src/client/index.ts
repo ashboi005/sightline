@@ -27,7 +27,7 @@ export function connectSessionSocket(
   });
 }
 
-/** Arun's local gaze bridge (or `bun run mock:gaze`). Sends `hello` on every connect. */
+/** Local gaze bridge (or `bun run mock:gaze`). Sends `hello` on every connect. */
 export function connectGazeBridge(url: string, handlers: Handlers<GazeBridgeMessage>) {
   const socket = createTypedSocket<typeof GazeBridgeMessage, GazeBridgeCommand>({
     url,

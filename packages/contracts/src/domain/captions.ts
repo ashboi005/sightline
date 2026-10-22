@@ -26,7 +26,7 @@ export const CaptionPart = z.discriminatedUnion("type", [
 ]);
 export type CaptionPart = z.infer<typeof CaptionPart>;
 
-/** INTERIM = still being spoken. FINAL = STT is done (raw). REFINED = corrected by intelligence. */
+/** INTERIM = still being spoken. FINAL = STT is done (raw). REFINED = corrected by the CaptionEngine. */
 export const CaptionStatus = z.enum(["INTERIM", "FINAL", "REFINED"]);
 export type CaptionStatus = z.infer<typeof CaptionStatus>;
 

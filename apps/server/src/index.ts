@@ -5,9 +5,8 @@ import { config } from "./config";
 import { createContainer } from "./container";
 import { ENV } from "./env.server";
 import { errorHandler } from "./lib/error-handler";
-import { intelligenceDevRoutes } from "./modules/intelligence";
+import { platformDevRoutes } from "./modules/platform/dev-routes";
 import { seedDemoSession } from "./modules/platform/mock-seed";
-import { sessionSocket } from "./modules/platform/realtime/socket";
 import { platformRoutes } from "./modules/platform/routes";
 import { auth } from "./services";
 
@@ -31,18 +30,24 @@ const app = new Elysia()
     return status(405);
   })
   .get("/", () => "OK")
+  // surrounding (Tushar)
   .use(platformRoutes(c))
-  .use(sessionSocket(c));
+  // core (Ashwath)
+  .use(c.live.routes)
+  .use(c.live.socket);
 
-if (!config.isProduction) app.use(intelligenceDevRoutes(c.intelligence));
+if (!config.isProduction) app.use(c.live.devRoutes).use(platformDevRoutes(c.knowledge, c.notes));
 
 app.listen(config.port, () => {
   const flags = Object.entries(config.mocks)
     .map(([name, on]) => `${name}=${on ? "MOCK" : "real"}`)
     .join("  ");
+  const engines = Object.entries(c.engines)
+    .map(([name, impl]) => `${name}=${impl}`)
+    .join(" ");
   console.log(`Server is running on http://localhost:${config.port}`);
   console.log(`  modules: ${flags}`);
-  console.log(`  engines: intelligence=${c.intelligence.name} stt=${c.stt.name} tts=${c.tts.name} store=${c.store.name}`);
+  console.log(`  engines: ${engines}`);
 });
 
 if (config.mocks.persistence && config.mocks.auth) {

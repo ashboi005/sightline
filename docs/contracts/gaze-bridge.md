@@ -1,4 +1,6 @@
-# Gaze bridge protocol (Arun's daemon ↔ web)
+# Gaze bridge protocol (local gaze / audio-focus daemon ↔ web)
+
+> Bridge software + voice isolation: **Ashwath**. Tracker hardware + gaze estimation feeding it: **Arunya**.
 
 **Source of truth:** [`packages/contracts/src/protocols/gaze-bridge.ts`](../../packages/contracts/src/protocols/gaze-bridge.ts)
 · JSON Schema: `packages/contracts/json-schema/gaze-bridge.{message,command}.json`

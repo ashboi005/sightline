@@ -1,7 +1,7 @@
 [project]
 name = "sightline-gaze-bridge"
 version = "0.1.0"
-description = "Local daemon: eye tracker -> gaze zones + gaze-directed voice isolation (owner: Arun)"
+description = "Local daemon: eye tracker -> gaze zones + gaze-directed voice isolation (software: Ashwath, tracker hardware: Arunya)"
 requires-python = ">=3.10"
 dependencies = ["websockets>=13"]
 

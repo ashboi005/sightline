@@ -1,73 +1,49 @@
-# Arun — Eye Tracker, Gaze Bridge & Gaze-Directed Voice Isolation
+# Arunya — Eye Tracker Hardware & Gaze
 
-> Back to [overview](../00-overview.md). Your protocol: [contracts/gaze-bridge.md](../contracts/gaze-bridge.md).
+> Back to [overview](../00-overview.md). The bridge protocol your tracker ends up behind:
+> [contracts/gaze-bridge.md](../contracts/gaze-bridge.md).
 
 ## Mission
 
-Turn our custom eye tracker into two things the rest of the system can use:
+Make the custom eye tracker accurate and reliable, on the screen and in the room. Everything we build on
+gaze depends on it:
 
-1. **Gaze zones** — is the student looking at the laptop `SCREEN`, the `BOARD`, a specific `PERSON`, or `AWAY`?
-   This drives the Deaf-mode caption pause/bookmark/catch-up (module 2).
-2. **Voice isolation** — in Hard-of-Hearing mode, isolate the voice of whoever the student is looking at and
-   play only that into their earphones, switching when their gaze moves (module 1).
+- **Deaf mode:** is the student looking at the laptop or up at the board? This drives caption pause, bookmark and catch-up.
+- **Hard-of-hearing mode:** which person is the student looking at? This drives "the voice you look at is the voice you hear".
 
 ## You own
 
-| Thing | Where |
+| Thing | Notes |
 | --- | --- |
-| Eye tracker hardware + firmware | your hardware repo / `apps/gaze-bridge/firmware/` if you want it here |
-| Gaze bridge daemon (Python, local) | [`apps/gaze-bridge/`](../../apps/gaze-bridge) — skeleton already speaks the protocol |
-| Calibration (screen corners + "look at the board") | bridge |
-| Mapping gaze → zone / person target | bridge |
-| Voice isolation (mic array / beamforming / source separation) → earphones | bridge |
+| Tracker hardware (camera/IR, mount, wiring) | Low-cost build, robust in a classroom |
+| Firmware / driver | Stable frame rate, low latency |
+| Gaze estimation | On-screen point **and** direction in 3D space in front of the student |
+| Calibration accuracy | Screen corners + "look at the board" + per-person directions |
 
-## You do NOT own
+## You do NOT own (Ashwath owns these now)
 
-- Any UI (Sahil draws calibration dots, zone indicator, focus target from your messages).
-- Captions/transcription (Tushar), anything LLM (Ashwath).
-- The server — your bridge talks **only to the browser**, locally.
+- The **gaze bridge software** (`apps/gaze-bridge`): turning your gaze output into zones/targets and the WebSocket
+  protocol the web app consumes.
+- **Gaze-directed voice isolation** (look → hear) and audio routing to the earphones.
+- Any UI (Sahil) or backend (Tushar / Ashwath).
 
-## What you produce (your contract)
+## The handshake with Ashwath
 
-A WebSocket server on `ws://localhost:7777` that emits `device.status`, `gaze.zone`, `gaze.targets`,
-`audio.focus`, `calibration.*` and accepts `hello`, `calibration.*`, `mode.set`, `audio.focus.*`,
-`gaze.point.subscribe`. Exact fields: [contracts/gaze-bridge.md](../contracts/gaze-bridge.md); JSON Schemas for
-Python validation/codegen: `packages/contracts/json-schema/gaze-bridge.*.json`.
+Ashwath's bridge reads your tracker output. Agree on one small interface and keep it stable:
 
-Hard requirements:
+| Signal | Shape (proposal) | Rate |
+| --- | --- | --- |
+| On-screen gaze point | normalised `x, y` (0..1) + `valid` flag | ≥ 30 Hz |
+| Gaze direction in the room | yaw/azimuth (deg, −90 left … +90 right), pitch (deg) | ≥ 30 Hz |
+| Eye state | open / blink / lost | per frame |
+| Calibration hooks | start, capture point, result quality | on demand |
 
-- `gaze.zone` within **~150 ms** of a real change (debounced so blinks don't flicker) + 1 Hz heartbeat.
-- Blinks / lost eyes → `UNKNOWN`, never a false `SCREEN`/`BOARD` flip.
-- `mode.set HARD_OF_HEARING` enables audio focus; `DEAF` disables it (zones still stream).
-
-## What you consume
-
-Nothing from the team at runtime. The web app connects to you.
-
-## How you work without anyone else
-
-```bash
-cd apps/gaze-bridge && python -m venv .venv && . .venv/bin/activate && pip install -e .
-gaze-bridge                       # skeleton with FakeTracker — replace FakeTracker / AudioFocus
-```
-
-- Test with a raw client: `bunx wscat -c ws://localhost:7777` and type `{"type":"mode.set","mode":"HARD_OF_HEARING"}`.
-- Or run the web app (`bun run dev:web`) — Sahil's UI will consume your socket exactly like the mock.
-- To see the expected behaviour first: `bun run mock:gaze` is the reference implementation (TypeScript).
-
-## Suggested plan
-
-1. Replace `FakeTracker.read()` with real tracker output → zone classification (screen rectangle from
-   calibration; "above the screen" = BOARD).
-2. Calibration flow: 4 screen corners + 1 board fixation → `calibration.result.quality`.
-3. Person targets: map gaze azimuth to known speakers (`gaze.targets` with `azimuthDeg`).
-4. Voice isolation: beamform the mic array toward the focused target's azimuth (or source-separate and pick
-   the matching source) → earphones. Publish `audio.focus` on every switch.
-5. Stretch: expose the isolated audio stream so it can also feed captions (talk to Tushar first).
+How it's transported is your call: a Python function, a local socket or serial. Document it in
+`apps/gaze-bridge/README.md` once it's settled. Until then, the bridge runs with a fake tracker so nobody is blocked.
 
 ## Done when
 
-- [ ] Web app pauses/resumes captions from your real tracker (integration checkpoint **M1**)
-- [ ] Calibration works end-to-end with Sahil's UI
-- [ ] HoH mode: looking at speaker A vs B audibly switches the earphone audio
-- [ ] Unplugging the tracker sends `device.status { tracker: "DISCONNECTED" }`
+- [ ] Screen vs board is classified correctly ≥ 95% of the time at a normal desk distance
+- [ ] Looking at person A vs person B (≥ 30° apart) is distinguishable
+- [ ] Blinks don't produce false zone flips (Ashwath's bridge debounces, but clean input helps)
+- [ ] The tracker reports when it's disconnected or has lost the eyes

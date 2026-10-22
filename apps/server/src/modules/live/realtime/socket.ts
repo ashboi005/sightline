@@ -1,13 +1,11 @@
 /**
- * OWNER: Tushar. Session WebSocket — docs/contracts/realtime-ws.md, schemas in protocols/session-socket.ts.
+ * OWNER: Ashwath. Session WebSocket — docs/contracts/realtime-ws.md, schemas in protocols/session-socket.ts.
  */
 import { SESSION_SOCKET_PATH, SessionClientMessage, type SessionServerMessage } from "@sightline/contracts";
 import { Elysia } from "elysia";
 
 import { notFound } from "../../../lib/errors";
-import type { UserResolver } from "../auth";
-import type { PlatformService } from "../platform-service";
-import type { SessionStore } from "../store/types";
+import type { SessionStore, UserResolver } from "../../../shared/ports";
 import type { SessionHub } from "./hub";
 import type { LiveCaptions } from "./live-captions";
 
@@ -18,13 +16,12 @@ const toBytes = (message: unknown): Uint8Array | null => {
 };
 
 export const sessionSocket = (deps: {
-  platform: PlatformService;
   store: SessionStore;
   hub: SessionHub;
   live: LiveCaptions;
   resolveUser: UserResolver;
 }) => {
-  const { store, hub, live, platform } = deps;
+  const { store, hub, live } = deps;
   const unsubscribers = new Map<string, () => void>();
   /** Socket id → session id, for sockets that are currently streaming mic audio. */
   const audioOwners = new Map<string, string>();
@@ -80,7 +77,7 @@ export const sessionSocket = (deps: {
           send({ type: "pong", ts: Date.now() });
           return;
         case "gaze.transition":
-          await platform.recordGaze(sessionId, msg.transition);
+          await store.addGazeTransition(sessionId, msg.transition);
           return;
         case "audio.start": {
           if (live.isReplay) return; // mock speech: captions are already being replayed
