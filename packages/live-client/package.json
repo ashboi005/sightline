@@ -2,7 +2,9 @@
   "name": "@sightline/live-client",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./pcm": "./src/pcm.ts",
+    "./controller": "./src/look-to-hear-controller.ts"
   },
   "scripts": {
     "check-types": "tsc --noEmit",

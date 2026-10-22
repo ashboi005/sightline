@@ -8,7 +8,7 @@
  * LINEAR16 audio over the session socket the way @sightline/live-client does, and asserts captions come back.
  */
 import { SessionServerMessage } from "@sightline/contracts";
-import { floatToLinear16 } from "@sightline/live-client";
+import { floatToLinear16 } from "@sightline/live-client/pcm"; // DOM-free entry
 import { fixtures } from "@sightline/mocks";
 
 const SERVER_PORT = 13100;
@@ -77,10 +77,10 @@ try {
     if (await fetch(`${base}/api/health`).then((r) => r.ok).catch(() => false)) break;
     await Bun.sleep(200);
   }
-  const health = await (await fetch(`${base}/api/health`)).json();
+  const health = (await (await fetch(`${base}/api/health`)).json()) as { mocks: Record<string, boolean> };
   check("server up with real speech + captions", !health.mocks.speech && !health.mocks.captions);
 
-  const session = await (await fetch(`${base}/api/sessions`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: "pipeline check" }) })).json();
+  const session = (await (await fetch(`${base}/api/sessions`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: "pipeline check" }) })).json()) as { id: string };
   await fetch(`${base}/api/sessions/${session.id}/start`, { method: "POST" });
 
   const seen: SessionServerMessage[] = [];
@@ -112,8 +112,8 @@ try {
   check("caption.refined received (LLM without key → glossary fallback)", refined.length === 3, `${refined.length}`);
   const first = refined.find((m) => m.segment.rawText.includes("kerchief"));
   check("glossary correction applied", Boolean(first?.segment.text.includes("Kirchhoff")), first?.segment.text);
-  const transcript = await (await fetch(`${base}/api/sessions/${session.id}/transcript`)).json();
-  check("transcript persisted, ordered by seq", transcript.data.length === 3 && transcript.data[0].seq === 0, `${transcript.data.length}`);
+  const transcript = (await (await fetch(`${base}/api/sessions/${session.id}/transcript`)).json()) as { data: { seq: number }[] };
+  check("transcript persisted, ordered by seq", transcript.data.length === 3 && transcript.data[0]?.seq === 0, `${transcript.data.length}`);
   ws.close();
 } finally {
   server.kill();

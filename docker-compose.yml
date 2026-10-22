@@ -10,6 +10,7 @@ services:
         - server_env
       args:
         NEXT_PUBLIC_SERVER_URL: http://localhost:3000
+        NEXT_PUBLIC_SERVER_WS_URL: ws://localhost:3000
     init: true
     ports:
       - "3001:3001"
