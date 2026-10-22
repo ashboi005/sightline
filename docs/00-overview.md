@@ -106,8 +106,8 @@ Key decisions:
 | Sign recognition (frames → gloss tokens) | **Harnoor** | `apps/sign-service` | contracts | — |
 | Landing, auth screens, dashboard | **Sahil** | `apps/web` | REST API | server in mock mode |
 | Session setup, upload, mode toggle | **Sahil** | `apps/web` | REST API | server in mock mode |
-| Live workspace: captions, formulas, gaze-pause, slides | **Sahil** | `apps/web` | WS, gaze bridge | mock server + `bun mock:gaze` |
-| Sign panel | **Sahil** | `apps/web` | sign service, REST | `bun mock:sign` |
+| Live workspace: captions, formulas, gaze-pause, slides | **Sahil** | `apps/web` | WS, gaze bridge | mock server + `bun run mock:gaze` |
+| Sign panel | **Sahil** | `apps/web` | sign service, REST | `bun run mock:sign` |
 | Notes view & export | **Sahil** | `apps/web` | REST API | server in mock mode |
 | Context ingestion (RAG / Qdrant), glossary | **Ashwath** | `apps/server/src/modules/intelligence` | — | fixtures |
 | Caption refinement + formula → LaTeX | **Ashwath** | same | — | fixtures |
@@ -141,13 +141,14 @@ Sahil  ──REST/WS──►  Tushar  ──IntelligenceEngine──►  Ashwat
 | `USE_MOCK_DATA` | Default for every flag below |
 | `MOCK_INTELLIGENCE` | Ashwath's module is replaced by fixture-driven `MockIntelligenceEngine` |
 | `MOCK_SPEECH` | STT replays a scripted lecture (no mic, no Deepgram); TTS returns a generated tone |
-| `MOCK_PERSISTENCE` | In-memory store instead of Postgres (no DB needed) |
+| `MOCK_PERSISTENCE` | In-memory store instead of Postgres (no DB needed); seeds a finished demo lecture |
+| `MOCK_SLIDES` | Any upload becomes the fixture deck rendered as SVG slides |
 | `MOCK_AUTH` | `/api/*` acts as a fixed demo user (better-auth still mounted for Sahil's auth screens) |
 
 Typical setups:
 
 - **Sahil:** `USE_MOCK_DATA=true` → full API + live caption stream with zero services. Run
-  `bun mock:gaze` and `bun mock:sign` for the device sockets.
+  `bun run mock:gaze` and `bun run mock:sign` for the device sockets.
 - **Tushar:** `USE_MOCK_DATA=false`, `MOCK_INTELLIGENCE=true` → real Postgres + Deepgram, fake intelligence.
 - **Ashwath:** `USE_MOCK_DATA=true`, `MOCK_INTELLIGENCE=false` → real Mastra/Qdrant fed by the mock lecture
   replay; or test the engine directly via the dev routes (`/api/dev/intelligence/*`).
@@ -165,7 +166,7 @@ sightline/
 │   │   └── src/
 │   │       ├── modules/platform/      Tushar
 │   │       ├── modules/intelligence/  Ashwath
-│   │       └── mocks/                 shared mock wiring (fixtures live in packages/mocks)
+│   │       └── container.ts           picks real vs mock implementations from the MOCK_* flags
 │   ├── gaze-bridge/          Arun    — Python, local daemon (skeleton speaks the protocol)
 │   └── sign-service/         Harnoor — Python service (skeleton speaks the protocol)
 ├── packages/
