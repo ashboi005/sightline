@@ -19,12 +19,14 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
 
 data class CaptureUiState(
-    val cameras: List<UsbCameraInfo> = emptyList(),
+    val cameras: List<CameraSource> = emptyList(),
     val running: Boolean = false,
     val addresses: List<String> = emptyList(),
     val channels: List<ChannelInfo> = emptyList(),
     val error: String? = null,
     val scanComplete: Boolean = false,
+    val settings: CaptureSettings = CaptureSettings(),
+    val cameraNotice: String? = null,
 )
 
 /** Owns capture independently of activity rotation or screen locking. */
@@ -34,7 +36,7 @@ class CaptureService : Service() {
     private val mutableState = MutableStateFlow(CaptureUiState())
     val state = mutableState.asStateFlow()
     private val hub = FrameHub()
-    private lateinit var cameras: UsbCameraEngine
+    private lateinit var cameras: CameraCoordinator
     private val control = Executors.newSingleThreadExecutor()
     private val commandEpoch = AtomicLong()
     private var server: MjpegServer? = null
@@ -53,9 +55,11 @@ class CaptureService : Service() {
     override fun onCreate() {
         super.onCreate()
         getSystemService(NotificationManager::class.java).createNotificationChannel(
-            NotificationChannel(CHANNEL, "USB camera streaming", NotificationManager.IMPORTANCE_LOW)
+            NotificationChannel(CHANNEL, "Camera streaming", NotificationManager.IMPORTANCE_LOW)
         )
-        cameras = UsbCameraEngine(this, hub) { devices -> mutableState.update { it.copy(cameras = devices, scanComplete = true) } }
+        cameras = CameraCoordinator(this, hub) { devices, scanned, notice ->
+            mutableState.update { it.copy(cameras = devices, scanComplete = scanned, cameraNotice = notice) }
+        }
         cameras.scan()
         handler.post(refresh)
     }
@@ -74,8 +78,9 @@ class CaptureService : Service() {
                     return START_NOT_STICKY
                 }
                 try {
+                    val usesUsb = ids.any { id -> mutableState.value.cameras.any { it.id == id && it.kind == CameraKind.USB } }
                     val types = if (Build.VERSION.SDK_INT >= 30) ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA or
-                        ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE else 0
+                        (if (usesUsb) ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE else 0) else 0
                     ServiceCompat.startForeground(this, 1, notification(), types)
                 } catch (e: RuntimeException) {
                     mutableState.update { it.copy(error = "Cannot start streaming: ${e.message}. Open the app and grant camera access.") }
@@ -83,7 +88,7 @@ class CaptureService : Service() {
                     return START_NOT_STICKY
                 }
                 val settings = CaptureSettings(width = intent.getIntExtra("width", 640), height = intent.getIntExtra("height", 480))
-                mutableState.update { it.copy(running = true, error = null) }
+                mutableState.update { it.copy(running = true, error = null, settings = settings) }
                 control.execute {
                     if (commandEpoch.get() != epoch) return@execute
                     try {
@@ -135,7 +140,7 @@ class CaptureService : Service() {
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         val stop = PendingIntent.getService(this, 1, Intent(this, CaptureService::class.java).setAction(STOP), PendingIntent.FLAG_IMMUTABLE)
         return NotificationCompat.Builder(this, CHANNEL)
-            .setSmallIcon(R.drawable.ic_camera).setContentTitle("Sightline USB is streaming")
+            .setSmallIcon(R.drawable.ic_camera).setContentTitle("Sightline is streaming")
             .setContentText("Camera feeds are available on your local network")
             .setContentIntent(open).setOngoing(true).addAction(0, "Stop streams", stop).build()
     }

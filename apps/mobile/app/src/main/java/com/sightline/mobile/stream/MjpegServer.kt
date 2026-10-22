@@ -323,7 +323,7 @@ class MjpegServer(private val hub: FrameHub, port: Int = 8080) {
         return buildString {
             append("""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sightline cameras</title><style>body{font:16px system-ui,sans-serif;background:#10151c;color:#eef3f9;margin:0;padding:24px}main{max-width:1100px;margin:auto}h1{margin-bottom:8px}p{color:#acbacb}section{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:20px}article{padding:16px;background:#1b2634;border-radius:12px}h2{font-size:19px;overflow-wrap:anywhere}img{display:block;width:100%;min-height:160px;object-fit:contain;background:#090d12;border-radius:6px}a{color:#8acbff;margin-right:16px}small{display:block;color:#acbacb;margin:12px 0}</style></head><body><main><h1>Sightline cameras</h1>""")
             append("<p>${cameras.size} camera(s) connected. Refresh this page after connecting or disconnecting a camera.</p>")
-            if (cameras.isEmpty()) append("<p>Connect a USB camera and grant camera access on the phone to begin.</p>")
+            if (cameras.isEmpty()) append("<p>Select a phone or USB camera in Sightline and allow camera access to begin.</p>")
             append("<section>")
             cameras.forEach { camera ->
                 val path = "/camera/${URLEncoder.encode(camera.id, "UTF-8").replace("+", "%20")}"

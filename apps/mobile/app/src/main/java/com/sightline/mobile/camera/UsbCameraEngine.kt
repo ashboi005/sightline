@@ -1,6 +1,7 @@
 package com.sightline.mobile.camera
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.ImageFormat
 import android.graphics.PixelFormat
 import android.graphics.Rect
@@ -29,14 +30,6 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
-data class UsbCameraInfo(
-    val id: String,
-    val name: String,
-    val detail: String,
-    val status: String = "Ready",
-    val streaming: Boolean = false,
-)
-
 /**
  * Owns USB permission, native UVC handles, and JPEG production for up to five cameras.
  * Operations run on a serial control thread. onChanged also runs on that thread.
@@ -45,10 +38,10 @@ data class UsbCameraInfo(
 class UsbCameraEngine(
     context: Context,
     private val hub: FrameHub,
-    private val onChanged: (List<UsbCameraInfo>) -> Unit,
+    private val onChanged: (List<CameraSource>) -> Unit,
 ) {
     private val appContext = context.applicationContext
-    private val usbManager = appContext.getSystemService(Context.USB_SERVICE) as UsbManager
+    private val usbManager = appContext.getSystemService(UsbManager::class.java)
     private val controlThread = HandlerThread("Sightline-USB").apply { start() }
     private val control = Handler(controlThread.looper)
     // A native stop can wait for its preview surface. Drain it independently of stop().
@@ -61,7 +54,7 @@ class UsbCameraEngine(
     )
     private val closing = AtomicBoolean(false)
     private val devices = linkedMapOf<String, UsbDevice>()
-    private val info = linkedMapOf<String, UsbCameraInfo>()
+    private val info = linkedMapOf<String, CameraSource>()
     private val sessions = mutableMapOf<String, CameraSession>()
     private val openQueue = ArrayDeque<String>()
     private var monitor: USBMonitor? = null
@@ -190,7 +183,7 @@ class UsbCameraEngine(
                     setStatus(id, "Waiting for USB permission")
                     openQueue.addLast(id)
                 } else {
-                    info[id] = UsbCameraInfo(
+                    info[id] = CameraSource(
                         id, "Disconnected camera", "This camera is no longer attached.", "Disconnected",
                     )
                 }
@@ -220,7 +213,6 @@ class UsbCameraEngine(
             release("USB monitor") { monitor?.destroy() }
             monitor = null
             permissionRequest = null
-            hub.clear()
             encoders.shutdownNow()
             surfaceThread.quitSafely()
             controlThread.quitSafely()
@@ -229,6 +221,7 @@ class UsbCameraEngine(
 
     private fun ensureMonitor(): Boolean {
         if (monitor != null) return true
+        if (usbManager == null || !appContext.packageManager.hasSystemFeature(PackageManager.FEATURE_USB_HOST)) return false
         var candidate: USBMonitor? = null
         return try {
             candidate = USBMonitor(appContext, listener, control)
@@ -249,7 +242,7 @@ class UsbCameraEngine(
     }
 
     private fun refreshDevices() {
-        val attached = usbManager.deviceList.values.filter(::isVideoDevice).associateBy(::deviceId)
+        val attached = usbManager?.deviceList.orEmpty().values.filter(::isVideoDevice).associateBy(::deviceId)
         for (id in devices.keys.toList()) {
             if (id !in attached) {
                 closeSession(id)
@@ -514,10 +507,10 @@ class UsbCameraEngine(
         if (!closing.get()) onChanged(info.values.toList())
     }
 
-    private fun cameraInfo(device: UsbDevice): UsbCameraInfo {
+    private fun cameraInfo(device: UsbDevice): CameraSource {
         val product = runCatching { device.productName }.getOrNull()?.takeIf { it.isNotBlank() } ?: "USB camera"
         val hardware = String.format(Locale.US, "%04X:%04X", device.vendorId, device.productId)
-        return UsbCameraInfo(
+        return CameraSource(
             deviceId(device), "$product · $hardware · USB ${device.deviceId}",
             "UVC camera · select to create an individual stream",
         )

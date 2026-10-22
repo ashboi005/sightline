@@ -26,9 +26,13 @@ class MainActivity : ComponentActivity() {
     private val permissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         val request = pendingStart
         pendingStart = null
-        if (request == null) return@registerForActivityResult
+        if (request == null) {
+            permissionError = if (granted(Manifest.permission.CAMERA)) null else "Allow camera access in Settings → Apps → Sightline → Permissions, then tap Refresh."
+            capture?.scan()
+            return@registerForActivityResult
+        }
         if (requiredPermissions().all { granted(it) }) startCapture(request.first, request.second)
-        else permissionError = "Camera and local network access are needed to stream. Tap Start to grant access, or enable them in Android Settings → Apps → Sightline USB → Permissions."
+        else permissionError = "Allow camera and local network access to stream. Tap Start again, or enable them in Settings → Apps → Sightline → Permissions."
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -42,7 +46,10 @@ class MainActivity : ComponentActivity() {
             val service = capture
             val state = if (service != null) service.state.collectAsStateWithLifecycle().value else CaptureUiState()
             CameraScreen(state, service != null, permissionError,
-                onScan = { service?.scan() },
+                onScan = {
+                    if (granted(Manifest.permission.CAMERA)) service?.scan()
+                    else permissions.launch(arrayOf(Manifest.permission.CAMERA))
+                },
                 onStart = { ids, settings ->
                     permissionError = null
                     val required = requiredPermissions()
