@@ -1,0 +1,10 @@
+[project]
+name = "sightline-sign-service"
+version = "0.1.0"
+description = "Webcam frames -> sign gloss tokens (owner: Harnoor)"
+requires-python = ">=3.10"
+dependencies = ["websockets>=13"]
+# Likely additions: "mediapipe", "opencv-python", "numpy", "torch" / "onnxruntime"
+
+[project.scripts]
+sign-service = "sign_service.server:main"
