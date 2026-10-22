@@ -13,7 +13,7 @@ import {
 import type { GazeZone, SessionClientMessage, SessionServerMessage, SnapshotTrigger } from "@sightline/contracts";
 
 import { LookToHearController, type LookToHearState } from "./look-to-hear-controller";
-import { floatToLinear16, StreamingResampler, TARGET_RATE } from "./pcm";
+import { Chunker, floatToLinear16, StreamingResampler, TARGET_RATE } from "./pcm";
 import { PlaybackScheduler } from "./playback-scheduler";
 import { BoardDwellTrigger, SnapshotGate, VisualChangeDetector, type VisualChangeOptions } from "./snapshot-triggers";
 
@@ -88,12 +88,22 @@ export async function startMicCapture(options: { deviceId?: string } = {}): Prom
 // Captions: mic → session socket (LINEAR16 binary frames for Deepgram)
 // ---------------------------------------------------------------------------
 
+/** ~100 ms of 16 kHz audio per binary frame, as the session socket contract expects. */
+const MIC_FRAME_SAMPLES = TARGET_RATE / 10;
+
 export function streamMicToSession(socket: TypedSocket<SessionClientMessage>, mic: MicCapture) {
   socket.send({ type: "audio.start", format: { encoding: "LINEAR16", sampleRate: 16000, channels: 1 }, ts: Date.now() });
-  const unsubscribe = mic.subscribe((samples) => socket.sendBinary(floatToLinear16(samples)));
+  // The mic delivers ~2–3 ms per worklet callback; forwarding each one floods the STT provider with tiny
+  // chunks (ElevenLabs Scribe returns nothing). Batch into 100 ms frames.
+  const chunker = new Chunker(MIC_FRAME_SAMPLES);
+  const unsubscribe = mic.subscribe((samples) => {
+    for (const frame of chunker.push(samples)) socket.sendBinary(floatToLinear16(frame));
+  });
   return {
     stop() {
       unsubscribe();
+      const rest = chunker.flush();
+      if (rest) socket.sendBinary(floatToLinear16(rest));
       socket.send({ type: "audio.stop", ts: Date.now() });
     },
   };
