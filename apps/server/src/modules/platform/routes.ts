@@ -32,6 +32,9 @@ export const platformRoutes = (deps: {
       // --- public ----------------------------------------------------------
       .get("/health", () => deps.health())
       .get("/assets/:assetId", async ({ params }) => {
+        // S3: redirect to a short-lived presigned GET so bytes never pass through the API server.
+        const direct = await assets.directUrl?.(params.assetId);
+        if (direct) return new Response(null, { status: 302, headers: { location: direct, "cache-control": "private, max-age=600" } });
         const asset = await assets.get(params.assetId);
         if (!asset) throw notFound("Asset");
         return new Response(asset.bytes, {

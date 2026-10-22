@@ -16,6 +16,7 @@ import {
 import { createTypedSocket, type SocketStatus } from "./socket";
 
 export { ApiRequestError, createSightlineApi, type SightlineApi } from "./http";
+export { createRecordingUploader, type RecordingUploader } from "./recording-uploader";
 export { createTypedSocket, type SocketStatus, type TypedSocket } from "./socket";
 
 type Handlers<M> = { onMessage: (message: M) => void; onStatus?: (status: SocketStatus) => void };

@@ -9,6 +9,7 @@ import type {
   Session,
   SignUtterance,
   SlideDeck,
+  Recording,
   Snapshot,
 } from "@sightline/contracts";
 
@@ -43,6 +44,11 @@ export interface SessionStore {
   /** Board/diagram snapshots (written by Ashwath's live module, read by the notes job). Insert or replace by id. */
   upsertSnapshot(snapshot: Snapshot): Promise<void>;
   listSnapshots(sessionId: string): Promise<Snapshot[]>;
+
+  /** Session recordings (segment URLs are not stored — they are presigned on read). Insert or replace by id. */
+  upsertRecording(recording: Recording): Promise<void>;
+  getRecording(sessionId: string, recordingId: string): Promise<Recording | null>;
+  listRecordings(sessionId: string): Promise<Recording[]>;
 
   getNotes(sessionId: string): Promise<LectureNotes | null>;
   saveNotes(notes: LectureNotes): Promise<void>;

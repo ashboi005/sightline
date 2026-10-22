@@ -6,6 +6,7 @@ export * from "./domain/gaze";
 export * from "./domain/sign";
 export * from "./domain/notes";
 export * from "./domain/snapshots";
+export * from "./domain/recordings";
 
 export * from "./protocols/session-socket";
 export * from "./protocols/gaze-bridge";

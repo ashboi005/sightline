@@ -5,6 +5,7 @@ import { buildPath, routes, type RouteName } from "../api";
 import type { CreateSessionInput, UpdateSessionInput } from "../domain/session";
 import type { CreateSignUtteranceInput } from "../domain/sign";
 import type { SnapshotTrigger } from "../domain/snapshots";
+import type { CreateRecordingSegmentInput, PresignedUpload } from "../domain/recordings";
 
 type Infer<N extends RouteName> = (typeof routes)[N]["response"] extends z.ZodType
   ? z.infer<(typeof routes)[N]["response"]>
@@ -41,7 +42,7 @@ export function createSightlineApi(options: SightlineApiOptions) {
   ): Promise<Infer<N>> {
     const route = routes[name];
     const qs = init.query
-      ? `?${new URLSearchParams(Object.entries(init.query).map(([k, v]) => [k, String(v)]))}`
+      ? `?${new URLSearchParams(Object.entries(init.query).map(([k, v]) => [k, String(v)] as [string, string]))}`
       : "";
     const isForm = init.body instanceof FormData;
     const res = await doFetch(`${base}${buildPath(route.path, init.params)}${qs}`, {
@@ -107,6 +108,21 @@ export function createSightlineApi(options: SightlineApiOptions) {
       return request("createSnapshot", { ...s(sessionId), body });
     },
     listSnapshots: (sessionId: string) => request("listSnapshots", s(sessionId)),
+
+    createRecording: (sessionId: string, body: { source?: "SCENE_CAMERA" | "WEBCAM" | "SCREEN"; contentType?: "video/webm" | "video/mp4" | "audio/webm" | "audio/mp4" } = {}) =>
+      request("createRecording", { ...s(sessionId), body }),
+    createRecordingSegment: (sessionId: string, recordingId: string, body: CreateRecordingSegmentInput) =>
+      request("createRecordingSegment", { params: { sessionId, recordingId }, body }),
+    completeRecordingSegment: (sessionId: string, recordingId: string, index: number) =>
+      request("completeRecordingSegment", { params: { sessionId, recordingId, index: String(index) } }),
+    finishRecording: (sessionId: string, recordingId: string) =>
+      request("finishRecording", { params: { sessionId, recordingId } }),
+    listRecordings: (sessionId: string) => request("listRecordings", s(sessionId)),
+    /** PUT bytes to a presigned URL (S3 or the local dev store). No credentials are sent. */
+    uploadToPresigned: async (upload: PresignedUpload, body: Blob | Uint8Array) => {
+      const res = await doFetch(upload.url, { method: upload.method, headers: upload.headers, body: body as RequestInit["body"] });
+      if (!res.ok) throw new ApiRequestError(res.status, { error: { code: "UPSTREAM_ERROR", message: `Upload failed (${res.status})` } });
+    },
 
     getNotes: (sessionId: string) => request("getNotes", s(sessionId)),
     regenerateNotes: (sessionId: string) => request("regenerateNotes", s(sessionId)),

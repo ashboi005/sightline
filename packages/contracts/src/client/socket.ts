@@ -16,7 +16,8 @@ export type TypedSocketOptions<In extends z.ZodType> = {
 
 export type TypedSocket<Out> = {
   send: (message: Out) => void;
-  sendBinary: (data: BufferSource | Blob) => void;
+  /** ArrayBuffer, typed array / DataView, or Blob. */
+  sendBinary: (data: ArrayBuffer | ArrayBufferView<ArrayBuffer> | Blob) => void;
   close: () => void;
   readonly status: SocketStatus;
 };
@@ -71,7 +72,7 @@ export function createTypedSocket<In extends z.ZodType, Out>(options: TypedSocke
       if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message));
     },
     sendBinary: (data) => {
-      if (ws?.readyState === WebSocket.OPEN) ws.send(data);
+      if (ws?.readyState === WebSocket.OPEN) ws.send(data as never);
     },
     close: () => {
       closedByUser = true;

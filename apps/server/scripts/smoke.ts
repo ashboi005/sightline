@@ -17,6 +17,7 @@ import {
   paginated,
   type SessionClientMessage,
 } from "@sightline/contracts";
+import { createRecordingUploader, createSightlineApi } from "@sightline/contracts/client";
 import type { z } from "zod";
 
 const BASE = process.env.SERVER_URL ?? "http://localhost:3000";
@@ -107,6 +108,24 @@ const snaps = await call(ListResponse(Snapshot), "GET", `/api/sessions/${session
 check("snapshot listed", snaps.data.some((s) => s.id === snap.id));
 await sleep(100);
 check("ws received snapshot.captured", (seen.get("snapshot.captured") ?? 0) > 0);
+
+// Recording via presigned uploads (what the web app's recorder does).
+const api = createSightlineApi({ baseUrl: BASE });
+const uploader = await createRecordingUploader(api, session.id, { contentType: "video/webm" });
+const fakeVideo = new Blob([new Uint8Array(4096).map((_, i) => i % 251)], { type: "video/webm" });
+uploader.addSegment(fakeVideo, { startMs: 0, durationMs: 5_000 });
+uploader.addSegment(fakeVideo, { startMs: 5_000, durationMs: 5_000 });
+const finished = await uploader.finish();
+check("recording READY with 2 uploaded segments", finished.recording.status === "READY" && finished.uploaded.length === 2, `failures: ${finished.failures.length}`);
+const recordings = await api.listRecordings(session.id);
+const segUrl = recordings.data[0]?.segments[0]?.url;
+check("recording listed with presigned playback URL", Boolean(segUrl), segUrl?.slice(0, 60));
+if (segUrl) {
+  const ranged = await fetch(segUrl, { headers: { range: "bytes=0-99" } });
+  check("playback URL serves byte ranges (seekable video)", ranged.status === 206 && (await ranged.arrayBuffer()).byteLength === 100);
+  const tampered = await fetch(segUrl.replace(/.$/, (c) => (c === "A" ? "B" : "A")));
+  check("tampered playback URL is rejected", tampered.status === 403);
+}
 
 await call(Session, "POST", `/api/sessions/${session.id}/end`);
 await sleep(3500);

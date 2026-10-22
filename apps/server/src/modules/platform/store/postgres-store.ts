@@ -10,6 +10,7 @@ import type {
   Session,
   SignUtterance,
   SlideDeck,
+  Recording,
   Snapshot,
 } from "@sightline/contracts";
 import type { Database } from "@sightline/db";
@@ -77,6 +78,15 @@ export class PostgresStore implements SessionStore {
   }
   async listSnapshots(_sessionId: string): Promise<Snapshot[]> {
     throw todo("listSnapshots");
+  }
+  async upsertRecording(_recording: Recording): Promise<void> {
+    throw todo("upsertRecording");
+  }
+  async getRecording(_sessionId: string, _recordingId: string): Promise<Recording | null> {
+    throw todo("getRecording");
+  }
+  async listRecordings(_sessionId: string): Promise<Recording[]> {
+    throw todo("listRecordings");
   }
   async getNotes(_sessionId: string): Promise<LectureNotes | null> {
     throw todo("getNotes");

@@ -10,6 +10,7 @@ import type {
   LectureNotes,
   Slide,
   SlidePointer,
+  RecordingSegment,
   SnapshotTrigger,
 } from "@sightline/contracts";
 import { bigint, index, integer, jsonb, pgTable, real, text } from "drizzle-orm/pg-core";
@@ -146,4 +147,23 @@ export const snapshot = pgTable(
     description: text("description"),
   },
   (t) => [index("snapshot_session_idx").on(t.sessionId, t.capturedAt)],
+);
+
+/** Session recordings; segments are objects in storage at recordings/<session>/<recording>/segment-NNNN.<ext>. */
+export const recording = pgTable(
+  "recording",
+  {
+    id: text("id").primaryKey(),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => lectureSession.id, { onDelete: "cascade" }),
+    source: text("source").notNull(),
+    status: text("status").notNull(),
+    startedAt: epochMs("started_at").notNull(),
+    endedAt: epochMs("ended_at"),
+    durationMs: integer("duration_ms").notNull().default(0),
+    /** Without `url` — presigned on read. */
+    segments: jsonb("segments").$type<Omit<RecordingSegment, "url">[]>().notNull().default([]),
+  },
+  (t) => [index("recording_session_idx").on(t.sessionId, t.startedAt)],
 );

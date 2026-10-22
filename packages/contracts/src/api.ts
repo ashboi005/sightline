@@ -20,6 +20,13 @@ import {
 } from "./domain/session";
 import { CreateSignUtteranceInput, SignUtterance } from "./domain/sign";
 import { Snapshot } from "./domain/snapshots";
+import {
+  CreateRecordingInput,
+  CreateRecordingSegmentInput,
+  Recording,
+  RecordingSegment,
+  RecordingSegmentUpload,
+} from "./domain/recordings";
 
 type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -180,6 +187,45 @@ export const routes = {
     status: 200,
     summary: "Board/diagram snapshots for the session, oldest first",
     response: ListResponse(Snapshot),
+  }),
+
+  // --- recordings (presigned uploads) ----------------------------------------
+  createRecording: route({
+    method: "POST",
+    path: "/api/sessions/:sessionId/recordings",
+    status: 201,
+    summary: "Start a recording (session must be LIVE). Then add segments.",
+    body: CreateRecordingInput,
+    response: Recording,
+  }),
+  createRecordingSegment: route({
+    method: "POST",
+    path: "/api/sessions/:sessionId/recordings/:recordingId/segments",
+    status: 201,
+    summary: "Reserve segment N and get a presigned PUT URL for its bytes",
+    body: CreateRecordingSegmentInput,
+    response: RecordingSegmentUpload,
+  }),
+  completeRecordingSegment: route({
+    method: "POST",
+    path: "/api/sessions/:sessionId/recordings/:recordingId/segments/:index/complete",
+    status: 200,
+    summary: "Confirm the PUT finished (server verifies the object exists)",
+    response: RecordingSegment,
+  }),
+  finishRecording: route({
+    method: "POST",
+    path: "/api/sessions/:sessionId/recordings/:recordingId/finish",
+    status: 200,
+    summary: "Mark the recording READY (or FAILED if no segment was uploaded)",
+    response: Recording,
+  }),
+  listRecordings: route({
+    method: "GET",
+    path: "/api/sessions/:sessionId/recordings",
+    status: 200,
+    summary: "Recordings with fresh presigned playback URLs per segment",
+    response: ListResponse(Recording),
   }),
 
   // --- notes ---------------------------------------------------------------

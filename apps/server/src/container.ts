@@ -14,7 +14,9 @@ import { ElevenLabsStt } from "./modules/live/speech/elevenlabs-stt";
 import { SarvamStt } from "./modules/live/speech/sarvam-stt";
 import { MockReplayStt } from "./modules/live/speech/mock-stt";
 import { CachedTts, ElevenLabsTts, MockTts, SarvamTts } from "./modules/live/speech/tts";
-import { DiskAssetStore, MemoryAssetStore } from "./modules/platform/assets/asset-store";
+import { LocalObjectStorage, type ObjectStorage, S3ObjectStorage } from "./lib/storage";
+import { ObjectAssetStore } from "./modules/platform/assets/asset-store";
+import { RecordingService } from "./modules/recordings/recording-service";
 import { createUserResolver } from "./modules/platform/auth";
 import { MockKnowledgeEngine } from "./modules/platform/knowledge/mock-knowledge-engine";
 import { QdrantKnowledgeEngine } from "./modules/platform/knowledge/qdrant-knowledge-engine";
@@ -33,7 +35,24 @@ export function createContainer() {
 
   // --- surrounding (Tushar) ------------------------------------------------
   const store = mocks.persistence ? new MemoryStore() : new PostgresStore(db);
-  const assets = mocks.persistence ? new MemoryAssetStore() : new DiskAssetStore(config.storageDir);
+  const storage: ObjectStorage =
+    ENV.STORAGE_DRIVER === "s3"
+      ? new S3ObjectStorage({
+          bucket: requireEnv(ENV.S3_BUCKET, "S3_BUCKET"),
+          region: ENV.S3_REGION,
+          endpoint: ENV.S3_ENDPOINT || undefined,
+          accessKeyId: requireEnv(ENV.S3_ACCESS_KEY_ID, "S3_ACCESS_KEY_ID"),
+          secretAccessKey: requireEnv(ENV.S3_SECRET_ACCESS_KEY, "S3_SECRET_ACCESS_KEY"),
+          urlTtlSeconds: ENV.STORAGE_URL_TTL_SECONDS,
+        })
+      : new LocalObjectStorage({
+          dir: config.storageDir,
+          publicUrl: config.publicUrl,
+          secret: ENV.BETTER_AUTH_SECRET,
+          urlTtlSeconds: ENV.STORAGE_URL_TTL_SECONDS,
+        });
+  const assets = new ObjectAssetStore(storage);
+  const recordings = new RecordingService({ store, storage, urlTtlSeconds: ENV.STORAGE_URL_TTL_SECONDS });
   const slides = mocks.slides ? new MockSlideProcessor(assets, assetUrl) : new FileSlideProcessor();
   const knowledge: KnowledgeEngine = mocks.knowledge
     ? new MockKnowledgeEngine()
@@ -100,9 +119,14 @@ export function createContainer() {
   const platform = new PlatformService({ store, knowledge, notes, slides, assets, events: live.events, lifecycle: live.lifecycle });
 
   const health = (): HealthResponse => ({ status: "ok", version: "0.1.0", mocks: { ...mocks }, ts: Date.now() });
-  const engines = { captions: live.captions.name, stt: stt.name, tts: tts.name, knowledge: knowledge.name, notes: notes.name, store: store.name };
+  const engines = { storage: storage.driver, captions: live.captions.name, stt: stt.name, tts: tts.name, knowledge: knowledge.name, notes: notes.name, store: store.name };
 
-  return { store, assets, assetUrl, slides, knowledge, notes, resolveUser, live, platform, health, engines };
+  return { store, storage, assets, assetUrl, recordings, slides, knowledge, notes, resolveUser, live, platform, health, engines };
 }
 
 export type Container = ReturnType<typeof createContainer>;
+
+function requireEnv(value: string | undefined, name: string): string {
+  if (!value) throw new Error(`${name} is required when STORAGE_DRIVER=s3`);
+  return value;
+}

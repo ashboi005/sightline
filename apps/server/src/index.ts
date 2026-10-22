@@ -8,6 +8,9 @@ import { errorHandler } from "./lib/error-handler";
 import { platformDevRoutes } from "./modules/platform/dev-routes";
 import { seedDemoSession } from "./modules/platform/mock-seed";
 import { platformRoutes } from "./modules/platform/routes";
+import { LocalObjectStorage } from "./lib/storage";
+import { localStorageRoutes } from "./lib/storage-routes";
+import { recordingRoutes } from "./modules/recordings/routes";
 import { auth } from "./services";
 
 const c = createContainer();
@@ -34,11 +37,16 @@ const app = new Elysia()
   .use(platformRoutes(c))
   // core (Ashwath)
   .use(c.live.routes)
-  .use(c.live.socket);
+  .use(c.live.socket)
+  // recordings (owner TBD)
+  .use(recordingRoutes(c));
+
+// Local storage driver: this server plays the role of S3 for presigned URLs.
+if (c.storage instanceof LocalObjectStorage) app.use(localStorageRoutes(c.storage));
 
 if (!config.isProduction) app.use(c.live.devRoutes).use(platformDevRoutes(c.knowledge, c.notes));
 
-app.listen(config.port, () => {
+app.listen({ port: config.port, maxRequestBodySize: 1024 * 1024 * 1024 }, () => {
   const flags = Object.entries(config.mocks)
     .map(([name, on]) => `${name}=${on ? "MOCK" : "real"}`)
     .join("  ");
