@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import type { CaptionSegment } from "@sightline/contracts";
 import { boardFocus, partitionTranscript, renderNotes } from "./render";
-import { LlmNotesEngine } from "./llm-notes-engine";
+import { groundDraft, LlmNotesEngine } from "./llm-notes-engine";
 import { MockKnowledgeEngine } from "../knowledge/mock-knowledge-engine";
 import { emptyContext } from "../store/memory-store";
 import type { GenerateNotesInput } from "@sightline/contracts";
@@ -32,11 +32,25 @@ test("Markdown renders structured formulas and board annotations", () => {
   expect(markdown).toContain("12 seconds");
 });
 
-test("real notes workflow rejects missing speech and fabricated source IDs", async () => {
+test("real notes workflow rejects missing speech and re-grounds fabricated source IDs", async () => {
   let calls = 0;
   const engine = new LlmNotesEngine(new MockKnowledgeEngine(), { generate: async (schema) => schema.parse(++calls === 1 ? { sections: [{ rangeIndex: 0, heading: "Current" }] } : { summary: "Current", blocks: [], sourceSegmentIds: ["seg_fabricated"], slideIndexes: [], supplements: [], keyTerms: [], takeaways: [] }) });
   await expect(engine.generateNotes(input)).rejects.toThrow("No speech");
-  await expect(engine.generateNotes({ ...input, transcript: [segment("seg_a", 0, 1000)] })).rejects.toThrow("unknown transcript");
+  // A fabricated citation no longer fails the whole notes: the section cites its own transcript range instead.
+  const notes = await engine.generateNotes({ ...input, transcript: [segment("seg_a", 0, 1000)] });
+  expect(notes.sections[0]?.sourceSegmentIds).toEqual(["seg_a"]);
+});
+
+test("formula blocks survive re-typesetting but invented formulas are dropped", () => {
+  const transcript = [{ ...segment("seg_f", 0, 1000), parts: [{ type: "formula" as const, latex: "12\\,\\text{V}", spoken: "twelve volts", display: "INLINE" as const }] }];
+  const draft = groundDraft({ summary: "s", sourceSegmentIds: ["seg_f", "seg_nope"], slideIndexes: [0, 9], blocks: [
+    { type: "formula", latex: "12 \\text{V}", caption: null },
+    { type: "formula", latex: "E = mc^2", caption: null },
+    { type: "paragraph", text: "Battery." },
+  ] }, transcript, [0]);
+  expect(draft.blocks).toEqual([{ type: "formula", latex: "12\\,\\text{V}", caption: null }, { type: "paragraph", text: "Battery." }]);
+  expect(draft.sourceSegmentIds).toEqual(["seg_f"]);
+  expect(draft.slideIndexes).toEqual([0]);
 });
 
 test("real notes workflow generates grounded no-slide notes and labelled supplements", async () => {

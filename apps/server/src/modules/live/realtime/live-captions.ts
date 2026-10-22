@@ -130,11 +130,13 @@ export class LiveCaptions {
       slidePointer: null,
       confidence: raw.confidence,
     };
-    await store.upsertSegment(finalSegment);
+    // Screen first, database second: a DB blip must never blank the student's captions (the socket's
+    // reconnect backfill reads the transcript, so a failed write only costs that line on reconnect).
     events.publish(sessionId, { type: "caption.final", segment: finalSegment, ts: Date.now() });
+    await store.upsertSegment(finalSegment).catch((error) => console.error(`[live] persisting ${raw.id} failed:`, error instanceof Error ? error.message : error));
 
     try {
-      const previous = (await store.listSegments(sessionId)).filter((s) => s.status === "REFINED").slice(-5);
+      const previous = (await store.listSegments(sessionId).catch(() => [])).filter((s) => s.status === "REFINED").slice(-5);
       const refined = await captions.refineCaption({ sessionId, segment: raw, previous });
 
       const state = this.live.get(sessionId);
@@ -143,8 +145,8 @@ export class LiveCaptions {
         .catch(() => null);
 
       const refinedSegment: CaptionSegment = { ...finalSegment, ...refined, status: "REFINED", slidePointer: pointer };
-      await store.upsertSegment(refinedSegment);
       events.publish(sessionId, { type: "caption.refined", segment: refinedSegment, ts: Date.now() });
+      await store.upsertSegment(refinedSegment).catch((error) => console.error(`[live] persisting ${raw.id} failed:`, error instanceof Error ? error.message : error));
 
       // Teacher referring to something visual → ask the web app to grab the scene frame for the notes.
       const cue = detectVisualCue(refined.text) ?? detectVisualCue(raw.text);

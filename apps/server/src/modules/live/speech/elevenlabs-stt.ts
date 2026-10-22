@@ -177,6 +177,7 @@ class ScribeStream implements SttStream {
       return;
     }
     const delay = 250 * 2 ** this.reconnects++;
+    console.warn(`[stt] ElevenLabs ${reason}; reconnecting in ${delay} ms (audio is buffered up to 5 s)`);
     setTimeout(() => !this.closed && void this.connect(), delay);
   }
 
