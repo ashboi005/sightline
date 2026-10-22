@@ -4,7 +4,10 @@
 import type { Slide } from "@sightline/contracts";
 import { fixtures, toSlideBullets } from "@sightline/mocks";
 
+import { strFromU8, unzipSync } from "fflate";
+
 import { AppError } from "../../../lib/errors";
+import { existsSync } from "node:fs";
 import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -46,6 +49,8 @@ export class MockSlideProcessor implements SlideProcessor {
   }
 }
 
+const MAC_SOFFICE = "/Applications/LibreOffice.app/Contents/MacOS/soffice";
+
 export class FileSlideProcessor implements SlideProcessor {
   readonly name = "file";
 
@@ -56,22 +61,42 @@ export class FileSlideProcessor implements SlideProcessor {
     private readonly which: (command: string) => string | null = (command) => Bun.which(command),
   ) {}
 
+  /** LibreOffice is `libreoffice` on Linux, `soffice` (often only inside the app bundle) on macOS. */
+  private libreOffice(): string | null {
+    return this.which("libreoffice") ?? this.which("soffice") ?? (existsSync(MAC_SOFFICE) ? MAC_SOFFICE : null);
+  }
+
   async checkDependencies(extension: string) {
-    for (const command of ["pdfinfo", "pdftoppm", "pdftotext", ...(extension === "pdf" ? [] : ["libreoffice"])]) {
-      if (!this.which(command)) throw new AppError("VALIDATION_ERROR", `Real slides require ${command}; use the development server container`);
+    for (const command of ["pdfinfo", "pdftoppm", "pdftotext"]) {
+      if (!this.which(command)) throw new AppError("VALIDATION_ERROR", `Real slides require ${command} (poppler: brew install poppler / apt install poppler-utils); or use the development server container`);
     }
+    if (extension !== "pdf" && !this.libreOffice()) throw new AppError("VALIDATION_ERROR", "PowerPoint slides require LibreOffice (brew install --cask libreoffice / apt install libreoffice); .pptx works without it as text slides");
+  }
+
+  private async processPptxText(input: ProcessSlidesInput): Promise<Slide[]> {
+    const parsed = pptxSlides(input.bytes);
+    if (!parsed.some((slide) => slide.title || slide.bullets.length)) throw new AppError("VALIDATION_ERROR", "The presentation has no readable slide text");
+    const slides: Slide[] = [];
+    for (const [index, slide] of parsed.entries()) {
+      const svg = renderSlideSvg({ index, title: slide.title.slice(0, 60), bullets: slide.bullets.slice(0, 6).map((b) => (b.length > 70 ? `${b.slice(0, 67)}…` : b)) });
+      const assetId = await this.assets.put("image/svg+xml", new TextEncoder().encode(svg), input.sessionId);
+      slides.push({ id: newId("sld"), index, imageUrl: this.assetUrl(assetId), title: slide.title || null, text: [slide.title, ...slide.bullets].filter(Boolean).join("\n"), bullets: slide.bullets.map((text, bulletIndex) => ({ index: bulletIndex, text })) });
+    }
+    return slides;
   }
 
   async process(input: ProcessSlidesInput): Promise<Slide[]> {
     const extension = input.fileName.toLowerCase().match(/\.(pdf|ppt|pptx)$/)?.[1];
     if (!extension || input.bytes.length === 0) throw new AppError("VALIDATION_ERROR", "Empty or unsupported document");
     if (extension === "pdf" && new TextDecoder().decode(input.bytes.slice(0, 5)) !== "%PDF-") throw new AppError("VALIDATION_ERROR", "Invalid PDF signature");
+    // No LibreOffice (or no poppler) on this machine: a .pptx still works, read straight from its XML as text slides.
+    if (extension === "pptx" && (!this.libreOffice() || !this.which("pdftoppm"))) return this.processPptxText(input);
     await this.checkDependencies(extension);
     const directory = await mkdtemp(join(tmpdir(), "sightline-slides-"));
     try {
       const source = join(directory, `source.${extension}`);
       await Bun.write(source, input.bytes);
-      if (extension !== "pdf") await runConverter(["libreoffice", `-env:UserInstallation=${pathToFileURL(join(directory, "profile")).href}`, "--headless", "--convert-to", "pdf", "--outdir", directory, source], directory);
+      if (extension !== "pdf") await runConverter([this.libreOffice()!, `-env:UserInstallation=${pathToFileURL(join(directory, "profile")).href}`, "--headless", "--convert-to", "pdf", "--outdir", directory, source], directory);
       const pdf = join(directory, "source.pdf");
       const info = await runConverter(["pdfinfo", pdf], directory);
       const pageCount = Number(info.match(/^Pages:\s+(\d+)/m)?.[1]);
@@ -92,6 +117,31 @@ export class FileSlideProcessor implements SlideProcessor {
     }
   }
 }
+
+/**
+ * A .pptx is a zip of XML: read each slide's paragraphs (in presentation order) and render clean text slides.
+ * Captions, the slide pointer, the glossary and notes only need the text; LibreOffice gives pixel-faithful images.
+ */
+export function pptxSlides(bytes: Uint8Array): { title: string; bullets: string[] }[] {
+  let files: Record<string, Uint8Array>;
+  try {
+    files = unzipSync(bytes, { filter: (file) => file.name.startsWith("ppt/slides/slide") || file.name === "ppt/presentation.xml" || file.name === "ppt/_rels/presentation.xml.rels" });
+  } catch {
+    throw new AppError("VALIDATION_ERROR", "Not a valid .pptx file");
+  }
+  const text = (name: string) => (files[name] ? strFromU8(files[name]!) : "");
+  const targets = new Map([...text("ppt/_rels/presentation.xml.rels").matchAll(/<Relationship\b[^>]*\bId="([^"]+)"[^>]*\bTarget="([^"]+)"/g)].map((m) => [m[1]!, `ppt/${m[2]!.replace(/^\/?ppt\//, "")}`]));
+  const ordered = [...text("ppt/presentation.xml").matchAll(/<p:sldId\b[^>]*\br:id="([^"]+)"/g)].map((m) => targets.get(m[1]!)).filter((name): name is string => !!name && !!files[name]);
+  const names = ordered.length ? ordered : Object.keys(files).filter((name) => /^ppt\/slides\/slide\d+\.xml$/.test(name)).sort((a, b) => Number(a.match(/\d+/)![0]) - Number(b.match(/\d+/)![0]));
+  return names.map((name) => {
+    const paragraphs = [...text(name).matchAll(/<a:p>([\s\S]*?)<\/a:p>|<a:p [^>]*>([\s\S]*?)<\/a:p>/g)]
+      .map((m) => [...(m[1] ?? m[2] ?? "").matchAll(/<a:t(?:\s[^>]*)?>([^<]*)<\/a:t>/g)].map((t) => decodeXml(t[1]!)).join("").replace(/\s+/g, " ").trim())
+      .filter((paragraph) => paragraph && !/^\d{1,3}$/.test(paragraph)); // drop empty runs and footer slide numbers
+    return { title: paragraphs[0] ?? "", bullets: paragraphs.slice(1) };
+  });
+}
+
+const decodeXml = (s: string) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
 
 async function runConverter(command: string[], cwd: string): Promise<string> {
   const process = Bun.spawn(command, { cwd, stdout: "pipe", stderr: "pipe", timeout: 120_000, killSignal: "SIGKILL" });
