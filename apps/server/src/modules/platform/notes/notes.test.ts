@@ -64,3 +64,27 @@ test("real notes workflow processes every range of a two-hour transcript", async
   expect(notes.sections.flatMap((section) => section.sourceSegmentIds)).toEqual(transcript.map((item) => item.id));
   expect(maximumConcurrency).toBeLessThanOrEqual(2);
 });
+
+test("real notes place trusted snapshots after assembly and normalize omitted formula captions", async () => {
+  let calls = 0;
+  const engine = new LlmNotesEngine(new MockKnowledgeEngine(), { generate: async (schema) => schema.parse(++calls === 1
+    ? { sections: [{ rangeIndex: 0, heading: "Current" }] }
+    : { summary: "Current law", blocks: [{ type: "formula", latex: "I=0" }], sourceSegmentIds: ["seg_a"] }) });
+  const spoken = { ...segment("seg_a", 0, 1000), parts: [{ type: "formula" as const, latex: "I=0", spoken: "current is zero", display: "INLINE" as const }] };
+  const notes = await engine.generateNotes({ ...input, transcript: [spoken], snapshots: [
+    { id: "snp_real", sessionId: input.session.id, imageUrl: "http://test/api/assets/ast_real", trigger: "MANUAL", reason: "Board", capturedAt: 500, atMs: 500, segmentIds: ["seg_a"], description: null },
+  ] });
+  expect(notes.sections[0]?.blocks).toEqual([
+    { type: "formula", latex: "I=0", caption: null },
+    { type: "image", snapshotId: "snp_real", url: "http://test/api/assets/ast_real", caption: "Board" },
+  ]);
+  expect(notes.markdown).toContain("![Board](http://test/api/assets/ast_real)");
+});
+
+test("real notes reject model-invented image blocks", async () => {
+  let calls = 0;
+  const engine = new LlmNotesEngine(new MockKnowledgeEngine(), { generate: async (schema) => schema.parse(++calls === 1
+    ? { sections: [{ rangeIndex: 0, heading: "Current" }] }
+    : { summary: "Current", blocks: [{ type: "image", snapshotId: "snp_fake", url: "https://untrusted.example/image", caption: null }], sourceSegmentIds: ["seg_a"], slideIndexes: [], supplements: [], keyTerms: [], takeaways: [] }) });
+  await expect(engine.generateNotes({ ...input, transcript: [segment("seg_a", 0, 1000)] })).rejects.toThrow();
+});

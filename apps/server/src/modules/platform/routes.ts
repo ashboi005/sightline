@@ -97,6 +97,8 @@ export const platformRoutes = (deps: {
             headers: {
               "content-type": "text/markdown; charset=utf-8",
               "content-disposition": `attachment; filename="${params.sessionId}-notes.md"`,
+              "cache-control": "private, no-store",
+              "x-content-type-options": "nosniff",
             },
           }),
         { query: ExportNotesQuery },

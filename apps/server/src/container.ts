@@ -61,15 +61,12 @@ export function createContainer() {
   const recordings = new RecordingService({ store, storage, urlTtlSeconds: ENV.STORAGE_URL_TTL_SECONDS });
   const slides = mocks.slides ? new MockSlideProcessor(assets, assetUrl) : new FileSlideProcessor(assets, assetUrl);
   // All LLM calls go through Merge Gateway (LLM_MODEL, default zai/glm-5.3-flash).
-  const model = new MastraStructuredModel(llmGateway, ENV.LLM_MODEL);
-  // Embeddings: Gemini via its OpenAI-compatible endpoint.
-  const embeddings = new OpenAIEmbeddings(ENV.GEMINI_API_KEY, ENV.EMBEDDING_MODEL, {
-    baseURL: ENV.GEMINI_BASE_URL,
-    dimensions: ENV.EMBEDDING_DIMENSIONS,
-  });
+  const model = new MastraStructuredModel(llmGateway, ENV.LLM_MODEL, { timeoutMs: ENV.PLATFORM_LLM_TIMEOUT_MS });
   const knowledge: KnowledgeEngine = mocks.knowledge
     ? new MockKnowledgeEngine()
-    : new QdrantKnowledgeEngine({ client: new QdrantClient({ url: ENV.QDRANT_URL, apiKey: ENV.QDRANT_API_KEY || undefined, timeout: 30_000 }), embeddings, model });
+    : new QdrantKnowledgeEngine({ client: new QdrantClient({ url: ENV.QDRANT_URL, apiKey: ENV.QDRANT_API_KEY || undefined, timeout: 30_000 }),
+        embeddings: new OpenAIEmbeddings(ENV.GEMINI_API_KEY, ENV.EMBEDDING_MODEL, { baseURL: ENV.GEMINI_BASE_URL, dimensions: ENV.EMBEDDING_DIMENSIONS }),
+        model, dimensions: ENV.EMBEDDING_DIMENSIONS });
   const notes: NotesEngine = mocks.notes ? new MockNotesEngine() : new LlmNotesEngine(knowledge, model);
   const resolveUser = createUserResolver({ mock: mocks.auth, auth });
 
@@ -130,14 +127,13 @@ export function createContainer() {
 
   // --- platform uses the live module only via lifecycle + events -----------
   const jobs = mocks.persistence ? new MemoryJobs(store) : new PostgresJobs(db);
-  const platform = new PlatformService({ store, knowledge, notes, slides, assets, events: live.events, lifecycle: live.lifecycle, jobs });
+  const platform = new PlatformService({ store, knowledge, notes, slides, assets, storage, recordingCleanupDelayMs: (ENV.STORAGE_URL_TTL_SECONDS + 300) * 1000, events: live.events, lifecycle: live.lifecycle, jobs });
   const runner = new JobRunner(jobs, (job) => platform.executeJob(job));
   const initialize = async () => {
     if (!mocks.knowledge && !ENV.GEMINI_API_KEY) throw new Error("Real knowledge requires GEMINI_API_KEY (embeddings)");
     if ((!mocks.knowledge || !mocks.notes) && !ENV.MERGE_GATEWAY_API_KEY) throw new Error("Real knowledge/notes require MERGE_GATEWAY_API_KEY (LLM)");
     if (store instanceof PostgresStore && mocks.auth) await store.provisionDemoUser();
     if (knowledge instanceof QdrantKnowledgeEngine) knowledge.hydrate(await store.listReadyContexts());
-    if (slides instanceof FileSlideProcessor) await slides.checkDependencies();
     runner.start();
   };
 

@@ -8,7 +8,7 @@ import { createDb, type Database } from "@sightline/db";
 import { createAuth } from "@sightline/auth";
 import { sql } from "drizzle-orm";
 import { QdrantClient } from "@qdrant/js-client-rest";
-import type { CaptionSegment, Session } from "@sightline/contracts";
+import type { CaptionSegment, Recording, Session, Snapshot } from "@sightline/contracts";
 import { PostgresStore } from "./store/postgres-store";
 import { PostgresJobs } from "./jobs/postgres-jobs";
 import { QdrantKnowledgeEngine } from "./knowledge/qdrant-knowledge-engine";
@@ -70,6 +70,57 @@ describe.skipIf(!databaseUrl)("real Postgres and better-auth", () => {
     expect((await fresh.getContext(session.id)).status).toBe("EMPTY");
   });
 
+  test("snapshots persist with stable ordering, updates, isolation and cascade deletion", async () => {
+    const store = new PostgresStore(database);
+    const sessionId = "ses_snapshot_db";
+    await store.createSession("usr_demo", { ...session, id: sessionId });
+    await store.createSession("usr_demo", { ...session, id: "ses_snapshot_other" });
+    const snapshot: Snapshot = { id: "snp_b", sessionId, imageUrl: "http://test/api/assets/ast_board", trigger: "MANUAL", reason: "board", capturedAt: 10, atMs: 0, segmentIds: ["seg_a"], description: null };
+    await store.upsertSnapshot(snapshot);
+    await store.upsertSnapshot({ ...snapshot, id: "snp_a" });
+    await store.upsertSnapshot({ ...snapshot, description: "updated" });
+    await store.upsertSnapshot({ ...snapshot, sessionId: "ses_snapshot_other", reason: "wrong session" });
+    const fresh = new PostgresStore(database);
+    expect((await fresh.listSnapshots(sessionId)).map((item) => item.id)).toEqual(["snp_a", "snp_b"]);
+    expect((await fresh.listSnapshots(sessionId))[1]?.description).toBe("updated");
+    expect(await fresh.listSnapshots("ses_snapshot_other")).toEqual([]);
+    await fresh.deleteSession(sessionId);
+    expect(await fresh.listSnapshots(sessionId)).toEqual([]);
+    await expect(fresh.upsertSnapshot(snapshot)).rejects.toThrow();
+  });
+
+  test("recordings survive restart without signed URLs and remain session scoped", async () => {
+    const store = new PostgresStore(database);
+    const sessionId = "ses_recording_db";
+    await store.createSession("usr_demo", { ...session, id: sessionId });
+    const recording: Recording = { id: "rec_b", sessionId, source: "SCREEN", status: "RECORDING", startedAt: 10, endedAt: null, durationMs: 0,
+      segments: [{ index: 0, contentType: "video/webm", status: "UPLOADED", sizeBytes: 100, startMs: 0, durationMs: 1000, url: "https://secret.example/signed" }] };
+    await store.upsertRecording(recording);
+    await store.upsertRecording({ ...recording, id: "rec_a" });
+    await store.upsertRecording({ ...recording, status: "READY", endedAt: 1000, durationMs: 1000 });
+    await store.upsertRecording({ ...recording, sessionId: "ses_snapshot_other", status: "FAILED" });
+    const fresh = new PostgresStore(database);
+    expect((await fresh.listRecordings(sessionId)).map((item) => item.id)).toEqual(["rec_a", "rec_b"]);
+    expect((await fresh.getRecording(sessionId, "rec_b"))?.status).toBe("READY");
+    expect((await fresh.getRecording(sessionId, "rec_b"))?.segments[0]?.url).toBeNull();
+    expect(await fresh.getRecording("ses_snapshot_other", "rec_b")).toBeNull();
+    const stored = await database.execute(sql`SELECT segments FROM recording WHERE id = 'rec_b'`);
+    expect(JSON.stringify(stored.rows)).not.toContain("secret.example");
+    await new PostgresJobs(database).deleteSession(sessionId, 60_000);
+    const recoveredJobs = new PostgresJobs(database);
+    const cleanup = (await recoveredJobs.claim(Date.now()))!;
+    expect(cleanup.payload.recordingKeys).toEqual(["recordings/ses_recording_db/rec_a/segment-0000.webm", "recordings/ses_recording_db/rec_b/segment-0000.webm"]);
+    expect(cleanup.payload.recordingCleanupAfter).toBeGreaterThan(Date.now());
+    await recoveredJobs.complete(cleanup, { next: { kind: "CLEANUP", payload: { recordingKeys: cleanup.payload.recordingKeys }, availableAt: cleanup.payload.recordingCleanupAfter } });
+    expect(await new PostgresJobs(database).claim(Date.now())).toBeNull();
+    const finalCleanup = (await new PostgresJobs(database).claim(Date.now() + 65_000))!;
+    expect(finalCleanup.payload.recordingKeys).toEqual(cleanup.payload.recordingKeys);
+    await recoveredJobs.complete(finalCleanup);
+    expect(await fresh.listRecordings(sessionId)).toEqual([]);
+    expect(await fresh.getRecording(sessionId, "rec_b")).toBeNull();
+    await expect(fresh.upsertRecording(recording)).rejects.toThrow();
+  });
+
   test("separate repositories coordinate claims, revisions and deletion", async () => {
     const store = new PostgresStore(database);
     const first = new PostgresJobs(database);
@@ -85,6 +136,23 @@ describe.skipIf(!databaseUrl)("real Postgres and better-auth", () => {
     expect(cleanup.kind).toBe("CLEANUP");
     await second.complete(cleanup);
     expect((await store.listSegments(session.id)).length).toBe(0);
+  });
+
+  test("recording writes wait for the session deletion lock", async () => {
+    const store = new PostgresStore(database);
+    await store.createSession("usr_demo", { ...session, id: "ses_recording_lock" });
+    let writing: Promise<void> | undefined;
+    let written = false;
+    try {
+      await database.transaction(async (transaction) => {
+        await transaction.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended('ses_recording_lock', 0))`);
+        writing = store.upsertRecording({ id: "rec_locked", sessionId: "ses_recording_lock", source: "SCREEN", status: "RECORDING", startedAt: 0, endedAt: null, durationMs: 0, segments: [] }).then(() => { written = true; });
+        await Bun.sleep(100);
+        expect(written).toBe(false);
+      });
+    } finally { await writing; }
+    expect(written).toBe(true);
+    await store.deleteSession("ses_recording_lock");
   });
 
   test("object-storage assets survive recreation; ownership lives in Postgres; cleanup deletes objects", async () => {

@@ -1,7 +1,7 @@
 import type { ContextState, LectureNotes, Session, SlideDeck } from "@sightline/contracts";
 
 export type JobKind = "SLIDES" | "CONTEXT" | "NOTES" | "CLEANUP";
-export type JobPayload = { assetId?: string; fileName?: string };
+export type JobPayload = { assetId?: string; fileName?: string; recordingKeys?: string[]; recordingCleanupAfter?: number };
 export type PlatformJob = {
   id: string;
   sessionId: string;
@@ -16,7 +16,7 @@ export type PlatformJob = {
   createdAt: number;
 };
 export type JobChange = {
-  next?: { kind: JobKind; payload?: JobPayload };
+  next?: { kind: JobKind; payload?: JobPayload; availableAt?: number };
   session?: Partial<Omit<Session, "id">>;
   context?: ContextState;
   deck?: SlideDeck;
@@ -31,5 +31,5 @@ export interface JobRepository {
   publish(job: PlatformJob, work: () => Promise<void>): Promise<boolean>;
   complete(job: PlatformJob, change?: JobChange): Promise<boolean>;
   fail(job: PlatformJob, error: string, retry: boolean, change?: JobChange): Promise<void>;
-  deleteSession(sessionId: string): Promise<void>;
+  deleteSession(sessionId: string, recordingCleanupDelayMs?: number): Promise<void>;
 }

@@ -135,7 +135,7 @@ export const platformJob = pgTable("platform_job", {
   id: text("id").primaryKey(),
   sessionId: text("session_id").notNull(),
   kind: text("kind").notNull(),
-  payload: jsonb("payload").$type<{ assetId?: string; fileName?: string }>().notNull(),
+  payload: jsonb("payload").$type<{ assetId?: string; fileName?: string; recordingKeys?: string[]; recordingCleanupAfter?: number }>().notNull(),
   status: text("status").notNull(),
   attempts: integer("attempts").notNull().default(0),
   availableAt: epochMs("available_at").notNull(),

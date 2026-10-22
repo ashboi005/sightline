@@ -21,7 +21,7 @@ test("bounded cache evicts oldest values", () => {
   expect(cache.get("one")).toBe(1);
 });
 
-test("knowledge publishes atomically, caches glossary and query vectors, and applies pointer hysteresis", async () => {
+test("knowledge publishes atomically and caches glossary, retrieval and query vectors", async () => {
   const calls: string[] = [];
   let embeddings = 0;
   const client = {
@@ -39,13 +39,27 @@ test("knowledge publishes atomically, caches glossary and query vectors, and app
   await knowledge.ingestContext(input);
   expect(calls).toEqual(["create", "upsert", "publish", "delete"]);
   expect((await knowledge.getGlossary(input.sessionId))[0]?.aliases).toEqual(["kerchief"]);
-  expect((await knowledge.locateSlide({ sessionId: input.sessionId, text: "circuit", currentSlideIndex: 0 }))?.slideIndex).toBe(0);
-  await knowledge.locateSlide({ sessionId: input.sessionId, text: "circuit", currentSlideIndex: 0 });
+  expect((await knowledge.retrieveContext({ sessionId: input.sessionId, query: "circuit", limit: 5 }))[0]?.text).toBe("KVL");
+  await knowledge.retrieveContext({ sessionId: input.sessionId, query: "circuit", limit: 5 });
   expect(embeddings).toBe(2);
   calls.length = 0;
   await expect(knowledge.ingestContext(input, async () => false)).rejects.toThrow("superseded");
   expect(calls).not.toContain("publish");
   expect(calls.at(-1)).toBe("delete");
+});
+
+test("glossary normalizes omitted definitions and aliases while empty indexes use configured dimensions", async () => {
+  const dimensions: number[] = [];
+  const client = {
+    getAliases: async () => ({ aliases: [] }), createCollection: async (_name: string, config: { vectors: { size: number } }) => { dimensions.push(config.vectors.size); },
+    upsert: async () => {}, updateCollectionAliases: async () => {}, deleteCollection: async () => {},
+  } as unknown as QdrantClient;
+  const engine = new QdrantKnowledgeEngine({ client, dimensions: 768, embeddings: { embed: async (texts) => texts.map(() => Array(768).fill(0)) },
+    model: { generate: async (schema) => schema.parse({ glossary: [{ term: "Current", category: "TERM", source: "TEXT" }] }) } });
+  await engine.ingestContext({ ...input, slides: [] });
+  expect((await engine.getGlossary(input.sessionId))[0]).toMatchObject({ term: "Current", definition: null, aliases: [] });
+  await engine.ingestContext({ ...input, text: null, slides: [] });
+  expect(dimensions).toEqual([768, 768]);
 });
 
 test("ambiguous alias success never deletes the published collection", async () => {

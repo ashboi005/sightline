@@ -122,7 +122,7 @@ export class ObjectAssetStore implements AssetStore {
 
   async deleteSession(sessionId: string) {
     for (const id of await this.index.listSession(sessionId)) {
-      await this.storage.deleteObject(this.key(sessionId, id)).catch((error) => console.warn("[assets] delete failed", id, error));
+      await this.storage.deleteObject(this.key(sessionId, id));
     }
     await this.index.removeSession(sessionId);
   }

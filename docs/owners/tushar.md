@@ -20,7 +20,8 @@ Everything around the live core: session lifecycle and storage, slide uploads, t
 | **NotesEngine (Mastra workflow)** | `…/platform/notes/llm-notes-engine.ts` | implemented; provider quality/timing acceptance pending |
 | **Postgres store** | `…/platform/store/postgres-store.ts` + `packages/db/src/schema/sightline.ts` | implemented; real-service acceptance pending |
 | **PDF/PPTX → slide images + text** | `…/platform/slides/slide-processor.ts` (`FileSlideProcessor`) | implemented; converter acceptance pending |
-| P1: board-heavy note markers + snapshot placement | NotesEngine | board markers implemented; real snapshot placement pending |
+| Snapshot / recording persistence | `…/platform/store/postgres-store.ts` | implemented; forward migration and Postgres isolation/cascade tests added |
+| P1: board-heavy note markers + snapshot placement | NotesEngine | implemented; shared real/mock snapshot placement |
 
 Implementation decisions, verification status and Docker/migration/recovery instructions are in [platform operations](../implementation/tushar-operations.md) and the [progress ledger](../implementation/tushar-progress.md).
 
@@ -42,15 +43,16 @@ Flip `MOCK_SPEECH=false` / `MOCK_CAPTIONS=false` (with keys) and the replay lect
 - **Slide pointer moved to Ashwath.** `KnowledgeEngine.locateSlide` is gone, so don't implement it. Ashwath's
   `LexicalSlideLocator` reads your deck via `SessionStore.getSlideDeck`, so a real slide pipeline lights it up
   automatically.
-- **Snapshots.** `SessionStore.upsertSnapshot` / `listSnapshots` were added (memory store done; implement them in
-  `PostgresStore`, table `snapshot` drafted in `packages/db`). `GenerateNotesInput.snapshots` now carries the board
+- **Snapshots.** `SessionStore.upsertSnapshot` / `listSnapshots` are implemented in both stores; apply the
+  snapshot/recording forward migration first. `GenerateNotesInput.snapshots` carries the board
   snapshots, and `NoteBlock` has a new `image` type: place each snapshot in the section whose captions overlap
-  `snapshot.segmentIds` (see `placeSnapshots` in `mock-notes-engine.ts`).
-- **Recordings + storage.** `SessionStore.upsertRecording` / `getRecording` / `listRecordings` were added (memory
-  done; implement in `PostgresStore`, table `recording` drafted). Assets now sit on `ObjectStorage`
+  `snapshot.segmentIds` (see shared `notes/place-snapshots.ts`), otherwise by caption time, then slide fallback.
+- **Recordings + storage.** `SessionStore.upsertRecording` / `getRecording` / `listRecordings` are implemented
+  in Postgres, without persisting signed playback URLs. Assets sit on `ObjectStorage`
   (`lib/storage.ts`: local disk in dev, S3 in prod). `AssetStore` gained an optional `directUrl` (presigned GET).
 - **LLMs go through Merge Gateway.** For your notes/glossary agents use `gatewayModel(gateway, ENV.LLM_MODEL)` from
-  `src/lib/llm-gateway.ts` (default `zai/glm-5.3-flash`). Embeddings still use `EMBEDDING_MODEL` + `OPENAI_API_KEY`.
+  `src/lib/llm-gateway.ts` (default `zai/glm-5.3-flash`). Embeddings use Gemini's OpenAI-compatible endpoint:
+  `GEMINI_API_KEY`, `GEMINI_BASE_URL`, `EMBEDDING_MODEL=gemini-embedding-001`, `EMBEDDING_DIMENSIONS=768`.
 
 ## You do NOT own
 
@@ -79,7 +81,7 @@ over the VPS instance, only `QDRANT_URL` / `QDRANT_API_KEY` change.
 USE_MOCK_DATA=true        # Ashwath's side mocked (captions, speech) — the replay lecture still produces a transcript
 MOCK_KNOWLEDGE=false      # your real RAG
 MOCK_NOTES=false          # your real notes
-MOCK_PERSISTENCE=true     # flip to false when PostgresStore is done (then: bun run db:push)
+MOCK_PERSISTENCE=false    # run bun run db:migrate first; true keeps an in-memory store
 bun run dev:server
 curl -XPOST localhost:3000/api/dev/knowledge/ingest -H 'content-type: application/json' -d '{
   "sessionId":"ses_test","title":"EE101 L7","subject":null,
@@ -96,7 +98,7 @@ Add deps as you go: `bun add --cwd apps/server @qdrant/js-client-rest @mastra/co
   paragraph. Payload `{ text, source, slideIndex, bulletIndex }`. A glossary agent produces `GlossaryTerm[]` with
   likely STT mis-hearings as `aliases` (e.g. "kerchief" → Kirchhoff); this is what makes Ashwath's captions
   correct. **`getGlossary` must be served from a cache**, because it's on the live hot path.
-- **NotesEngine:** outline from topics/slides → per-section writer over transcript ranges (`retrieveContext`
+- **NotesEngine:** outline from spoken transcript ranges, with topic/slide hints → per-section writer (`retrieveContext`
   for grounding) → collect formulas from caption `formula` parts → render `markdown`. Mark sections overlapping
   long BOARD `awayWindows` as `boardFocus`. Target the shape and quality of `kirchhoff.notes.json`.
 - **PostgresStore:** tables drafted in `packages/db/src/schema/sightline.ts` (`lecture_session`, because
@@ -112,6 +114,32 @@ Add deps as you go: `bun add --cwd apps/server @qdrant/js-client-rest @mastra/co
 - [ ] Real PDF upload → slide images in the UI
 
 ---
+
+## Review follow-up implementation
+
+The numbered review below is historical. Current fixes and verification are tracked in
+[review follow-ups](../implementation/tushar-review-followups.md).
+
+- Snapshot and recording methods plus the forward migration are implemented. Same-ID writes cannot move rows
+  between sessions. Recording playback URLs are regenerated by the recording service, never stored in Postgres.
+- Real/mock notes share caption-overlap/time-based snapshot placement. Images are attached deterministically from
+  supplied snapshots; models cannot invent image blocks. Omitted optional values normalize to the unchanged public
+  contracts. Required source IDs, slide references and formulas remain validated.
+- The merged Gateway/Gemini routing is retained. `PLATFORM_LLM_TIMEOUT_MS` bounds each glossary/notes call (default
+  45 seconds; at most 120 seconds), not the whole job. Empty indexes use configured embedding dimensions.
+  Re-ingest every session after changing embedding models/dimensions; existing vectors are incompatible.
+- The obsolete Qdrant pointer is removed; Ashwath's live lexical locator is the sole slide pointer.
+- Missing converters fail only the affected deck with a retrievable `FAILED` reason. PDFs require Poppler only;
+  PPT/PPTX additionally require LibreOffice. Docker remains the supported converter runtime.
+- Authenticated Markdown export embeds owner-verified PNG/JPEG/WebP snapshots, up to 20 MiB combined raw bytes,
+  without mutating stored notes. External Markdown viewers must support data URLs to display these images.
+- Server/dev/web-builder images use Bun 1.4.4. The registry tag exists; an actual Coolify image build still needs
+  verification by the deployment owner. No deployment is performed here.
+- Final review also fixed pre-existing cleanup gaps: failed asset deletions retain retry metadata; recording object
+  keys survive the database cascade and receive immediate plus delayed cleanup. See operations for S3 upload-expiry
+  and exceptionally long in-flight transfer caveats.
+- Real Qdrant/converter/provider acceptance remains pending where prerequisites are unavailable. Deterministic
+  tests do not establish production latency or model quality.
 
 ## Review — 2026-10-22 (Ashwath, against `origin/main` @ `03a6fc3`)
 

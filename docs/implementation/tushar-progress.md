@@ -4,13 +4,13 @@ Plan: the full P0/P1 implementation approved in this conversation on 2026-10-22.
 
 ## Decisions
 
-- Work in the existing sightline checkout, as explicitly approved; do not create branches or commits.
+- Work in the existing sightline checkout, as explicitly approved. The original task did not authorize the agent to create branches or commits; this was not a prohibition on maintainers subsequently committing/merging the work.
 - Keep public engine and JSON contracts unchanged. Extend internal ports for durable jobs and asset ownership.
 - Durable jobs use Postgres with a memory adapter for mocks. Source assets are persisted before accepting uploads.
 - Private assets use the existing cookie resolver and session ownership check.
 - Qdrant indexes publish through versioned collection aliases; notes remain transcript-led.
 - Docker is the supported runtime for real document conversion. OCR is excluded.
-- Preserve all mock switches and use configurable existing OpenAI model defaults.
+- Preserve all mock switches. Historical OpenAI defaults were superseded by the merged Merge Gateway/Gemini configuration; see the current operations guide.
 
 ## Checklist
 
@@ -43,10 +43,10 @@ Plan: the full P0/P1 implementation approved in this conversation on 2026-10-22.
 
 ## Rulings
 
-- Use the approved existing checkout without creating commits/branches; this preserves the requested output location and reviewable working-tree changes.
+- The original agent left reviewable changes without creating commits/branches. Maintainers subsequently committed/merged them; this is expected, not a policy violation.
 - Make the first migration idempotent for the prior db:push scaffold, including notes_error adoption; custom divergent schemas still need operator inspection.
 - Fence external publication under the same per-session lock as deletion and revision changes. Reconcile ambiguous alias responses before deleting candidate collections.
-- Store bytes in hashed session directories so cleanup also removes files left by a crash before metadata commit.
+- Historical choice: store bytes in hashed session directories. Superseded by the merged ObjectStorage keys (`assets/<sessionId>/...`, `recordings/<sessionId>/...`); see the current operations guide and review follow-ups for durable object cleanup.
 - Document a precise operator requeue for terminal cleanup jobs after the configured three attempts. Automatic retries remain bounded.
 - Pin Bun 1.4.4 based on reproducible real-auth integration evidence. The Windows Varlock helper issue is separately documented; production images use the tested runtime.
 

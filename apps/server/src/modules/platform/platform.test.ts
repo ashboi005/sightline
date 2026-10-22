@@ -5,6 +5,10 @@ import { PlatformService } from "./platform-service";
 import { MemoryJobs } from "./jobs/memory-jobs";
 import { MockKnowledgeEngine } from "./knowledge/mock-knowledge-engine";
 import { AppError } from "../../lib/errors";
+import { LocalObjectStorage } from "../../lib/storage";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { MemoryStore } from "./store/memory-store";
 import { deriveAwayWindows } from "./notes/away-windows";
@@ -67,4 +71,37 @@ test("failed regeneration preserves old notes and exposes a durable error", asyn
   expect(failed.error).toContain("No speech");
   expect(failed.notes?.id).toBe("nts_old");
   expect(await service.exportNotesMarkdown("owner", session.id)).toBe("# Old notes\n");
+});
+
+test("recording object cleanup survives metadata deletion and retries storage outages", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "sightline-recording-cleanup-"));
+  try {
+    const store = new MemoryStore();
+    await store.createSession("owner", session);
+    const storage = new LocalObjectStorage({ dir: directory, publicUrl: "http://test", secret: "s".repeat(32) });
+    const key = "recordings/ses_test/rec_cleanup/segment-0000.webm";
+    await storage.putObject(key, new Uint8Array([1]), "video/webm");
+    await store.upsertRecording({ id: "rec_cleanup", sessionId: session.id, source: "SCREEN", status: "READY", startedAt: 0, endedAt: 1000, durationMs: 1000,
+      segments: [{ index: 0, contentType: "video/webm", status: "UPLOADED", startMs: 0, durationMs: 1000, sizeBytes: 1, url: null }] });
+    const jobs = new MemoryJobs(store);
+    const service = new PlatformService({ store, jobs, storage, recordingCleanupDelayMs: 60_000, assets: new MemoryAssetStore(store), knowledge: new MockKnowledgeEngine(), notes: { name: "unused", async generateNotes() { throw new Error("unused"); } }, slides: { name: "unused", async process() { return []; } }, events: { publish() {} }, lifecycle: { async onSessionStarted() {}, async onSessionEnded() {}, async onSessionDeleted() {} } });
+    await service.deleteSession("owner", session.id);
+    expect(await store.findSession(session.id)).toBeNull();
+    const job = (await jobs.claim(Date.now()))!;
+    expect(job.payload.recordingKeys).toEqual([key]);
+    const remove = storage.deleteObject.bind(storage);
+    storage.deleteObject = async () => { throw new Error("Temporary object storage outage"); };
+    await service.executeJob(job);
+    expect(await storage.stat(key)).not.toBeNull();
+    storage.deleteObject = remove;
+    await service.executeJob((await jobs.claim(Date.now() + 5000))!);
+    expect(await storage.stat(key)).toBeNull();
+    expect(await jobs.claim(Date.now() + 5000)).toBeNull();
+    await storage.putObject(key, new Uint8Array([2]), "video/webm");
+    const finalPass = await jobs.claim(Date.now() + 65_000);
+    expect(finalPass?.payload.recordingKeys).toEqual([key]);
+    await service.executeJob(finalPass!);
+    expect(await storage.stat(key)).toBeNull();
+    expect(await jobs.claim(Date.now() + 130_000)).toBeNull();
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });

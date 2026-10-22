@@ -51,9 +51,9 @@ export class FileSlideProcessor implements SlideProcessor {
 
   constructor(private readonly assets: AssetStore, private readonly assetUrl: (id: string) => string) {}
 
-  async checkDependencies() {
-    for (const command of ["pdfinfo", "pdftoppm", "pdftotext", "libreoffice"]) {
-      if (!Bun.which(command)) throw new Error(`Real slides require ${command}; use the development server container`);
+  async checkDependencies(extension: string) {
+    for (const command of ["pdfinfo", "pdftoppm", "pdftotext", ...(extension === "pdf" ? [] : ["libreoffice"])]) {
+      if (!Bun.which(command)) throw new AppError("VALIDATION_ERROR", `Real slides require ${command}; use the development server container`);
     }
   }
 
@@ -61,6 +61,7 @@ export class FileSlideProcessor implements SlideProcessor {
     const extension = input.fileName.toLowerCase().match(/\.(pdf|ppt|pptx)$/)?.[1];
     if (!extension || input.bytes.length === 0) throw new AppError("VALIDATION_ERROR", "Empty or unsupported document");
     if (extension === "pdf" && new TextDecoder().decode(input.bytes.slice(0, 5)) !== "%PDF-") throw new AppError("VALIDATION_ERROR", "Invalid PDF signature");
+    await this.checkDependencies(extension);
     const directory = await mkdtemp(join(tmpdir(), "sightline-slides-"));
     try {
       const source = join(directory, `source.${extension}`);

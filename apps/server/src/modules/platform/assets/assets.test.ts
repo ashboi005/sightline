@@ -1,7 +1,11 @@
 import { expect, test } from "bun:test";
 import { Elysia } from "elysia";
 import type { Session } from "@sightline/contracts";
-import { MemoryAssetStore } from "./asset-store";
+import { MemoryAssetStore, MemoryAssetIndex, ObjectAssetStore } from "./asset-store";
+import { LocalObjectStorage } from "../../../lib/storage";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { MemoryStore } from "../store/memory-store";
 import { platformRoutes } from "../routes";
 import { PlatformService } from "../platform-service";
@@ -30,8 +34,42 @@ test("asset HTTP route rejects anonymous and other users and permits owner", asy
   const response = await request("owner");
   expect(response.status).toBe(200);
   expect(response.headers.get("cache-control")).toBe("private, no-store");
+  const snapshot = { id: "snp_export", sessionId: session.id, imageUrl: `http://localhost/api/assets/${id}`, trigger: "MANUAL" as const, reason: "Board", capturedAt: 0, atMs: 0, segmentIds: [], description: null };
+  await store.upsertSnapshot(snapshot);
+  await store.saveNotes({ id: "nts_export", sessionId: session.id, generatedAt: 0, title: "Board notes", summary: "Summary", sections: [{ id: "sec_board", heading: "Board", blocks: [{ type: "image", snapshotId: snapshot.id, url: snapshot.imageUrl, caption: "Board" }], sourceSegmentIds: [], slideIndexes: [], boardFocus: null }], keyTerms: [], formulas: [], takeaways: [], markdown: `![Board](${snapshot.imageUrl})` });
+  const exported = await app.handle(new Request(`http://localhost/api/sessions/${session.id}/notes/export`, { headers: { "x-test-user": "owner" } }));
+  expect(exported.status).toBe(200);
+  expect(exported.headers.get("cache-control")).toBe("private, no-store");
+  expect(await exported.text()).toContain("![Board](data:image/png;base64,AQI=)");
+  expect((await store.getNotes(session.id))?.markdown).toContain(snapshot.imageUrl);
+  expect((await app.handle(new Request(`http://localhost/api/sessions/${session.id}/notes/export`, { headers: { "x-test-user": "other" } }))).status).toBe(404);
+  await store.createSession("other", { ...session, id: "ses_other_asset" });
+  const privateId = await assets.put("image/png", new Uint8Array([3]), "ses_other_asset");
+  await store.upsertSnapshot({ ...snapshot, imageUrl: `http://localhost/api/assets/${privateId}` });
+  const savedNotes = (await store.getNotes(session.id))!;
+  await store.saveNotes({ ...savedNotes, sections: savedNotes.sections.map((section) => ({ ...section, blocks: section.blocks.map((block) => block.type === "image" ? { ...block, url: `http://localhost/api/assets/${privateId}` } : block) })) });
+  await expect(platform.exportNotesMarkdown("owner", session.id)).rejects.toThrow();
   await store.deleteSession(session.id);
   expect((await request("owner")).status).toBe(404);
   await assets.deleteSession(session.id);
   expect(await assets.get(id)).toBeNull();
+});
+
+test("failed object deletion retains ownership metadata for a retry", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "sightline-cleanup-"));
+  try {
+    const store = new MemoryStore();
+    await store.createSession("owner", { id: "ses_cleanup", title: "Private", subject: null, mode: "DEAF", status: "DRAFT", contextStatus: "EMPTY", slidesStatus: "EMPTY", notesStatus: "EMPTY", createdAt: 0, startedAt: null, endedAt: null });
+    const storage = new LocalObjectStorage({ dir: directory, publicUrl: "http://test", secret: "s".repeat(32) });
+    const assets = new ObjectAssetStore(storage, new MemoryAssetIndex(store));
+    const id = await assets.put("image/png", new Uint8Array([1]), "ses_cleanup");
+    const remove = storage.deleteObject.bind(storage);
+    storage.deleteObject = async () => { throw new Error("Object storage unavailable"); };
+    await expect(assets.deleteSession("ses_cleanup")).rejects.toThrow("unavailable");
+    expect(await assets.getSessionId(id)).toBe("ses_cleanup");
+    storage.deleteObject = remove;
+    await assets.deleteSession("ses_cleanup");
+    expect(await assets.getSessionId(id)).toBeNull();
+    expect(await storage.stat(`assets/ses_cleanup/${id}`)).toBeNull();
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });

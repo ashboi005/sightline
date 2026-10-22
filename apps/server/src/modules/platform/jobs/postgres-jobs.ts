@@ -5,6 +5,7 @@ import { newId } from "../../../lib/ids";
 import { PostgresStore } from "../store/postgres-store";
 import { applyChange, failureChange } from "./memory-jobs";
 import type { JobChange, JobKind, JobPayload, JobRepository, PlatformJob } from "./types";
+import { recordingCleanup } from "./recording-cleanup";
 
 export class PostgresJobs implements JobRepository {
   constructor(private readonly db: Database) {}
@@ -17,7 +18,7 @@ export class PostgresJobs implements JobRepository {
     });
   }
 
-  private async schedule(database: Database, sessionId: string, kind: JobKind, payload: JobPayload, change: JobChange): Promise<PlatformJob> {
+  private async schedule(database: Database, sessionId: string, kind: JobKind, payload: JobPayload, change: JobChange, availableAt?: number): Promise<PlatformJob> {
     const key = `${sessionId}:${kind}`;
     const [previous] = await database.select({ job: platformJob }).from(platformWork).innerJoin(platformJob, eq(platformJob.id, platformWork.jobId)).where(eq(platformWork.key, key));
     if (kind === "NOTES" && previous && ["PENDING", "RUNNING"].includes(previous.job.status)) return previous.job as PlatformJob;
@@ -27,7 +28,7 @@ export class PostgresJobs implements JobRepository {
     await applyChange(store, sessionId, change);
     if (previous?.job.status === "PENDING") await database.update(platformJob).set({ status: "CANCELLED" }).where(eq(platformJob.id, previous.job.id));
     const now = Date.now();
-    const job: PlatformJob = { id: newId("job"), sessionId, kind, payload, status: "PENDING", attempts: 0, availableAt: now, createdAt: now, leaseUntil: null, token: null, error: null };
+    const job: PlatformJob = { id: newId("job"), sessionId, kind, payload, status: "PENDING", attempts: 0, availableAt: availableAt ?? now, createdAt: now, leaseUntil: null, token: null, error: null };
     await database.insert(platformJob).values(job);
     await database.insert(platformWork).values({ key, jobId: job.id }).onConflictDoUpdate({ target: platformWork.key, set: { jobId: job.id } });
     return job;
@@ -110,7 +111,7 @@ export class PostgresJobs implements JobRepository {
       }
       await applyChange(new PostgresStore(database), job.sessionId, change);
       await database.update(platformJob).set({ status: "DONE", token: null, leaseUntil: null }).where(eq(platformJob.id, job.id));
-      if (change.next) await this.schedule(database, job.sessionId, change.next.kind, change.next.payload ?? {}, {});
+      if (change.next) await this.schedule(database, job.sessionId, change.next.kind, change.next.payload ?? {}, {}, change.next.availableAt);
       return true;
     }, job.sessionId);
   }
@@ -127,11 +128,14 @@ export class PostgresJobs implements JobRepository {
     }, job.sessionId);
   }
 
-  deleteSession(sessionId: string) {
+  deleteSession(sessionId: string, recordingCleanupDelayMs = 0) {
     return this.atomic(async (database) => {
+      const store = new PostgresStore(database);
+      if (!(await store.findSession(sessionId))) return;
+      const payload = recordingCleanup(await store.listRecordings(sessionId), recordingCleanupDelayMs);
       await database.update(platformJob).set({ status: "CANCELLED" }).where(and(eq(platformJob.sessionId, sessionId), inArray(platformJob.status, ["PENDING", "RUNNING"])));
       await database.delete(lectureSession).where(eq(lectureSession.id, sessionId));
-      await this.schedule(database, sessionId, "CLEANUP", {}, {});
+      await this.schedule(database, sessionId, "CLEANUP", payload, {});
     }, sessionId);
   }
 }

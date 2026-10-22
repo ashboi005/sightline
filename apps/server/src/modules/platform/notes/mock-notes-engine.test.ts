@@ -25,4 +25,17 @@ describe("placeSnapshots", () => {
     placeSnapshots(sections, [snap("snp_2", [], 12_000)], transcript);
     expect(sections[0]!.blocks.some((b) => b.type === "image")).toBe(true);
   });
+
+  it("uses caption time without slides, greatest overlap, stable image order and no duplicates", () => {
+    const sections = [section("first", [], ["seg_a"]), section("second", [], ["seg_b", "seg_c"])];
+    const transcript = [
+      { id: "seg_a", startMs: 0, endMs: 1000, slidePointer: null },
+      { id: "seg_b", startMs: 10_000, endMs: 11_000, slidePointer: null },
+      { id: "seg_c", startMs: 11_000, endMs: 12_000, slidePointer: null },
+    ] as never;
+    const snapshots = [snap("snp_later", [], 900), snap("snp_early", [], 500), snap("snp_overlap", ["seg_a", "seg_b", "seg_c"], 0)];
+    placeSnapshots(sections, [...snapshots, snapshots[0]!], transcript);
+    expect(sections[0]!.blocks.filter((block) => block.type === "image").map((block) => block.snapshotId)).toEqual(["snp_early", "snp_later"]);
+    expect(sections[1]!.blocks.filter((block) => block.type === "image").map((block) => block.snapshotId)).toEqual(["snp_overlap"]);
+  });
 });

@@ -16,8 +16,9 @@
 ## 1. Databases
 
 1. **Postgres:** create the service, then copy the *internal* connection URL → server `DATABASE_URL`.
-   After the first deploy, run `bun run db:push` once against it (from your machine with the public URL, or a
-   Coolify one-off command).
+   Before starting the upgraded server, back up the database and run `bun run db:migrate` against it (from your
+   machine with the public URL, or a Coolify one-off command). Include the snapshot/recording forward migration;
+   do not use `db:push` for deployment. See [platform upgrades](implementation/tushar-operations.md#migrations-and-upgrades).
 2. **Qdrant:** create the service with a persistent volume on `/qdrant/storage` and set `QDRANT__SERVICE__API_KEY`.
    Server env: `QDRANT_URL=http://<internal-host>:6333`, `QDRANT_API_KEY=…`.
 
@@ -43,7 +44,7 @@
 | `CORS_ORIGIN` | `https://<domain>` |
 | `BETTER_AUTH_SECRET` | `openssl rand -base64 32` |
 | `DATABASE_URL` | Postgres internal URL |
-| `USE_MOCK_DATA` | `false`, then force still-unfinished modules back on (e.g. `MOCK_KNOWLEDGE=true`, `MOCK_NOTES=true`, `MOCK_SLIDES=true`, `MOCK_PERSISTENCE=true` until Tushar's are ready) |
+| `USE_MOCK_DATA` | `false` for real engines; explicitly retain mocks for integrations not yet accepted. Platform implementations exist; real-service acceptance is separate. Never deploy mock auth publicly. |
 | `DEEPGRAM_API_KEY` | required when `MOCK_SPEECH=false` and `STT_PROVIDER=deepgram` |
 | `TTS_PROVIDER` + `ELEVENLABS_API_KEY` or `SARVAM_API_KEY` | required when `MOCK_SPEECH=false` |
 | `MERGE_GATEWAY_API_KEY` (+ `CAPTION_MODEL`, `SIGN_MODEL`, `VISION_MODEL`) | required when `MOCK_CAPTIONS=false` (all LLM + vision calls go through Merge Gateway) |

@@ -1,16 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { QdrantClient } from "@qdrant/js-client-rest";
-import { GlossaryTerm, IngestContextResult, type ContextChunk, type ContextState, type IngestContextInput, type KnowledgeEngine, type RetrieveContextInput, type SlidePointer } from "@sightline/contracts";
+import { GlossaryTerm, IngestContextResult, type ContextChunk, type ContextState, type IngestContextInput, type KnowledgeEngine, type RetrieveContextInput } from "@sightline/contracts";
 import { z } from "zod";
 import { AppError } from "../../../lib/errors";
 import type { Embeddings, StructuredModel } from "../ai/structured-model";
 import { BoundedCache, chunkContext } from "./chunks";
 
-type LocateSlideInput = { sessionId: string; text: string; currentSlideIndex: number | null };
-
-const GlossaryDraft = z.object({ glossary: z.array(GlossaryTerm.omit({ id: true })).max(200), topics: z.array(z.string()).max(50) });
+const GlossaryDraft = z.object({ glossary: z.array(GlossaryTerm.omit({ id: true }).extend({ definition: z.string().nullish(), aliases: z.array(z.string()).nullish() })).max(200), topics: z.array(z.string()).max(50).nullish() });
 type SearchHit = { id: string | number; score: number; payload?: Record<string, unknown> | null };
-type KnowledgeOptions = { client: QdrantClient; embeddings: Embeddings; model: StructuredModel; pointerThreshold?: number; pointerMargin?: number };
+type KnowledgeOptions = { client: QdrantClient; embeddings: Embeddings; model: StructuredModel; dimensions?: number };
 
 export class QdrantKnowledgeEngine implements KnowledgeEngine {
   readonly name = "qdrant";
@@ -35,7 +33,8 @@ export class QdrantKnowledgeEngine implements KnowledgeEngine {
     let published = false;
     try {
       const vectors = chunks.length ? await this.options.embeddings.embed(chunks.map((chunk) => chunk.text)) : [];
-      const dimension = vectors[0]?.length ?? 1536;
+      const dimension = this.options.dimensions ?? vectors[0]?.length ?? 768;
+      if (vectors.length !== chunks.length || vectors.some((vector) => vector.length !== dimension || vector.some((value) => !Number.isFinite(value)))) throw new Error("Embedding dimensions do not match the configured index");
       await this.options.client.createCollection(collection, { vectors: { size: dimension, distance: "Cosine" } });
       for (let offset = 0; offset < chunks.length; offset += 64) {
         await this.options.client.upsert(collection, { wait: true, points: chunks.slice(offset, offset + 64).map((chunk, index) => ({ id: chunk.id, vector: vectors[offset + index]!, payload: { ...chunk, sessionId: input.sessionId } })) });
@@ -43,7 +42,7 @@ export class QdrantKnowledgeEngine implements KnowledgeEngine {
       const draft = chunks.length ? await this.options.model.generate(GlossaryDraft,
         "Extract lecture topics and a glossary from the source excerpts. Include likely speech-recognition mishearings as aliases, accurate short definitions, category, and source. Never invent lecture content. Prefer terms actually present in the excerpts.",
         { title: input.title, subject: input.subject, excerpts: chunks.map((chunk) => ({ text: chunk.text, source: chunk.source })).slice(0, 120) }) : { glossary: [], topics: [] };
-      const terms = draft.glossary.map((term, index) => ({ ...term, id: `trm_${index}_${randomUUID().replace(/-/g, "").slice(0, 12)}`, aliases: [...new Set(term.aliases.filter((alias) => alias.trim() && alias.toLowerCase() !== term.term.toLowerCase()))] }));
+      const terms = draft.glossary.map((term, index) => ({ ...term, definition: term.definition ?? null, id: `trm_${index}_${randomUUID().replace(/-/g, "").slice(0, 12)}`, aliases: [...new Set((term.aliases ?? []).filter((alias) => alias.trim() && alias.toLowerCase() !== term.term.toLowerCase()))] }));
       if (!(await publish(async () => {
         try {
           await this.options.client.updateCollectionAliases({ actions: [...(previous ? [{ delete_alias: { alias_name: base } }] : []), { create_alias: { collection_name: collection, alias_name: base } }] });
@@ -57,7 +56,7 @@ export class QdrantKnowledgeEngine implements KnowledgeEngine {
         this.results.clear();
       }))) throw new AppError("CONFLICT", "Context ingestion was superseded");
       if (previous) await this.options.client.deleteCollection(previous).catch((error) => console.warn("[knowledge] old collection cleanup deferred", error));
-      return IngestContextResult.parse({ glossary: terms, topics: draft.topics, chunkCount: chunks.length, sttKeyterms: [...new Set(terms.map((term) => term.term))].slice(0, 100) });
+      return IngestContextResult.parse({ glossary: terms, topics: draft.topics ?? [], chunkCount: chunks.length, sttKeyterms: [...new Set(terms.map((term) => term.term))].slice(0, 100) });
     } finally {
       if (!published) {
         const aliases = await this.options.client.getAliases().catch(() => null);
@@ -68,9 +67,9 @@ export class QdrantKnowledgeEngine implements KnowledgeEngine {
 
   async getGlossary(sessionId: string) { return this.glossary.get(sessionId) ?? []; }
 
-  private async search(sessionId: string, text: string, limit: number, slidesOnly = false): Promise<SearchHit[]> {
+  private async search(sessionId: string, text: string, limit: number): Promise<SearchHit[]> {
     if (!this.chunkCounts.get(sessionId)) return [];
-    const key = JSON.stringify([sessionId, text, limit, slidesOnly]);
+    const key = JSON.stringify([sessionId, text, limit]);
     const cached = this.results.get(key);
     if (cached) return cached;
     let vector = this.vectors.get(text);
@@ -80,7 +79,7 @@ export class QdrantKnowledgeEngine implements KnowledgeEngine {
       this.vectors.set(text, vector);
     }
     try {
-      const result = await this.options.client.query(`ctx_${sessionId}`, { query: vector, limit, with_payload: true, filter: { must: [{ key: "sessionId", match: { value: sessionId } }, ...(slidesOnly ? [{ key: "source", match: { value: "SLIDE" } }] : [])] } });
+      const result = await this.options.client.query(`ctx_${sessionId}`, { query: vector, limit, with_payload: true, filter: { must: [{ key: "sessionId", match: { value: sessionId } }] } });
       this.results.set(key, result.points);
       return result.points;
     } catch (error) {
@@ -92,17 +91,6 @@ export class QdrantKnowledgeEngine implements KnowledgeEngine {
   async retrieveContext(input: RetrieveContextInput): Promise<ContextChunk[]> {
     const hits = await this.search(input.sessionId, input.query, Math.min(20, Math.max(1, input.limit ?? 5)));
     return hits.filter((hit) => typeof hit.payload?.text === "string").map((hit) => ({ id: String(hit.id), text: String(hit.payload!.text), source: hit.payload!.source === "SLIDE" ? "SLIDE" : "TEXT", slideIndex: typeof hit.payload!.slideIndex === "number" ? hit.payload!.slideIndex : null, score: hit.score }));
-  }
-
-  async locateSlide(input: LocateSlideInput): Promise<SlidePointer | null> {
-    if (!input.text.trim()) return null;
-    const hits = await this.search(input.sessionId, input.text, 20, true);
-    const usable = hits.filter((hit) => typeof hit.payload?.slideIndex === "number");
-    let best = usable[0];
-    if (!best || best.score < (this.options.pointerThreshold ?? 0.5)) return null;
-    const current = usable.find((hit) => hit.payload?.slideIndex === input.currentSlideIndex);
-    if (current && best.payload?.slideIndex !== input.currentSlideIndex && best.score - current.score < (this.options.pointerMargin ?? 0.1) && current.score >= (this.options.pointerThreshold ?? 0.5)) best = current;
-    return { slideIndex: Number(best.payload!.slideIndex), bulletIndex: typeof best.payload!.bulletIndex === "number" ? best.payload!.bulletIndex : null, confidence: Math.max(0, Math.min(1, best.score)) };
   }
 
   async dropSession(sessionId: string) {

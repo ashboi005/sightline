@@ -2,15 +2,18 @@ import type { ContextState, CreateSessionInput, IngestContextInput, IngestContex
 import { AppError, notFound } from "../../lib/errors";
 import { newId } from "../../lib/ids";
 import type { SessionEvents, SessionLifecycle } from "../../shared/ports";
+import type { ObjectStorage } from "../../lib/storage";
 import type { AssetStore } from "./assets/asset-store";
 import type { JobChange, JobRepository, PlatformJob } from "./jobs/types";
 import { deriveAwayWindows } from "./notes/away-windows";
+import { exportNotes } from "./notes/export-notes";
 import type { SlideProcessor } from "./slides/slide-processor";
 import type { SessionStore } from "./store/types";
 
 export type PlatformDeps = {
   store: SessionStore; knowledge: KnowledgeEngine & { ingestContext(input: IngestContextInput, publish?: (work: () => Promise<void>) => Promise<boolean>): Promise<IngestContextResult> }; notes: NotesEngine; slides: SlideProcessor;
   assets: AssetStore; events: SessionEvents; lifecycle: SessionLifecycle; jobs: JobRepository;
+  storage?: ObjectStorage; recordingCleanupDelayMs?: number;
 };
 
 export class PlatformService {
@@ -41,7 +44,7 @@ export class PlatformService {
   async deleteSession(userId: string, sessionId: string) {
     if (!(await this.deps.store.getSession(userId, sessionId))) return;
     await this.deps.lifecycle.onSessionDeleted(sessionId);
-    await this.deps.jobs.deleteSession(sessionId);
+    await this.deps.jobs.deleteSession(sessionId, this.deps.recordingCleanupDelayMs);
   }
   async startSession(userId: string, sessionId: string) {
     const session = await this.requireSession(userId, sessionId);
@@ -99,7 +102,7 @@ export class PlatformService {
     await this.requireSession(userId, sessionId);
     const notes = await this.deps.store.getNotes(sessionId);
     if (!notes) throw notFound("Notes");
-    return notes.markdown;
+    return exportNotes(notes, await this.deps.store.listSnapshots(sessionId), this.deps.assets);
   }
 
   async executeJob(job: PlatformJob) {
@@ -110,7 +113,14 @@ export class PlatformService {
       if (job.kind === "CLEANUP") {
         await knowledge.dropSession(job.sessionId);
         await assets.deleteSession(job.sessionId);
-        await jobs.complete(job);
+        const keys = job.payload.recordingKeys ?? [];
+        if (keys.length && !this.deps.storage) throw new Error("Recording cleanup requires ObjectStorage");
+        for (const key of keys) {
+          if (!key.startsWith(`recordings/${job.sessionId}/`)) throw new AppError("VALIDATION_ERROR", "Recording cleanup key belongs to another session");
+          await this.deps.storage!.deleteObject(key);
+        }
+        const after = job.payload.recordingCleanupAfter;
+        await jobs.complete(job, after && after > Date.now() ? { next: { kind: "CLEANUP", payload: { recordingKeys: keys }, availableAt: after } } : {});
         return;
       }
       const session = await store.findSession(job.sessionId);

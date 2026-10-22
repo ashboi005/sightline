@@ -1,6 +1,7 @@
 import { newId } from "../../../lib/ids";
 import type { SessionStore } from "../store/types";
 import type { JobChange, JobKind, JobPayload, JobRepository, PlatformJob } from "./types";
+import { recordingCleanup } from "./recording-cleanup";
 
 export async function applyChange(store: SessionStore, sessionId: string, change: JobChange = {}) {
   if (change.session) await store.updateSession(sessionId, change.session);
@@ -38,7 +39,7 @@ export class MemoryJobs implements JobRepository {
     return this.locked(() => this.schedule(sessionId, kind, payload, change));
   }
 
-  private async schedule(sessionId: string, kind: JobKind, payload: JobPayload = {}, change: JobChange = {}) {
+  private async schedule(sessionId: string, kind: JobKind, payload: JobPayload = {}, change: JobChange = {}, availableAt?: number) {
       const key = `${sessionId}:${kind}`;
       const previous = this.jobs.get(this.current.get(key) ?? "");
       if (kind === "NOTES" && previous && ["PENDING", "RUNNING"].includes(previous.status)) return { ...previous };
@@ -47,7 +48,7 @@ export class MemoryJobs implements JobRepository {
       await applyChange(this.store, sessionId, change);
       if (previous?.status === "PENDING") previous.status = "CANCELLED";
       const now = Date.now();
-      const job: PlatformJob = { id: newId("job"), sessionId, kind, payload, status: "PENDING", attempts: 0, availableAt: now, createdAt: now, leaseUntil: null, token: null, error: null };
+      const job: PlatformJob = { id: newId("job"), sessionId, kind, payload, status: "PENDING", attempts: 0, availableAt: availableAt ?? now, createdAt: now, leaseUntil: null, token: null, error: null };
       this.jobs.set(job.id, job);
       this.current.set(key, job.id);
       return { ...job };
@@ -104,7 +105,7 @@ export class MemoryJobs implements JobRepository {
       }
       await applyChange(this.store, job.sessionId, change);
       this.jobs.get(job.id)!.status = "DONE";
-      if (change.next) await this.schedule(job.sessionId, change.next.kind, change.next.payload);
+      if (change.next) await this.schedule(job.sessionId, change.next.kind, change.next.payload, {}, change.next.availableAt);
       return true;
     });
   }
@@ -122,11 +123,13 @@ export class MemoryJobs implements JobRepository {
     });
   }
 
-  async deleteSession(sessionId: string) {
+  async deleteSession(sessionId: string, recordingCleanupDelayMs = 0) {
     await this.locked(async () => {
+      if (!(await this.store.findSession(sessionId))) return;
+      const payload = recordingCleanup(await this.store.listRecordings(sessionId), recordingCleanupDelayMs);
       for (const job of this.jobs.values()) if (job.sessionId === sessionId) job.status = "CANCELLED";
       await this.store.deleteSession(sessionId);
+      await this.schedule(sessionId, "CLEANUP", payload);
     });
-    await this.enqueue(sessionId, "CLEANUP");
   }
 }

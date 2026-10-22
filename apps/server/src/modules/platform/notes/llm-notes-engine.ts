@@ -4,13 +4,17 @@ import { z } from "zod";
 import { AppError } from "../../../lib/errors";
 import type { StructuredModel } from "../ai/structured-model";
 import { boardFocus, partitionTranscript, renderNotes } from "./render";
+import { placeSnapshots } from "./place-snapshots";
 
 const Outline = z.object({ sections: z.array(z.object({ rangeIndex: z.number().int().nonnegative(), heading: z.string().min(1) })) });
 const SectionDraft = z.object({
-  summary: z.string(), blocks: z.array(NoteBlock), sourceSegmentIds: z.array(z.string()).min(1),
-  slideIndexes: z.array(z.number().int().nonnegative()),
-  supplements: z.array(z.string()),
-  keyTerms: z.array(z.object({ term: z.string(), definition: z.string() })), takeaways: z.array(z.string()),
+  summary: z.string(), blocks: z.array(z.discriminatedUnion("type", [
+    NoteBlock.options[0], NoteBlock.options[1], NoteBlock.options[2],
+    NoteBlock.options[3].extend({ caption: z.string().nullish() }), NoteBlock.options[5],
+  ])), sourceSegmentIds: z.array(z.string()).min(1),
+  slideIndexes: z.array(z.number().int().nonnegative()).nullish(),
+  supplements: z.array(z.string()).nullish(),
+  keyTerms: z.array(z.object({ term: z.string(), definition: z.string() })).nullish(), takeaways: z.array(z.string()).nullish(),
 });
 const Draft = LectureNotes.omit({ id: true, generatedAt: true });
 
@@ -48,7 +52,7 @@ export class LlmNotesEngine implements NotesEngine {
             const ids = new Set(transcript.map((segment) => segment.id));
             if (draft.sourceSegmentIds.some((id) => !ids.has(id))) throw new Error("Notes cited an unknown transcript segment");
             const slides = new Set(input.slides.map((slide) => slide.index));
-            if (draft.slideIndexes.some((index) => !slides.has(index))) throw new Error("Notes cited an unknown slide");
+            if (draft.slideIndexes?.some((index) => !slides.has(index))) throw new Error("Notes cited an unknown slide");
             const allowedFormulas = new Set(transcript.flatMap((segment) => segment.parts.flatMap((part) => part.type === "formula" ? [part.latex] : [])));
             if (draft.blocks.some((block) => block.type === "formula" && !allowedFormulas.has(block.latex))) throw new Error("Notes introduced an unsupported formula");
             return { section, transcript, draft };
@@ -56,14 +60,15 @@ export class LlmNotesEngine implements NotesEngine {
           for (const { section, transcript, draft } of written) {
             const cited = new Set(draft.sourceSegmentIds);
             sections.push({ id: `sec_${section.rangeIndex}`, heading: section.heading,
-              blocks: [...draft.blocks, ...draft.supplements.map((text) => ({ type: "callout" as const, variant: "TIP" as const, text: `Context supplement: ${text}` }))],
-              sourceSegmentIds: [...cited], slideIndexes: [...new Set(draft.slideIndexes)], boardFocus: boardFocus(transcript.filter((segment) => cited.has(segment.id)), input.awayWindows, input.session.startedAt ?? input.session.createdAt) });
+              blocks: [...draft.blocks.map((block) => block.type === "formula" ? { ...block, caption: block.caption ?? null } : block), ...(draft.supplements ?? []).map((text) => ({ type: "callout" as const, variant: "TIP" as const, text: `Context supplement: ${text}` }))],
+              sourceSegmentIds: [...cited], slideIndexes: [...new Set(draft.slideIndexes ?? [])], boardFocus: boardFocus(transcript.filter((segment) => cited.has(segment.id)), input.awayWindows, input.session.startedAt ?? input.session.createdAt) });
             summaries.push(draft.summary);
-            for (const term of draft.keyTerms) keyTerms.set(term.term.toLowerCase(), term);
-            for (const takeaway of draft.takeaways) takeaways.add(takeaway);
+            for (const term of draft.keyTerms ?? []) keyTerms.set(term.term.toLowerCase(), term);
+            for (const takeaway of draft.takeaways ?? []) takeaways.add(takeaway);
             for (const segment of transcript) for (const part of segment.parts) if (part.type === "formula") formulas.set(part.latex.replace(/\s/g, ""), { latex: part.latex, description: part.spoken });
           }
         }
+        placeSnapshots(sections, input.snapshots.filter((snapshot) => snapshot.sessionId === input.session.id), input.transcript);
         const notes = { sessionId: input.session.id, title: `${input.session.title} — Notes`, summary: summaries.join("\n\n"), sections, keyTerms: [...keyTerms.values()], formulas: [...formulas.values()], takeaways: [...takeaways].slice(0, 20) };
         return Draft.parse({ ...notes, markdown: renderNotes(notes) });
       } });

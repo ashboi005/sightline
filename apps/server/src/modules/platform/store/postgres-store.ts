@@ -1,10 +1,10 @@
 import type { CaptionSegment, ContextState, GazeTransition, LectureNotes, Recording, Session, Snapshot, SignUtterance, SlideDeck } from "@sightline/contracts";
 import type { Database } from "@sightline/db";
 import { user } from "@sightline/db/schema/auth";
-import { captionSegment, gazeTransition, lectureContext, lectureNotes, lectureSession, signUtterance, slideDeck } from "@sightline/db/schema/sightline";
+import { captionSegment, gazeTransition, lectureContext, lectureNotes, lectureSession, recording, snapshot, signUtterance, slideDeck } from "@sightline/db/schema/sightline";
 import { and, count, desc, eq, sql } from "drizzle-orm";
 
-import { notImplemented, notFound } from "../../../lib/errors";
+import { notFound } from "../../../lib/errors";
 import { emptyContext } from "./memory-store";
 import type { SessionStore } from "./types";
 
@@ -12,6 +12,11 @@ export const toSession = (row: typeof lectureSession.$inferSelect): Session => (
   id: row.id, title: row.title, subject: row.subject, mode: row.mode, status: row.status,
   contextStatus: row.contextStatus as Session["contextStatus"], slidesStatus: row.slidesStatus as Session["slidesStatus"],
   notesStatus: row.notesStatus as Session["notesStatus"], createdAt: row.createdAt, startedAt: row.startedAt, endedAt: row.endedAt,
+});
+
+const toRecording = (row: typeof recording.$inferSelect): Recording => ({
+  ...row, source: row.source as Recording["source"], status: row.status as Recording["status"],
+  segments: row.segments.map((segment) => ({ ...segment, url: null })),
 });
 
 export class PostgresStore implements SessionStore {
@@ -89,20 +94,29 @@ export class PostgresStore implements SessionStore {
   async listUtterances(sessionId: string) {
     return this.db.select().from(signUtterance).where(eq(signUtterance.sessionId, sessionId)).orderBy(signUtterance.createdAt, signUtterance.id);
   }
-  async upsertSnapshot(_snapshot: Snapshot): Promise<void> {
-    throw notImplemented("PostgresStore.upsertSnapshot", "Tushar");
+  async upsertSnapshot(value: Snapshot): Promise<void> {
+    await this.db.insert(snapshot).values(value).onConflictDoUpdate({
+      target: snapshot.id, set: value, setWhere: eq(snapshot.sessionId, value.sessionId),
+    });
   }
-  async listSnapshots(_sessionId: string): Promise<Snapshot[]> {
-    throw notImplemented("PostgresStore.listSnapshots", "Tushar");
+  async listSnapshots(sessionId: string): Promise<Snapshot[]> {
+    return this.db.select().from(snapshot).where(eq(snapshot.sessionId, sessionId)).orderBy(snapshot.capturedAt, snapshot.id);
   }
-  async upsertRecording(_recording: Recording): Promise<void> {
-    throw notImplemented("upsertRecording", "Tushar");
+  async upsertRecording(value: Recording): Promise<void> {
+    const row = { ...value, segments: value.segments.map(({ url, ...segment }) => segment) };
+    await this.db.transaction(async (transaction) => {
+      await transaction.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${value.sessionId}, 0))`);
+      await transaction.insert(recording).values(row).onConflictDoUpdate({
+        target: recording.id, set: row, setWhere: eq(recording.sessionId, value.sessionId),
+      });
+    });
   }
-  async getRecording(_sessionId: string, _recordingId: string): Promise<Recording | null> {
-    throw notImplemented("getRecording", "Tushar");
+  async getRecording(sessionId: string, recordingId: string): Promise<Recording | null> {
+    const [row] = await this.db.select().from(recording).where(and(eq(recording.sessionId, sessionId), eq(recording.id, recordingId)));
+    return row ? toRecording(row) : null;
   }
-  async listRecordings(_sessionId: string): Promise<Recording[]> {
-    throw notImplemented("listRecordings", "Tushar");
+  async listRecordings(sessionId: string): Promise<Recording[]> {
+    return (await this.db.select().from(recording).where(eq(recording.sessionId, sessionId)).orderBy(recording.startedAt, recording.id)).map(toRecording);
   }
   async getNotes(sessionId: string): Promise<LectureNotes | null> {
     const [row] = await this.db.select().from(lectureNotes).where(eq(lectureNotes.sessionId, sessionId));
