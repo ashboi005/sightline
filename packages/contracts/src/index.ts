@@ -9,6 +9,7 @@ export * from "./domain/notes";
 export * from "./protocols/session-socket";
 export * from "./protocols/gaze-bridge";
 export * from "./protocols/sign-service";
+export * from "./protocols/speaker-service";
 
 export * from "./services/captions";
 export * from "./services/knowledge";

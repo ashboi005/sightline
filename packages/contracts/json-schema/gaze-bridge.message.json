@@ -135,6 +135,44 @@
       "properties": {
         "type": {
           "type": "string",
+          "const": "gaze.scene"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "valid": {
+          "type": "boolean"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "ts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Unix epoch milliseconds"
+        }
+      },
+      "required": [
+        "type",
+        "x",
+        "y",
+        "valid",
+        "confidence",
+        "ts"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
           "const": "gaze.targets"
         },
         "targets": {

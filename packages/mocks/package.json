@@ -9,7 +9,8 @@
     "check-types": "tsc --noEmit",
     "validate": "bun src/validate.ts",
     "gaze": "bun servers/mock-gaze-bridge.ts",
-    "sign": "bun servers/mock-sign-service.ts"
+    "sign": "bun servers/mock-sign-service.ts",
+    "speaker": "bun servers/mock-speaker-service.ts"
   },
   "dependencies": {
     "@sightline/contracts": "workspace:*",

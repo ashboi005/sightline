@@ -7,6 +7,12 @@ import { buildPath } from "../api";
 import { GAZE_BRIDGE_PROTOCOL_VERSION, GazeBridgeMessage, type GazeBridgeCommand } from "../protocols/gaze-bridge";
 import { SESSION_SOCKET_PATH, SessionServerMessage, type SessionClientMessage } from "../protocols/session-socket";
 import { SignServiceMessage, type SignServiceCommand } from "../protocols/sign-service";
+import {
+  SPEAKER_SAMPLE_RATE,
+  SPEAKER_SERVICE_PROTOCOL_VERSION,
+  SpeakerServiceMessage,
+  type SpeakerServiceCommand,
+} from "../protocols/speaker-service";
 import { createTypedSocket, type SocketStatus } from "./socket";
 
 export { ApiRequestError, createSightlineApi, type SightlineApi } from "./http";
@@ -45,4 +51,35 @@ export function connectSignService(url: string, handlers: Handlers<SignServiceMe
     incoming: SignServiceMessage,
     ...handlers,
   });
+}
+
+/**
+ * Local look-to-hear speaker service (or `bun run mock:speaker`). Sends `configure` on every (re)connect;
+ * then stream `encodeSpeakerPcm` / `encodeSpeakerPacket` binaries and `target` commands.
+ */
+export function connectSpeakerService(
+  url: string,
+  config: { source: "camera" | "network" | "replay"; videoOffsetMs: number },
+  handlers: Handlers<SpeakerServiceMessage> & { onOpen?: () => void },
+) {
+  const socket = createTypedSocket<typeof SpeakerServiceMessage, SpeakerServiceCommand>({
+    url,
+    incoming: SpeakerServiceMessage,
+    onMessage: handlers.onMessage,
+    onStatus: handlers.onStatus,
+    onOpen: () => {
+      socket.send({
+        type: "configure",
+        protocol_version: SPEAKER_SERVICE_PROTOCOL_VERSION,
+        sample_rate: SPEAKER_SAMPLE_RATE,
+        audio: true,
+        source: config.source,
+        sync_verified: true,
+        video_offset_ms: config.videoOffsetMs,
+        client_time: performance.now() / 1000,
+      });
+      handlers.onOpen?.();
+    },
+  });
+  return socket;
 }

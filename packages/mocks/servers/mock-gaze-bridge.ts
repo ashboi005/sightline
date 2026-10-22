@@ -114,6 +114,26 @@ setInterval(() => {
   for (const ws of clients) if (state.pointSubscribers.has(ws)) send(ws, msg);
 }, 1000 / 15);
 
+// --- scene gaze (15 Hz) — where in the scene-camera image the student looks ----------
+// Targets map to the two face positions used by the mock speaker service (left ≈ x 0.25, right ≈ x 0.76).
+const SCENE_POINTS: Record<string, { x: number; y: number }> = {
+  teacher: { x: 0.76, y: 0.55 },
+  peer_left: { x: 0.25, y: 0.6 },
+  peer_right: { x: 0.76, y: 0.55 },
+};
+setInterval(() => {
+  const point = state.targetId ? SCENE_POINTS[state.targetId] : undefined;
+  const jitter = () => (Math.random() - 0.5) * 0.02;
+  broadcast({
+    type: "gaze.scene",
+    x: (point?.x ?? 0.5) + jitter(),
+    y: (point?.y ?? 0.15) + jitter(),
+    valid: state.zone !== "UNKNOWN",
+    confidence: point ? 0.9 : 0.6,
+    ts: Date.now(),
+  });
+}, 1000 / 15);
+
 // --- calibration -----------------------------------------------------------
 const CALIBRATION_STEPS: { instruction: string; target: { x: number; y: number } | null }[] = [
   { instruction: "Look at the dot in the top-left corner", target: { x: 0.1, y: 0.1 } },

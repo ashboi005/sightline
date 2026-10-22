@@ -50,7 +50,8 @@
     "contracts:json-schema": "bun run --filter @sightline/contracts json-schema",
     "speaker:setup": "cd apps/speaker-service && uv sync --frozen && uv run python -m sightline_speaker.assets --dir data/assets",
     "speaker:dev": "cd apps/speaker-service && uv run sightline-speaker --device auto",
-    "speaker:test": "cd apps/speaker-service && uv run pytest -q"
+    "speaker:test": "cd apps/speaker-service && uv run pytest -q",
+    "mock:speaker": "bun run --filter @sightline/mocks speaker"
   },
   "dependencies": {
     "zod": "catalog:"
