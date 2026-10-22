@@ -62,6 +62,7 @@ export const HealthResponse = z.object({
     intelligence: z.boolean(),
     speech: z.boolean(),
     persistence: z.boolean(),
+    slides: z.boolean(),
     auth: z.boolean(),
   }),
   ts: Timestamp,

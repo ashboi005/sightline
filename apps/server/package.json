@@ -9,12 +9,15 @@
     "dev": "bun run --hot src/index.ts",
     "start": "bun run dist/index.mjs",
     "env:generate": "varlock codegen",
-    "auth:generate": "varlock run -- bun x auth@latest generate --config src/services.ts --output ../../packages/db/src/schema/auth.ts --yes"
+    "auth:generate": "varlock run -- bun x auth@latest generate --config src/services.ts --output ../../packages/db/src/schema/auth.ts --yes",
+    "smoke": "bun scripts/smoke.ts"
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.2",
     "@sightline/auth": "workspace:*",
+    "@sightline/contracts": "workspace:*",
     "@sightline/db": "workspace:*",
+    "@sightline/mocks": "workspace:*",
     "@sinclair/typebox": "^0.34.52",
     "better-auth": "catalog:",
     "elysia": "^1.4.30",
