@@ -25,6 +25,7 @@ This file is the **entry point**. It explains the whole system, who owns what, a
 | [`contracts/backend-modules.md`](contracts/backend-modules.md) | In-process interfaces between Ashwath's core and Tushar's surrounding modules |
 | [`contracts/mock-mode.md`](contracts/mock-mode.md) | `USE_MOCK_DATA`, fixtures, and the mock services everyone can run today |
 | [`contracts/recordings.md`](contracts/recordings.md) | Session recordings: browser recorder → presigned uploads to S3 → playback |
+| [`implementation/sign-service-plan.md`](implementation/sign-service-plan.md) | Harnoor completion plan, audit, measured runtime evidence and open two-signer/M2 acceptance |
 | [`deploy.md`](deploy.md) | Coolify deployment: server, web, Postgres, Qdrant; what runs on the student laptop |
 
 **Source of truth for every shape is code:** [`packages/contracts`](../packages/contracts) (zod schemas + TS
@@ -164,7 +165,7 @@ Typical setups:
   Tushar's side mocked.
 - **Tushar:** `USE_MOCK_DATA=true`, `MOCK_KNOWLEDGE=false`, `MOCK_NOTES=false` (then `MOCK_PERSISTENCE=false`,
   `MOCK_SLIDES=false`) → your real engines on local Qdrant/Postgres, fed by the replay lecture.
-- **Harnoor:** runs her Python service and points the web app at it.
+- **Harnoor:** `bun run sign:setup`, `sign:camera` for the direct backend tester; `sign:verify` and `sign:dev` for protocol integration. One public-data landmark alphabet model now recognizes across the frame. The current learner-oriented runtime requires a one-second steady letter hold and suppresses movement. Legacy model/CUDA dependencies are removed; the fast priority video now fails this timing. Fresh setup and WebSocket testing: apps/sign-service/README.md. See `implementation/alphabet-video-evaluation.md`.
 
 Details, fixture list and the mock device servers: [`contracts/mock-mode.md`](contracts/mock-mode.md).
 
@@ -182,7 +183,7 @@ sightline/
 │   │       └── container.ts           picks real vs mock implementations from the MOCK_* flags
 │   ├── gaze-bridge/          Ashwath — Python, local gaze daemon (tracker hw: Arunya)
 │   ├── speaker-service/      Ashwath — Python, local look-to-hear voice extraction (RTFS-Net)
-│   └── sign-service/         Harnoor — Python service (skeleton speaks the protocol)
+│   └── sign-service/         Harnoor — one ASL A-Z classifier; supplied video acceptance currently fails
 ├── packages/
 │   ├── contracts/            Everyone — zod schemas, TS types, JSON Schema export, typed clients
 │   ├── mocks/                Fixtures (Kirchhoff lecture) + mock gaze/sign/speaker servers
@@ -217,6 +218,8 @@ sightline/
 | M3 | Real Deepgram + real CaptionEngine → web captions (Tushar's side mocked) | Ashwath ↔ Sahil |
 | M4 | Real KnowledgeEngine feeds live captions; real notes generated | Tushar ↔ Ashwath |
 | M5 | Full demo run (Kirchhoff lecture) with hardware, flags all `false` | Demo ready |
+
+Sign-service completion follow-up (2026-10-23): software regressions, CUDA FP16 execution and browser readiness are verified. Live M2 and the two-signer six-phrase acceptance remain open; see the [implementation record](implementation/sign-service-plan.md).
 
 ## 9. Tech stack
 

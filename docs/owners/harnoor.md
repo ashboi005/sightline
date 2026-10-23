@@ -1,5 +1,8 @@
 # Harnoor — Sign Language Recognition
 
+> Current runtime: one CPU A–Z landmark classifier, movement suppression and a one-second letter hold. Legacy CNN/word-model code and CUDA dependencies are removed. Previous four-frame video results below are historical: the current priority-video reevaluation returns K and fails. See the [fresh setup and testing guide](../../apps/sign-service/README.md).
+
+
 > Back to [overview](../00-overview.md). Your protocol: [contracts/sign-service.md](../contracts/sign-service.md).
 
 ## Mission
@@ -31,7 +34,7 @@ A WebSocket server at `ws://localhost:7788/ws` that accepts `stream.start`, `fra
 
 Requirements:
 
-- Handle 10–15 fps; per-frame processing < ~60 ms so you never fall behind (drop frames if you must).
+- Handle 10–15 fps; keep intake/tracking near 60 ms and run GPU inference asynchronously, dropping older pending frames. Aim for token updates about one second after a completed sign.
 - `sign.token.confidence` must be honest — the LLM uses it to weigh alternatives.
 - `phrase.end` after ~1 s of hands down (tunable) so the student's question gets sent promptly.
 - `source: PEER` streams (someone else signing at the camera) use the same pipeline.
@@ -43,11 +46,13 @@ Webcam frames from the web app. Nothing else.
 ## How you work without anyone else
 
 ```bash
-cd apps/sign-service && python -m venv .venv && . .venv/bin/activate && pip install -e .
-sign-service                # skeleton with a fake Recognizer — replace Recognizer.process()
+bun run sign:setup
+bun run sign:verify --offline
+bun run sign:dev
+# Second terminal: bun run sign:camera
 ```
 
-- Develop the model offline with OpenCV webcam capture; plug it into `Recognizer.process()` when ready.
+- Develop the model offline with OpenCV webcam capture; use the per-connection `Recognizer.track()` / `predict()` pipeline.
 - Target vocabulary to start with: `packages/mocks/fixtures/sign.phrases.json` — these are the demo phrases
   ("PLEASE REPEAT FORMULA", "QUESTION KCL MEANING WHAT", "SLOW PLEASE", "BOARD WRITE AGAIN", "HELLO ME NAME R-I-A",
   "THANK-YOU"). Nail these first, then grow.
@@ -55,11 +60,13 @@ sign-service                # skeleton with a fake Recognizer — replace Recogn
 
 ## Suggested plan
 
-1. MediaPipe Holistic/Hands → per-frame landmarks (both hands + pose for location).
-2. Sliding-window sequence classifier (LSTM/1D-CNN/transformer, or kNN/DTW on landmarks for a small vocab).
+1. MediaPipe Hands → per-frame landmarks (both hands; hand crops for the alphabet model).
+2. Pinned pretrained alphabet classifier plus a rolling pretrained WLASL video classifier; no local training or prototype calibration.
 3. Commit a token when the prediction is stable for N frames above a threshold; emit `sign.partial` before.
 4. Fingerspelling (static handshapes) for names/acronyms → `kind: "FINGERSPELL"`.
 5. Phrase end = no hands for ~1 s.
+
+Unsupported words may be fingerspelled generically (approved handoff completion decision). The current video checkpoint lacks FORMULA and BOARD. Runtime execution checks do not establish recognition accuracy. CUDA FP16 model execution and automated lifecycle/protocol checks pass on the RTX 3050; live recognition/M2 acceptance is still open. See [implementation record](../implementation/sign-service-plan.md).
 
 ## Done when
 

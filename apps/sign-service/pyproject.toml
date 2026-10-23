@@ -1,24 +1,42 @@
 [project]
 name = "sightline-sign-service"
-version = "0.1.0"
-description = "Webcam frames -> sign gloss tokens (owner: Harnoor)"
-requires-python = ">=3.10"
+version = "0.2.0"
+description = "One ASL alphabet classifier with deliberate letter commitment"
+requires-python = ">=3.12,<3.13"
 dependencies = [
-  "websockets>=13,<18",
-  "mediapipe>=0.10.20,<0.10.22",
-  "opencv-contrib-python>=4.11,<5",
-  "numpy>=1.24,<3",
-  "torch>=2.0,<3",
-  "transformers>=4.46,<5",
-  "huggingface-hub>=0.25,<2",
+  "websockets>=15,<17",
+  "mediapipe==0.10.21",
+  "opencv-contrib-python>=4.11,<4.12",
+  "numpy>=1.26,<2",
+  "symspellpy>=6.9,<7",
 ]
 
-[project.optional-dependencies]
-test = ["jsonschema>=4.20", "pytest>=8"]
+[dependency-groups]
+dev = ["jsonschema>=4.23", "pytest>=8", "pytest-asyncio>=0.25", "ruff>=0.9"]
+training = [
+    "scikit-learn==1.9.1",
+]
 
 [project.scripts]
 sign-service = "sign_service.server:main"
-sign-service-camera = "sign_service.camera_client:main"
+sign-service-camera = "sign_service.landmark_camera:main"
+sign-service-ws-camera = "sign_service.camera_client:main"
+sign-service-check-models = "sign_service.verify_alphabet:main"
 
-[tool.setuptools.packages.find]
-include = ["sign_service*"]
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["sign_service"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP"]

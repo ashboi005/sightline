@@ -62,6 +62,9 @@ Tushar's implementation, recovery, migration and Docker instructions: [platform 
 | --- | --- |
 | `bun run dev` / `dev:web` / `dev:server` | Run apps |
 | `bun run mock:gaze` / `mock:sign` / `mock:speaker` | Mock device services |
+| `bun run sign:setup` / `sign:dev` / `sign:test` / `sign:verify` / `sign:camera` | Alphabet sign service (Python 3.12 + uv; CPU landmark model and backend decoding); [setup and acceptance](apps/sign-service/README.md) |
+| `bun run sign:tunnel` | Expose the running alphabet WebSocket at the static NGROK_DOMAIN; prints its WSS URL |
+| `bun run sign:check-compose` | Check all six gloss sequences and served speech against the running mock backend |
 | `bun run speaker:setup` / `speaker:dev` / `speaker:test` | Real look-to-hear service (uv + PyTorch, downloads pinned weights once) |
 | `bun run gaze:dev` / `gaze:test` | Gaze bridge (fake tracker until the hardware is plugged in) |
 | `bun run --filter server test` / `check:pipeline` / `eval:captions` | Server unit tests · keyless end-to-end caption pipeline · LLM golden-set eval (needs key) |

@@ -1,0 +1,20 @@
+{
+  "training_source": "https://github.com/Muhib-Mehdi/ASL-Recognition-System",
+  "revision": "a66dd63ad597a023941f5ad90603aa267767d2ed",
+  "data_path": "model/keypoint_classifier/keypoint.csv",
+  "data_sha256": "b6922d3b38c0072ba367e89e17bd4fe174f0adb2928d0371c5152c1fc5068847",
+  "single_hand_rows": 36401,
+  "training_augmentations": [
+    "horizontal mirror"
+  ],
+  "features": "42 wrist-relative max-abs-normalized pixel coordinates + 210 palm-normalized pair distances",
+  "estimator": "ExtraTreesClassifier",
+  "n_estimators": 160,
+  "max_depth": 24,
+  "min_samples_leaf": 2,
+  "max_features": 0.5,
+  "random_state": 42,
+  "sklearn_version": "1.9.1",
+  "acceptance_video_used_for_training": false,
+  "sha256": "ff2271b8f1055b17994ffeb9e27a65c9a8f9d34e5e139ffb88d05d1d0f130076"
+}

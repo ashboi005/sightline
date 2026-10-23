@@ -22,7 +22,6 @@ from dataclasses import dataclass
 from typing import Any
 
 import cv2
-import numpy as np
 
 try:
     from websockets.asyncio.client import connect
@@ -30,7 +29,6 @@ except ImportError:  # websockets 13 compatibility
     from websockets import connect  # type: ignore
 
 from .model import LandmarkExtractor
-
 
 PROTOCOL_VERSION = "1"
 
@@ -49,7 +47,9 @@ class CameraFrame:
 class CameraCapture:
     """OpenCV capture thread with a bounded latest-frame buffer."""
 
-    def __init__(self, camera: int, width: int, height: int, jpeg_quality: int, draw_landmarks: bool = True) -> None:
+    def __init__(
+        self, camera: int, width: int, height: int, jpeg_quality: int, draw_landmarks: bool = True
+    ) -> None:
         self.camera = camera
         self.width = width
         self.height = height
@@ -120,13 +120,15 @@ class CameraCapture:
                     break
 
                 local_hands = 0
-                if extractor is not None and extractor.available:
-                    _, local_hands = extractor.extract(frame)
 
                 actual_height, actual_width = frame.shape[:2]
                 if actual_width != self.width or actual_height != self.height:
-                    frame = cv2.resize(frame, (self.width, self.height), interpolation=cv2.INTER_AREA)
+                    frame = cv2.resize(
+                        frame, (self.width, self.height), interpolation=cv2.INTER_AREA
+                    )
                     actual_height, actual_width = frame.shape[:2]
+                if extractor is not None and extractor.available:
+                    _, local_hands = extractor.extract(frame)
                 ok, encoded = cv2.imencode(
                     ".jpg",
                     frame,
@@ -143,8 +145,11 @@ class CameraCapture:
 
                 with self._overlay_lock:
                     overlay = list(self._overlay)
-                preview = extractor.draw_last_landmarks(frame) if extractor is not None and extractor.available else frame.copy()
-                preview = cv2.flip(preview, 1)
+                preview = (
+                    cv2.flip(extractor.draw_last_landmarks(frame), 1)
+                    if extractor is not None and extractor.available
+                    else cv2.flip(frame, 1)
+                )
                 overlay.insert(1, f"camera hands: {local_hands}")
                 for index, line in enumerate(overlay):
                     cv2.putText(
@@ -195,20 +200,26 @@ class CameraClient:
         self.tokens: list[str] = []
         self.last_phrase = "-"
         self.last_error = "-"
+        self.model_name = "connecting"
         self._message_lock = threading.Lock()
 
     async def send_start(self, ws: Any) -> None:
         frame = self.capture.latest_frame()
         width = frame.width if frame else self.capture.width
         height = frame.height if frame else self.capture.height
-        await ws.send(json.dumps({
-            "type": "stream.start",
-            "protocolVersion": PROTOCOL_VERSION,
-            "source": self.source,
-            "fps": self.fps,
-            "width": width,
-            "height": height,
-        }, separators=(",", ":")))
+        await ws.send(
+            json.dumps(
+                {
+                    "type": "stream.start",
+                    "protocolVersion": PROTOCOL_VERSION,
+                    "source": self.source,
+                    "fps": self.fps,
+                    "width": width,
+                    "height": height,
+                },
+                separators=(",", ":"),
+            )
+        )
         self.streaming = True
 
     async def send_stop(self, ws: Any) -> None:
@@ -234,7 +245,9 @@ class CameraClient:
             if message_type == "hands.status":
                 self.last_hands = str(message.get("handsDetected", "?"))
             elif message_type == "sign.partial":
-                self.last_partial = f"{message.get('gloss', '?')} ({message.get('confidence', 0):.2f})"
+                self.last_partial = (
+                    f"{message.get('gloss', '?')} ({message.get('confidence', 0):.2f})"
+                )
                 print(f"[partial] {self.last_partial}")
             elif message_type == "sign.token":
                 token = message.get("token", {})
@@ -250,6 +263,7 @@ class CameraClient:
                 self.last_error = f"{message.get('code', 'ERROR')}: {message.get('message', '')}"
                 print(f"[error] {self.last_error}")
             elif message_type == "service.ready":
+                self.model_name = str(message.get("model", "unknown"))
                 vocabulary = message.get("vocabulary", [])
                 print(f"[ready] model={message.get('model')} vocabulary={len(vocabulary)}")
         self.capture.set_overlay(self.overlay_lines())
@@ -262,6 +276,7 @@ class CameraClient:
                 f"tokens: {' '.join(self.tokens[-5:]) or '-'}",
                 f"last phrase: {self.last_phrase}",
                 f"error: {self.last_error}",
+                "one landmark alphabet model + English decoder",
                 "[r] reset  [s] stop/start  [q] quit",
             ]
 
@@ -330,12 +345,21 @@ class CameraClient:
 
             self.capture.start()
             if not await asyncio.to_thread(self.capture.ready_event.wait, 10):
-                raise RuntimeError(self.capture.error or "camera did not produce a frame within 10 seconds")
+                raise RuntimeError(
+                    self.capture.error or "camera did not produce a frame within 10 seconds"
+                )
             if self.capture.error:
                 raise RuntimeError(self.capture.error)
 
             await self.send_start(ws)
-            print("Camera streaming started. Press q/Escape to quit, r to reset, s to stop/start.")
+            print(
+                "Camera streaming started. Keep one hand in view.",
+                flush=True,
+            )
+            print(
+                "q/Escape: quit; r: reset; s: stop/start.",
+                flush=True,
+            )
             receiver_task = asyncio.create_task(self.receiver(ws))
             sender_task = asyncio.create_task(self.sender(ws))
             try:
@@ -371,10 +395,16 @@ async def async_main(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="View sign-service recognition from a local webcam")
-    parser.add_argument("--url", default="ws://localhost:7788/ws", help="sign service WebSocket URL")
+    parser = argparse.ArgumentParser(
+        description="View sign-service recognition from a local webcam"
+    )
+    parser.add_argument(
+        "--url", default="ws://localhost:7788/ws", help="sign service WebSocket URL"
+    )
     parser.add_argument("--camera", type=int, default=0, help="OpenCV camera index")
-    parser.add_argument("--fps", type=int, choices=range(1, 31), default=12, help="frames per second")
+    parser.add_argument(
+        "--fps", type=int, choices=range(1, 31), default=12, help="frames per second"
+    )
     parser.add_argument("--width", type=int, default=640, help="requested camera width")
     parser.add_argument("--height", type=int, default=480, help="requested camera height")
     parser.add_argument("--source", choices=("SELF", "PEER"), default="SELF")
