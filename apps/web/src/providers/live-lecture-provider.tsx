@@ -1,6 +1,6 @@
 "use client";
 
-import type { AccessibilityMode, GazeTransition, RecordingSource, SessionServerMessage } from "@sightline/contracts";
+import type { AccessibilityMode, GazeTransition, SessionServerMessage } from "@sightline/contracts";
 import { startSmartSnapshots, streamMicToSession } from "@sightline/live-client";
 import { createContext, use, useCallback, useEffect, useEffectEvent, useReducer, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -37,10 +37,12 @@ const writeActive = (id: string | null) => {
 };
 
 export type BeginOptions = {
-  /** Record the lecture from this source, or don't record. */
-  record: RecordingSource | null;
-  /** Turn on the scene camera (needed for voice focus, board snapshots and scene recording). */
+  /** Turn on the scene camera: board snapshots, voice focus and the recording come from it. */
   sceneCamera: boolean;
+  /** Record the lecture from the scene camera (turns it on). */
+  record: boolean;
+  /** Watch the student's face through the webcam to pause captions and catch board looks. */
+  webcam: boolean;
 };
 
 type SmartSnapshots = ReturnType<typeof startSmartSnapshots>;
@@ -123,6 +125,7 @@ function useLiveLectureRuntime() {
     snapshots.current?.stop();
     await mic.stop();
     scene.stop();
+    gaze.attention.stop();
   };
 
   // Ended or deleted somewhere else (another tab or device, or it was never live here): save what this device was
@@ -205,18 +208,20 @@ function useLiveLectureRuntime() {
       const started = current.status === "DRAFT" ? await startSession.mutateAsync(sessionId) : current;
       setActiveId(sessionId);
       if (needsMicForCaptions || started.mode === "HARD_OF_HEARING") await mic.start();
-      const video = options.sceneCamera ? await scene.start() : null;
+      const video = options.sceneCamera || options.record ? await scene.start() : null;
+      const webcamFailure = options.webcam ? await gaze.attention.start() : null;
+      if (webcamFailure) toast.error("Webcam tracking didn't start", { description: `${webcamFailure} Captions still work.` });
       if (options.record) {
         await recorder.start({
           sessionId,
           sessionStartedAt: started.startedAt ?? Date.now(),
-          source: options.record,
+          source: "SCENE_CAMERA",
           sceneStream: (video?.srcObject as MediaStream | null) ?? null,
         });
       }
       return started;
     },
-    [needsMicForCaptions, startSession, setActiveId, mic, scene, recorder],
+    [needsMicForCaptions, startSession, setActiveId, mic, scene, recorder, gaze.attention],
   );
 
   /** Stops recording (waiting for the last upload), voice focus, snapshots and devices, then ends the lecture. */

@@ -55,7 +55,7 @@ export function LecturePrep({ session }: { session: Session }) {
   const router = useRouter();
   const lecture = useLiveLecture();
   const update = useUpdateSession(session.id);
-  const [capture, setCapture] = useState<CaptureChoice>({ record: null, sceneCamera: false });
+  const [capture, setCapture] = useState<CaptureChoice>({ sceneCamera: false, record: false, webcam: false });
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const otherLive = lecture.activeId && lecture.activeId !== session.id;
@@ -106,8 +106,8 @@ export function LecturePrep({ session }: { session: Session }) {
           <ClayCard tone="marigold" className="p-5">
             <p className="font-bold">Start when the teacher starts</p>
             <p className="mt-1 text-sm opacity-80">
-              {capture.record ? "Recording starts with the lecture." : "No recording."}{" "}
-              {capture.sceneCamera || capture.record === "SCENE_CAMERA" ? "Scene camera on." : ""}
+              {capture.record ? "Recording the scene camera from the start." : capture.sceneCamera ? "Scene camera on, no recording." : "No recording."}{" "}
+              {capture.webcam ? "The webcam follows where you look." : ""}
             </p>
             <Button variant="clay-soft" size="lg" className="mt-4 w-full" onClick={start} disabled={starting || Boolean(otherLive)}>
               {starting ? <LoaderCircle className="animate-spin motion-reduce:animate-none" /> : <Play />}
