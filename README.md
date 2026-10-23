@@ -83,3 +83,9 @@ Sarvam · KaTeX · Python (OpenCV / MediaPipe) · Docker + Coolify.
 Native Kotlin/Jetpack Compose app in [`apps/mobile`](apps/mobile/README.md). Detects external USB webcams and serves separate MJPEG feeds to browsers on your local network. See its README for APK installation, Android Studio setup, wireless debugging, and hardware troubleshooting.
 
 Build with `bun run mobile:apk`; run checks with `bun run mobile:check`. The Android app runs independently of the web/backend services.
+
+## Eye tracking and ESP-CAM
+
+The web setup includes eye/scene calibration, per-profile saved mappings, a sidebar scene preview, and an ESP-CAM person-following segment. See [camera setup](docs/implementation/scene-camera-calibration.md), [person tracking and deployment](docs/implementation/esp-camera-setup.md), and the [local vision companion](vision/README.md).
+
+The matching ESP32-CAM source, pinned build configuration and host tests are in [firmware/esp32-cam](firmware/esp32-cam/README.md). Downloaded libraries, model weights, toolchains, recordings and build outputs are excluded from Git.
