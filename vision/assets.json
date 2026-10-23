@@ -1,0 +1,47 @@
+[
+  {
+    "name": "yolo26s.pt",
+    "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26s.pt",
+    "sha256": "646f8bc3fe0a656803d95c294f7852321748cb29d13466a1af8862e2db384a1b"
+  },
+  {
+    "name": "osnet_ain_msmt17.pth",
+    "url": "https://huggingface.co/kaiyangzhou/osnet/resolve/a5c5cc0/osnet_ain_x1_0_msmt17_256x128_amsgrad_ep50_lr0.0015_coslr_b64_fb10_softmax_labsmth_flip_jitter.pth",
+    "sha256": "8a07e8da38946f7cee37f4561617bf8b6d2fe8f3a4027852893ea092e46d919f"
+  },
+  {
+    "name": "yoloe-26n-seg.pt",
+    "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yoloe-26n-seg.pt",
+    "sha256": "1741c1f8da3cea47e2c01829c334a50dc0b9bbd05e685b90a3ce84fae32c8c1b"
+  },
+  {
+    "name": "yoloe-26n-seg-pf.pt",
+    "url": "https://github.com/ultralytics/assets/releases/download/v8.4.0/yoloe-26n-seg-pf.pt",
+    "sha256": "ae805a9ac11c85214588b32da8248d68a516e1d071465e1e86a03cbfadb66ba7"
+  },
+  {
+    "name": "v3-nanotrack_backbone.onnx",
+    "url": "https://raw.githubusercontent.com/HonglinChu/SiamTrackers/248663fde6bf7c40190cf10ee396d5662919ecd3/NanoTrack/models/nanotrackv3/nanotrack_backbone.onnx",
+    "sha256": "50be1320abf9384fd3479ea829f95e244cf3f3838190c5ab60c750fb8c1ce828"
+  },
+  {
+    "name": "v3-nanotrack_head.onnx",
+    "url": "https://raw.githubusercontent.com/HonglinChu/SiamTrackers/248663fde6bf7c40190cf10ee396d5662919ecd3/NanoTrack/models/nanotrackv3/nanotrack_head.onnx",
+    "sha256": "75357903be3f4817c965af16cb5a11fd32b1467f597a408405a98635ac63f61d"
+  },
+  {
+    "name": "sam2.1_hiera_tiny.pt",
+    "url": "https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_tiny.pt",
+    "sha256": "7402e0d864fa82708a20fbd15bc84245c2f26dff0eb43a4b5b93452deb34be69"
+  },
+  {
+    "name": "dinov2_vits14.pt",
+    "url": "https://dl.fbaipublicfiles.com/dinov2/dinov2_vits14/dinov2_vits14_pretrain.pth",
+    "sha256": "b938bf1bc15cd2ec0feacfe3a1bb553fe8ea9ca46a7e1d8d00217f29aef60cd9"
+  },
+  {
+    "name": "loftr_indoor_ds_new.ckpt",
+    "url": "https://huggingface.co/kornia/loftr/resolve/0fb3b456cf176746709c38fa9cf80695a1c82dac/loftr_indoor_ds_new.ckpt",
+    "sha256": "be9ff88b323ec27889114719f668ae41aff7034b56a4c4acbd46b8b180b87ed3"
+  }
+]
