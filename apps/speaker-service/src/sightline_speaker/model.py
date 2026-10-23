@@ -9,6 +9,7 @@ import torch
 import yaml
 
 from .assets import ASSET_HASHES, load_checkpoint, verify_file
+from .settings import DEFAULT_ENGINE
 
 SAMPLE_RATE = 16000
 VIDEO_FPS = 25
@@ -116,7 +117,9 @@ class Separator:
         return output
 
 
-def load_separator(asset_dir: Path, device: str = "cpu", engine: str = "rtfs") -> TargetSeparator:
+def load_separator(
+    asset_dir: Path, device: str = "cpu", engine: str = DEFAULT_ENGINE
+) -> TargetSeparator:
     """Select only explicit supported local engines; loading never downloads weights."""
     if engine == "rtfs":
         return Separator.load(asset_dir, device)

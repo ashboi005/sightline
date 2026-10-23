@@ -14,7 +14,7 @@ mic (mixed room audio, 16 kHz) ─┐
 scene camera frames (JPEG) ─────┘                                                                    │
                                                   gaze → "target" (face id) ──────────────────────────┤
                                                                                                      ▼
-earphones ◄─ browser player (adaptive buffer) ◄─ "audio" packets ◄─ RTFS-Net / AV-MossFormer2 (+ RNNoise)
+earphones ◄─ browser player (adaptive buffer) ◄─ "audio" packets ◄─ AV-MossFormer2 (+ RNNoise)
 ```
 
 ## Setup (once)
@@ -22,7 +22,7 @@ earphones ◄─ browser player (adaptive buffer) ◄─ "audio" packets ◄─ 
 ```sh
 cd apps/speaker-service
 uv sync --frozen                                   # Python 3.12 via uv
-uv run python -m sightline_speaker.assets --dir data/assets   # RTFS-Net weights (~280 MB, SHA-256 pinned)
+uv run python -m sightline_speaker.assets           # AV-MossFormer2, SHA-256 pinned, data/av-assets
 ```
 
 Or from the repo root: `bun run speaker:setup`.
@@ -38,20 +38,20 @@ uv run sightline-speaker --device auto             # ws://127.0.0.1:7799/live, G
 | --- | --- | --- |
 | `--port` | `7799` | Always binds to 127.0.0.1 |
 | `--origin` | `http://localhost:3001` | The exact web-app origin allowed (CORS + WebSocket origin check): `http://localhost:<port>` in dev, `https://<domain>` for the deployed web app |
-| `--device` | `auto` | `auto`/`mps` on Apple Silicon = visual encoder on MPS, audio model on CPU (`mps-video/cpu-audio`); `cpu` everywhere else |
-| `--engine` | `rtfs` | `rtfs` (RTFS-Net, 12 M params, default) or `av-mossformer2` (68 M params, larger and slower; needs its own assets) |
+| `--device` | `auto` | AV runs on MPS on supported Apple Silicon, CPU elsewhere. Explicit `mps` fails if unavailable. RTFS uses `mps-video/cpu-audio` on Apple Silicon. |
+| `--engine` | `av-mossformer2` | AV-MossFormer2-TSE-16K (68.5 M params). `rtfs` remains an explicit alternative. Neither silently falls back to the other engine. |
 | `--noise` | `auto` | RNNoise post-filter. `auto` uses it where the native wheel exists (Linux, Windows, macOS 26+), else passthrough. Reported as `noise_processor` in `/health` |
-| `--assets` / `--data-dir` | `data/assets` / `data/sessions` | `data/` is git-ignored |
+| `--assets` / `--data-dir` | `data/av-assets` / `data/sessions` | Assets follow the selected engine; explicit RTFS uses `data/assets`. `data/` is git-ignored. |
 
 `GET /health` reports real readiness: `model_state`, `device`, `streaming_ready` (after shape warm-up),
 `noise_processor`. Missing or unverified weights leave the service **unready**. It never passes the mixed
 audio through and calls it focused.
 
-Optional larger engine:
+Explicit legacy RTFS engine:
 
 ```sh
-uv run python -m sightline_speaker.assets --engine av-mossformer2 --dir data/av-assets
-uv run sightline-speaker --engine av-mossformer2 --assets data/av-assets --device auto
+uv run python -m sightline_speaker.assets --engine rtfs
+uv run sightline-speaker --engine rtfs --device auto
 ```
 
 ## How it works
@@ -61,16 +61,26 @@ uv run sightline-speaker --engine av-mossformer2 --assets data/av-assets --devic
 2. **Faces.** Binary *kind 2* packets carry JPEG scene frames stamped with the audio sample index they line up
    with. MediaPipe Face Landmarker tracks faces with session-local ids. The service sends `faces` (~5 Hz) with
    normalised boxes.
-3. **Target.** The browser decides which face the student is looking at (gaze point inside a face box, held
-   for a dwell time, with hysteresis) and sends `target { generation, target_id }`. Each switch bumps the
-   `generation`, so stale results for the previous person are dropped on both sides.
-4. **Audio.** Binary *kind 1* packets carry ≤ 200 ms of float32 mono PCM. The service keeps a 400 ms history,
-   runs the model on whatever new audio is available (minimum 120 ms, shapes padded to 200 ms steps and
-   pre-warmed), and overlap-adds the results. It then sends `audio` replies (base64 float32 PCM, source sample
-   index, capture spans, timings).
-5. **Safety.** Losing the selected face pauses and asks for reselection; it never silently switches to another
-   face. If processing can't keep up, the service sends `flow: pause` and drains, and never plays stale audio as
-   current. `end` drains the tail and replies `drained`.
+3. **Target.** In Focus a person, the student looks inside a face box and confirms with voice or a button,
+   or clicks a face. The target stays locked when gaze moves. Each switch sends an increasing
+   `target { generation, target_id }`, so previous results and buffered microphone audio are discarded.
+4. **Audio.** Binary *kind 1* packets carry ≤ 200 ms of float32 mono PCM. AV uses three-second windows
+   with a 1.8-second stride and 1.2-second overlap. Overlap-add emits each source sample once. Playback also
+   rejects duplicate samples. The service sends `audio` replies with base64 float32 PCM, source positions,
+   capture spans and timings. Initial output needs three seconds of aligned input plus processing and
+   playback buffering; this is not hearing-aid latency. Explicit RTFS retains its legacy available-input mode
+   (minimum 120 ms, 400 ms history).
+5. **Continuity.** Motion is updated on every incoming frame, with balanced upper-face features for small
+   faces. Weak motion evidence requires a fresh face fit supported by matched texture and tracked facial
+   landmarks. An unsupported wide-frame fit can retry a real face crop instead of dropping the ID during a
+   head turn. Stronger image flow can bridge a missing fit for at most 600 ms, without inventing mouth
+   observations or renewing the deadline. Ambiguous overlaps and newcomers do not inherit the selected ID.
+   Unverified loss pauses for reselection.
+   This is short-term image continuity, not biometric recognition. The browser samples fresh decoded frames
+   at up to 25 fps; frozen or missing frames are never duplicated to simulate lip movement. Video coverage
+   must stay within 150 ms of the microphone timeline. Network frame drops can still pause separation.
+6. **Capacity.** If processing cannot keep up, the service sends `flow: pause` and drains. `end` drains the
+   tail and replies `drained`. No mixed-audio fallback is played as focused speech.
 
 Binary packet header (little-endian, 32 bytes): `magic "GSP2" | kind u8 | 3 pad | generation u32 |
 source sample_start u64 | capture_time f64 (s) | payload_length u32`, followed by the payload.
@@ -78,29 +88,45 @@ source sample_start u64 | capture_time f64 (s) | payload_length u32`, followed b
 File mode (`POST /clips` → `/clips/{id}/extract` → `/jobs/{id}/audio`) processes an uploaded video offline. It's
 useful for demos and evaluation.
 
-## Measured on an M1 Pro (16 GB), RTFS engine, `mps-video/cpu-audio`
+## Historical RTFS measurements (not AV-MossFormer2 results)
 
 | Check | Result |
 | --- | --- |
-| Unit tests | 166 passed, 6 skipped (model/native-gated) |
-| Real-model tests (`SPEAKER_MODEL_TESTS=1 uv run pytest -m model`) | pass |
 | Two-speaker overlap (GRID samples, `python -m sightline_speaker.evaluation`) | SI-SDR improvement **+16.4 dB** (female target), **+1.2 dB** (male target) |
 | Live paced replay, both targets (`streaming_reference --automatic-faces --gaze x,y`) | complete, no dropped samples; inference median ≈ 0.54 s per step; send → focused-audio p95 ≈ 1.2–1.4 s |
 | Target conditioning | left vs right focused outputs correlate 0.27, so the voices are distinct, not a volume change |
 
-Quality is uneven: some overlap leakage remains, and the model is non-causal, so this is about 1 s of
-latency, not hearing-aid latency. Treat the numbers above as measured, not guaranteed.
+These earlier RTFS measurements used two short GRID clips and do not establish AV-MossFormer2 quality
+or latency. Separation can still leak other voices, especially with blurred/small lips or incorrect A/V sync.
+Changing the default does not guarantee isolation when the selected face is out of view.
 
 ## Evaluate / benchmark yourself
 
 ```sh
-# two public GRID sample clips → data/evaluation/sources/grid-{male,female}.mpg (URLs in sightline_speaker/evaluation.py)
-uv run python -m sightline_speaker.evaluation
+# Historical offline RTFS harness; needs explicitly installed RTFS assets and the two GRID source clips
+# in data/evaluation/sources/grid-{male,female}.mpg (URLs in sightline_speaker/evaluation.py).
+uv run python -m sightline_speaker.evaluation --assets data/assets
+# Test the currently running engine (AV by default) through the actual live WebSocket path:
 uv run sightline-speaker --device auto &          # then, live replay with a simulated gaze point:
 uv run python -m sightline_speaker.streaming_reference --input data/evaluation/grid-overlap-degraded.mov \
-  --output data/benchmarks/live-left --automatic-faces --gaze 0.25,0.6
-SPEAKER_MODEL_TESTS=1 uv run pytest
+  --output data/benchmarks/live-left --origin http://localhost:3001 \
+  --url ws://127.0.0.1:7799/live --automatic-faces --gaze 0.25,0.6
+SPEAKER_AV_MODEL_TESTS=1 uv run pytest -q tests/test_av_model.py
 ```
+
+On 2026-10-23 the real AV live WebSocket path, with automatic face detection, processed the two
+three-second degraded GRID targets without target loss or missing/duplicated samples (48,000 in and out
+for each selection). SI-SDR improvement was +13.6 dB and +14.0 dB; per-target output correlation was 0.006.
+Arrival delay p95 was 4.5–4.6 seconds before browser playback buffering. These are two short examples,
+not evidence of accuracy on a moving ESP camera or a general isolation guarantee. Generated reports are
+under ignored `data/benchmarks/av-live-{left,right}/` and `data/benchmarks/av-live-quality.json`.
+
+The same real live path completed a 31.936-second, 320×180/15 fps three-person reference with automatic
+face selection and JPEG quality 70: no target loss, no flow pauses, and 510,976 accepted/output samples.
+Inference median was 1.53 seconds and arrival delay p95 was 4.73 seconds before browser buffering. This
+clip has no clean stems, so it measures continuity and timing, not separation accuracy. The generated report
+is `data/benchmarks/av-live-debate-right/report.json`. The regular Python suite passed 185 tests with six
+opt-in checks skipped; the actual AV checkpoint and real recording were verified separately.
 
 ## Licenses
 

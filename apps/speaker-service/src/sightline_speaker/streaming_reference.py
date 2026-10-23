@@ -90,7 +90,14 @@ def provenance(source, pcm):
 
 
 async def replay(
-    source: Path, output: Path, origin: str, speaker="left", pid=None, region=True, gaze=None
+    source: Path,
+    output: Path,
+    origin: str,
+    speaker="left",
+    pid=None,
+    region=True,
+    gaze=None,
+    url="ws://127.0.0.1:7799/live",
 ):
     media = decode_media(source)
     output.mkdir(parents=True, exist_ok=True)
@@ -118,7 +125,7 @@ async def replay(
     fault = asyncio.Event()
     peak = 0
     begin = monotonic()
-    async with connect("ws://127.0.0.1:7799/live", origin=origin, max_size=1024 * 1024) as socket:
+    async with connect(url, origin=origin, max_size=1024 * 1024) as socket:
         await socket.send(
             json.dumps(
                 {
@@ -201,6 +208,7 @@ async def replay(
                     report["errors"].append(reply)
                     fault.set()
                     done.set()
+                    break
 
         async def heartbeat():
             while not done.is_set():
@@ -223,8 +231,7 @@ async def replay(
 
             await socket.send(encode_packet(2, generation, 0, monotonic(), jpeg(0)))
             await asyncio.wait_for(selected.wait(), 10)
-            # Target control resets input; resend the currently presented first frame.
-            await socket.send(encode_packet(2, generation, 0, monotonic(), jpeg(0)))
+            # Confirmation retains the presented visual frame, but discards preselection audio.
             begin = monotonic()
             events = [
                 (min(media.audio.size, start + 1600) / 16000, 1, start)
@@ -261,6 +268,11 @@ async def replay(
             await socket.send(json.dumps({"type": "stop"}))
             await receiver
         except (ConnectionClosed, TimeoutError, ValueError, RuntimeError) as exc:
+            # A send may fail before the receiver has consumed the service's final error.
+            try:
+                await asyncio.wait_for(receiver, 1)
+            except (ConnectionClosed, TimeoutError, ValueError, RuntimeError):
+                pass
             report["errors"].append({"code": "benchmark_interrupted", "message": str(exc)})
         finally:
             heartbeats.cancel()
@@ -330,6 +342,7 @@ def main():
     parser.add_argument("--input", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--origin", default="http://127.0.0.1:4010")
+    parser.add_argument("--url", default="ws://127.0.0.1:7799/live")
     parser.add_argument("--speaker", choices=["left", "middle", "right"], default="left")
     parser.add_argument("--server-pid", type=int)
     parser.add_argument("--automatic-faces", action="store_true")
@@ -348,6 +361,7 @@ def main():
             args.server_pid,
             not args.automatic_faces,
             args.gaze,
+            args.url,
         )
     )
     if not report["complete"]:

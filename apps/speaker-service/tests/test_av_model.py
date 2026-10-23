@@ -46,8 +46,10 @@ def sample_media(seconds=2):
     return media, FaceTrack("selected", observations)
 
 
-def test_engine_settings_reject_unknown_and_keep_rtfs_default():
-    assert getattr(Settings(), "engine", None) == "rtfs"
+def test_engine_settings_reject_unknown_and_default_to_av_mossformer():
+    assert Settings().engine == "av-mossformer2"
+    assert Settings().asset_dir == Path("data/av-assets")
+    assert Settings(engine="rtfs").asset_dir == Path("data/assets")
     assert Settings(engine="av-mossformer2").engine == "av-mossformer2"
     with pytest.raises(ValueError, match="engine"):
         Settings(engine="implicit-download-model")
@@ -61,7 +63,8 @@ def test_factory_dispatches_explicit_engine_and_rejects_unknown(tmp_path, monkey
     monkeypatch.setattr(
         av.AvMossFormerSeparator, "load", lambda *_: SimpleNamespace(engine_key="av-mossformer2")
     )
-    assert factory(tmp_path, "cpu").engine_key == "rtfs"
+    assert factory(tmp_path, "cpu").engine_key == "av-mossformer2"
+    assert factory(tmp_path, "cpu", "rtfs").engine_key == "rtfs"
     assert factory(tmp_path, "cpu", "av-mossformer2").engine_key == "av-mossformer2"
     with pytest.raises(ValueError, match="engine"):
         factory(tmp_path, "cpu", "other")
@@ -79,6 +82,66 @@ def test_cli_passes_explicit_engine_to_settings(monkeypatch):
     cli.main()
     assert received[0].engine == "av-mossformer2"
     assert received[0].asset_dir == Path("data/av")
+
+
+@pytest.mark.parametrize(
+    "args,engine,directory",
+    [
+        ([], "av-mossformer2", "data/av-assets"),
+        (["--engine", "rtfs"], "rtfs", "data/assets"),
+    ],
+)
+def test_cli_loads_the_matching_default_assets(args, engine, directory, monkeypatch):
+    from sightline_speaker import __main__ as cli
+
+    received = []
+    monkeypatch.setattr(cli, "create_app", lambda settings: settings)
+    monkeypatch.setattr(cli.uvicorn, "run", lambda app, **_: received.append(app))
+    monkeypatch.setattr("sys.argv", ["sightline-speaker", *args])
+    cli.main()
+    assert received[0].engine == engine
+    assert received[0].asset_dir == Path(directory)
+
+
+@pytest.mark.asyncio
+async def test_av_live_inference_waits_for_its_full_model_context(tmp_path):
+    from time import monotonic
+
+    from sightline_speaker.jobs import Store
+    from sightline_speaker.live import LiveConfig, LiveSession
+
+    owner = Store(
+        Settings(data_dir=tmp_path, engine="av-mossformer2"), start_worker=False, load_model=False
+    )
+    session = LiveSession(
+        owner,
+        LiveConfig.model_validate(
+            dict(
+                type="configure",
+                protocol_version=3,
+                sample_rate=16000,
+                audio=True,
+                source="network",
+                sync_verified=True,
+                video_offset_ms=0,
+                client_time=monotonic(),
+            )
+        ),
+    )
+    try:
+        for sample in range(0, 48000, 640):
+            session.buffer.frame(sample, np.zeros((8, 8, 3), np.uint8))
+        session.buffer.audio(0, 10, np.zeros(1920, np.float32))
+        assert session.buffer.window() is None
+        session.buffer.audio(1920, 10.12, np.zeros(46080, np.float32))
+        window = session.buffer.window()
+        assert window.audio.size == 48000
+        assert window.valid_samples == 48000
+        assert window.emit_start_sample is None
+        assert session.buffer.start_sample == 28800
+    finally:
+        await session.close()
+        owner.close()
 
 
 def test_av_face_preparation_matches_official_lower_face_crop():

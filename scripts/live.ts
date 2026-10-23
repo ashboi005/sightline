@@ -24,7 +24,7 @@ const opt = (name: string, fallback: string) => {
 };
 const mock = args.includes("--mock");
 const gaze = opt("gaze", "keys"); // keys | fake | off
-let speaker = opt("speaker", mock ? "mock" : "real"); // real | mock | off
+const speaker = opt("speaker", mock ? "mock" : "real"); // real | mock | off
 const sign = opt("sign", "mock"); // mock | off
 const skip = new Set(opt("skip", "").split(",").filter(Boolean));
 const WEB_ORIGIN = "http://localhost:3001";
@@ -47,11 +47,9 @@ if (!mock && existsSync(envFile)) {
 }
 if (speaker === "real") {
   if (!Bun.which("uv")) {
-    warn("uv not installed: using the mock speaker service (install: curl -LsSf https://astral.sh/uv/install.sh | sh)");
-    speaker = "mock";
-  } else if (!existsSync(join(root, "apps/speaker-service/data/assets/manifest.json"))) {
-    warn("speaker models not downloaded: using the mock speaker service (run once: bun run speaker:setup)");
-    speaker = "mock";
+    problems.push("uv is required for the real speaker service.");
+  } else if (!existsSync(join(root, "apps/speaker-service/data/av-assets/manifest.json"))) {
+    problems.push("AV-MossFormer2 models are missing. Run bun run speaker:setup before starting the real speaker service.");
   }
 }
 if (gaze === "fake" && !Bun.which("uv")) problems.push("--gaze fake needs uv (or use the default --gaze keys)");

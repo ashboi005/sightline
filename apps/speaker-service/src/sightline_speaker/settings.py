@@ -4,6 +4,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 
+DEFAULT_ENGINE = "av-mossformer2"
+
+
+def default_asset_dir(engine: str) -> Path:
+    return Path("data/av-assets" if engine == "av-mossformer2" else "data/assets")
+
 
 def _is_exact_origin(origin: str) -> bool:
     """Local HTTP dev origins or the deployed web app's HTTPS origin; the service stays loopback."""
@@ -18,9 +24,9 @@ def _is_exact_origin(origin: str) -> bool:
 @dataclass(frozen=True)
 class Settings:
     data_dir: Path = Path("data/sessions")
-    asset_dir: Path = Path("data/assets")
+    asset_dir: Path | None = None
     device: str = "auto"
-    engine: str = "rtfs"
+    engine: str = DEFAULT_ENGINE
     noise: str = "auto"
     origin: str = "http://localhost:3001"
     port: int = 7799
@@ -35,6 +41,8 @@ class Settings:
     def __post_init__(self):
         if self.engine not in {"rtfs", "av-mossformer2"}:
             raise ValueError("Unsupported separation engine")
+        if self.asset_dir is None:
+            object.__setattr__(self, "asset_dir", default_asset_dir(self.engine))
         if self.noise not in {"auto", "rnnoise", "off"}:
             raise ValueError("Unsupported noise mode")
         if self.device not in {"cpu", "mps", "auto"}:

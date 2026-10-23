@@ -20,18 +20,20 @@ Field names are snake_case because they mirror the Python wire format.
  room mic ─────PCM 16 kHz (kind 1)────┼──► speaker service ──faces──► web
  gaze bridge ──gaze.scene {x,y}──► web: createGazeTargetSelector(gaze, faces)
                                         └─► target {generation, target_id} ──► service
- earphones ◄── web audio player ◄──────────── audio {start_sample, pcm} ◄── service (RTFS-Net)
+ earphones ◄── web audio player ◄──────────── audio {start_sample, pcm} ◄── service (AV-MossFormer2)
 ```
 
 1. Connect; the client sends `configure` automatically. Wait for `ready` (seed the playback buffer from `warm_timings`).
 2. Stream scene frames as kind-2 packets (sample index = the audio sample they line up with). The service
    answers `faces` about 5 times a second.
-3. On every `gaze.scene` from the gaze bridge, call `selector.update(gaze, latestFaces)`. When it returns an id,
-   send `target` with `generation + 1`. When it returns `null`, the face was lost: send `target` with `null` and prompt
-   the student to look again.
+3. Focus a person confirms fresh calibrated scene gaze with voice or a button, or clicks a face box. Send
+   `target` with `generation + 1` and keep that ID selected when gaze moves. On verified loss, send `null`
+   and ask for reselection. The older dwell selector remains available to other clients.
 4. Stream mic audio as kind-1 packets (≤ 3200 float32 samples each, contiguous `sample_start`).
 5. Play each `audio` reply at its `start_sample` through an adaptive jitter buffer, and drop anything whose
-   `generation` isn't current. Expect about 1–1.5 s of delay on an M1 Pro.
+   `generation` isn't current. Default AV-MossFormer2 uses three-second windows and a 1.8-second stride:
+   initial output needs three seconds of input plus processing and playback buffering. Check actual timings
+   on the target laptop; old RTFS latency measurements do not apply. Never play a source sample twice.
 6. Stop: send `end { source_end_sample }`, wait for `drained`, then `stop`.
 
 ## Web → service

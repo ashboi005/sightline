@@ -15,6 +15,8 @@ test("only complete supported commands with confident final words are accepted",
   expect(recognizedCommand(result("please stop tracking"))).toBeNull()
   expect(recognizedCommand(result("[unk]"))).toBeNull()
   expect(recognizedCommand({ text: "stop tracking", result: [] })).toBeNull()
+  expect(recognizedCommand(result("stop listening"), ["select", "stop listening"])).toBe("stop listening")
+  expect(recognizedCommand(result("track"), ["select", "stop listening"])).toBeNull()
 })
 
 function workerFixture() {

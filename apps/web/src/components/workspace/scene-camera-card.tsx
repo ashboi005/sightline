@@ -87,6 +87,7 @@ export function SceneCameraCard({
         />
         {label}
       </div>
+      <Link href="/focus" onClick={onNavigate} className="mt-2 flex min-h-9 items-center justify-center rounded-xl clay-sage px-2 text-xs font-bold text-sage-ink outline-none focus-visible:ring-2 focus-visible:ring-ring">Focus a person</Link>
     </section>
   );
 }

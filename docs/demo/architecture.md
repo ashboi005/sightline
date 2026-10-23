@@ -19,7 +19,7 @@ flowchart TB
     MIC --> WEB
     SCENE --> WEB
     WEBCAM --> WEB
-    WEB <-->|"mic + faces"| SPEAKER["Look-to-hear engine<br/>RTFS-Net voice isolation"]
+    WEB <-->|"mic + faces"| SPEAKER["Look-to-hear engine<br/>AV-MossFormer2 voice isolation"]
     SPEAKER -->|"the voice you look at"| EAR["Earphones"]
   end
 

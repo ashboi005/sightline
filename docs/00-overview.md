@@ -93,9 +93,10 @@ Key decisions:
 1. **The gaze bridge runs locally** next to the hardware and talks straight to the browser
    (`ws://localhost:7777`). Caption pausing must react in < 100 ms; a VPS round-trip is not needed for that.
    The browser forwards *transitions* (not raw samples) to the server only for persistence/notes.
-2. **Look → hear is fully local.** The gaze bridge gives the scene-camera gaze point. The web app turns it into a
-   face (dwell + hysteresis) and tells the local **speaker service** (`:7799`). That service extracts the face's
-   voice from the room mic with an audio-visual model (RTFS-Net), and the browser plays it into the earphones.
+2. **Look → hear is fully local.** Calibrated scene gaze supplies the point. In Focus a person, the student
+   confirms a detected face with voice or a button, or clicks it, and tells the local **speaker service** (`:7799`).
+   That service extracts the face's voice from the room mic with AV-MossFormer2 by default, and the browser
+   plays it into the selected speaker. AV needs three seconds of aligned input plus inference/playback delay.
    The server never touches that audio. Hardware + gaze estimation: Arunya. Bridge + speaker service: Ashwath.
    Captions are transcribed from the browser mic. (Stretch: bridge can expose the isolated stream for STT.)
 3. **Sign recognition is its own service** so Harnoor can use Python/MediaPipe freely. It returns *gloss
@@ -182,7 +183,7 @@ sightline/
 │   │       ├── shared/ports.ts        the seams between the two
 │   │       └── container.ts           picks real vs mock implementations from the MOCK_* flags
 │   ├── gaze-bridge/          Ashwath — Python, local gaze daemon (tracker hw: Arunya)
-│   ├── speaker-service/      Ashwath — Python, local look-to-hear voice extraction (RTFS-Net)
+│   ├── speaker-service/      Ashwath — Python, local look-to-hear voice extraction (AV-MossFormer2)
 │   └── sign-service/         Harnoor — one ASL A-Z classifier; supplied video acceptance currently fails
 ├── packages/
 │   ├── contracts/            Everyone — zod schemas, TS types, JSON Schema export, typed clients

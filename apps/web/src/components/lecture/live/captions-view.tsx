@@ -3,7 +3,7 @@
 import type { GlossaryTerm } from "@sightline/contracts";
 import { Button } from "@sightline/ui/components/button";
 import { cn } from "@sightline/ui/lib/utils";
-import { AArrowDown, AArrowUp, Mic, Pause, Play, Presentation } from "lucide-react";
+import { AArrowDown, AArrowUp, Pause, Play, Presentation } from "lucide-react";
 import { Fragment, useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 
 import { useLectureContext } from "@/hooks/use-lecture-data";
@@ -11,6 +11,7 @@ import { bookmarkOf, missedCount } from "@/lib/live/gaze-pause";
 import { useLiveLecture } from "@/providers/live-lecture-provider";
 
 import { CaptionLine } from "./caption-line";
+import { MicrophoneInput } from "./microphone-input";
 
 const SIZES = ["text-xl", "text-2xl", "text-[1.75rem]", "text-[2.125rem]"] as const;
 const SIZE_KEY = "sightline.caption-size";
@@ -121,11 +122,10 @@ export function CaptionsView({ className }: { className?: string }) {
       </div>
 
       {micNeeded && (
-        <div className="flex flex-wrap items-center gap-3 border-b bg-highlight px-5 py-3">
-          <Mic aria-hidden="true" className="size-4" />
-          <p className="flex-1 text-sm font-semibold">{lecture.mic.error ?? "Captions come from your microphone. Turn it on to start."}</p>
-          <Button variant="clay" size="sm" onClick={() => void lecture.mic.start()}>
-            Turn on microphone
+        <div className="space-y-3 border-b bg-highlight px-5 py-3">
+          <MicrophoneInput />
+          <Button variant="clay" size="sm" disabled={!lecture.mic.deviceId || lecture.mic.busy} onClick={() => void lecture.mic.start()}>
+            {lecture.mic.busy ? "Starting microphone…" : "Turn on microphone"}
           </Button>
         </div>
       )}

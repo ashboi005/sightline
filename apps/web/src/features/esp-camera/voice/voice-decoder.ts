@@ -1,12 +1,12 @@
 import type { ServerMessage } from "@lichess-org/vosk-browser/dist/vosk.interfaces"
-import { viewerCommandPhrases, parseViewerCommand } from "./commands"
+import { viewerCommandPhrases, normalizeCommand } from "./commands"
 import type { VoiceDecoder, VoiceResult } from "./voice-decoder.types"
 
-export function recognizedCommand(result: VoiceResult): string | null {
+export function recognizedCommand(result: VoiceResult, phrases: readonly string[] = viewerCommandPhrases): string | null {
   if (
     !result ||
     typeof result.text !== "string" ||
-    !parseViewerCommand(result.text) ||
+    !phrases.includes(normalizeCommand(result.text)) ||
     !Array.isArray(result.result) ||
     !result.result.length
   ) {
@@ -25,7 +25,8 @@ export function recognizedCommand(result: VoiceResult): string | null {
 /** Own the worker directly so abort also cancels model loading and frees WASM memory. */
 export function loadVoiceDecoder(
   signal: AbortSignal,
-  onFailure: (failure: unknown) => void = () => {}
+  onFailure: (failure: unknown) => void = () => {},
+  phrases: readonly string[] = viewerCommandPhrases
 ): Promise<VoiceDecoder> {
   return new Promise((resolve, reject) => {
     signal.throwIfAborted()
@@ -102,7 +103,7 @@ export function loadVoiceDecoder(
               action: "create",
               recognizerId: "viewer",
               sampleRate,
-              grammar: JSON.stringify([...viewerCommandPhrases, "[unk]"]),
+              grammar: JSON.stringify([...phrases, "[unk]"]),
             })
             worker.postMessage({
               action: "set",
@@ -129,7 +130,7 @@ export function loadVoiceDecoder(
           stop,
         })
       } else if (message.event === "result") {
-        const text = recognizedCommand(message.result)
+        const text = recognizedCommand(message.result, phrases)
         if (text) {
           resultHandler(text)
         } else if (

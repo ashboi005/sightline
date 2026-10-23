@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from .stream_profile import SAMPLE_RATE, StreamProfile, capture_spans_between
+from .stream_profile import SAMPLE_RATE, StreamProfile, capture_spans_between, profile_for
 from .stream_protocol import LiveBuffer, LiveWindow
 
 MINIMUM_SAMPLES = 1920  # Three visual frames satisfy the model's minimum input.
@@ -11,6 +11,26 @@ MAX_INPUT_SAMPLES = SAMPLE_RATE * 8  # Verified model shape/resource bound, not 
 HISTORY_SAMPLES = 6400
 INPUT_SHAPES = (MINIMUM_SAMPLES, *range(3200, MAX_INPUT_SAMPLES + 1, 3200))
 WARM_INPUT_SHAPES = tuple(size for size in INPUT_SHAPES if size <= 32000)
+
+
+def stream_parameters(engine: str) -> dict:
+    """Use full AV context or the explicitly selected legacy RTFS input mode."""
+    if engine == "av-mossformer2":
+        profile = profile_for(engine)
+        return dict(
+            analysis_mode="windowed",
+            minimum_samples=profile.window_samples,
+            history_samples=profile.window_samples - profile.stride_samples,
+            maximum_input_samples=profile.window_samples,
+        )
+    if engine != "rtfs":
+        raise ValueError("Unsupported streaming engine")
+    return dict(
+        analysis_mode="available",
+        minimum_samples=MINIMUM_SAMPLES,
+        history_samples=HISTORY_SAMPLES,
+        maximum_input_samples=MAX_INPUT_SAMPLES,
+    )
 
 
 class AvailableBuffer(LiveBuffer):

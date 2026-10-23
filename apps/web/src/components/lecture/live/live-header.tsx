@@ -19,6 +19,7 @@ import { StatusPill } from "@/components/clay/clay";
 import { useElapsed } from "@/components/workspace/active-lecture-card";
 import { formatClock } from "@/lib/recordings/timeline";
 import { useGaze } from "@/providers/gaze-provider";
+import { useEyeTrackingStatus } from "@/hooks/use-eye-tracking-status";
 import { useLiveLecture } from "@/providers/live-lecture-provider";
 
 import { RecordingControl } from "./recording-control";
@@ -95,14 +96,15 @@ function EndLectureButton() {
 /** Where the student is looking, from the webcam or the eye tracker, with a way to turn the webcam on. */
 function GazeStatus() {
   const gaze = useGaze();
+  const eye = useEyeTrackingStatus();
   const { attention } = gaze;
-  const tracker = gaze.status === "OPEN" && gaze.device?.tracker === "CONNECTED";
 
   const startWebcam = async () => {
     const failure = await attention.start();
     if (failure) toast.error("Webcam tracking didn't start", { description: failure });
   };
 
+  if (eye.source === "camera") return <StatusPill kind={eye.kind} icon={ScanEye}>{eye.status}</StatusPill>;
   if (attention.status === "starting") return <StatusPill kind="working" icon={LoaderCircle}>Starting the webcam…</StatusPill>;
   if (attention.status === "learning") return <StatusPill kind="working" icon={ScanFace}>Look at your screen…</StatusPill>;
   if (attention.status === "tracking") {
@@ -115,7 +117,7 @@ function GazeStatus() {
       </span>
     );
   }
-  if (tracker) return <StatusPill kind="ready" icon={ScanEye}>Eyes {ZONE_TEXT[gaze.zone]}</StatusPill>;
+  if (eye.source === "bridge") return <StatusPill kind={eye.kind} icon={ScanEye}>Eyes {ZONE_TEXT[gaze.zone]}</StatusPill>;
   return (
     <Button variant="ghost" size="xs" onClick={() => void startWebcam()}>
       <ScanFace /> Follow my eyes with the webcam

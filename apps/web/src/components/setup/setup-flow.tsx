@@ -12,6 +12,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { useState } from "react";
+import Link from "next/link";
 import {
   ClayCard,
   InlineAlert,
@@ -63,6 +64,13 @@ export function SetupFlow() {
   const lecture = useLiveLecture();
   return (
     <div className="mx-auto max-w-7xl space-y-6">
+      <ClayCard tone="sage" className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+        <div>
+          <p className="font-bold">Ready to focus on someone?</p>
+          <p className="mt-1 text-sm">Use your current cameras and calibration to select a person and hear their voice.</p>
+        </div>
+        <Link href="/focus" className="rounded-2xl clay-sm px-4 py-3 text-sm font-bold outline-none focus-visible:ring-2 focus-visible:ring-ring">Focus a person</Link>
+      </ClayCard>
       <nav aria-label="Setup segments" className="grid gap-3 sm:grid-cols-2">
         {(
           [

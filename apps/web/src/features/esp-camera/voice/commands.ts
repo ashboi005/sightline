@@ -10,7 +10,11 @@ const COMMANDS: Readonly<Record<string, ViewerCommand>> = {
 
 export const viewerCommandPhrases = Object.keys(COMMANDS)
 
+export function normalizeCommand(text: string) {
+  return text.trim().toLowerCase().replace(/[.!?]+$/, "").replace(/\s+/g, " ")
+}
+
 export function parseViewerCommand(text: string): ViewerCommand | null {
-  const phrase = text.trim().toLowerCase().replace(/[.!?]+$/, "").replace(/\s+/g, " ")
+  const phrase = normalizeCommand(text)
   return Object.hasOwn(COMMANDS, phrase) ? COMMANDS[phrase]! : null
 }

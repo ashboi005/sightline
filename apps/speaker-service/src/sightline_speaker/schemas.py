@@ -76,7 +76,7 @@ class JobView(DTO):
 class HealthView(DTO):
     ready: bool
     model_state: Literal["loading", "ready", "unready"]
-    engine: str = "RTFS-Net-4-LRS2"
+    engine: str = "AV-MossFormer2-TSE-16K"
     device: str | None = None
     error: ErrorView | None = None
     clip: bool = True
@@ -87,8 +87,8 @@ class HealthView(DTO):
     max_upload_bytes: int
     max_duration: float
     queued: int
-    live_analysis_mode: Literal["available"] = "available"
-    live_minimum_seconds: float = 0.12
-    live_history_seconds: float = 0.4
-    window_seconds: float = 2
-    stride_seconds: float = 1
+    live_analysis_mode: Literal["available", "windowed"] = "windowed"
+    live_minimum_seconds: float = 3
+    live_history_seconds: float = 1.2
+    window_seconds: float = 3
+    stride_seconds: float = 1.8
