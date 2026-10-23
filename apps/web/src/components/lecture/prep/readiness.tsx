@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { ClayCard, SectionTitle, StatusPill, type StatusKind } from "@/components/clay/clay";
 import { useSpeakerHealth } from "@/hooks/live/use-voice-focus";
 import { useHealth } from "@/hooks/use-lecture-data";
-import { useGaze } from "@/providers/gaze-provider";
+import { useEyeTrackingStatus } from "@/hooks/use-eye-tracking-status";
 
 type MicPermission = "granted" | "denied" | "prompt" | "unknown";
 
@@ -51,16 +51,14 @@ function Row({ icon: Icon, label, status, kind, detail }: { icon: typeof Mic; la
  */
 export function Readiness({ mode }: { mode: AccessibilityMode }) {
   const health = useHealth();
-  const gaze = useGaze();
+  const eye = useEyeTrackingStatus();
   const mic = useMicPermission();
   const speaker = useSpeakerHealth(mode === "HARD_OF_HEARING");
   const replay = health.data?.mocks.speech;
 
-  const tracker = gaze.status === "OPEN" && gaze.device?.tracker === "CONNECTED";
-
   return (
     <ClayCard className="p-6">
-      <SectionTitle aside={<Link href="/setup" className="text-sm font-semibold underline decoration-marigold decoration-2 underline-offset-4">Open Setup</Link>}>
+      <SectionTitle aside={<Link href="/setup" className="text-sm font-semibold underline decoration-marigold decoration-2 underline-offset-4">Camera settings</Link>}>
         Ready to start?
       </SectionTitle>
       <ul className="mt-2 divide-y">
@@ -78,11 +76,7 @@ export function Readiness({ mode }: { mode: AccessibilityMode }) {
         <Row
           icon={ScanEye}
           label="Eye tracker"
-          {...(tracker
-            ? gaze.device?.calibrated
-              ? { status: "Connected and calibrated", kind: "ready" as const }
-              : { status: "Not calibrated", kind: "attention" as const, detail: "Gaze pausing works best after calibration in Setup." }
-            : { status: "Not connected", kind: "idle" as const, detail: "Captions still work; pause them yourself when you look away." })}
+          {...eye}
         />
         {mode === "HARD_OF_HEARING" && (
           <Row
@@ -96,6 +90,8 @@ export function Readiness({ mode }: { mode: AccessibilityMode }) {
           />
         )}
       </ul>
+      <Link href="/focus" className="mt-4 flex min-h-11 items-center justify-center rounded-2xl clay-sage px-4 py-2 text-sm font-bold text-sage-ink outline-none focus-visible:ring-2 focus-visible:ring-ring">Focus a person</Link>
+      <p className="mt-2 text-xs text-muted-foreground">Select with your gaze and voice, or click a face. You can use voice focus before starting a lecture.</p>
     </ClayCard>
   );
 }

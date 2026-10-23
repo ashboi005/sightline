@@ -152,23 +152,26 @@ class Store:
     def _warm_streaming(self):
         from time import perf_counter
 
-        from .available_buffer import MINIMUM_SAMPLES, WARM_INPUT_SHAPES
+        from .available_buffer import WARM_INPUT_SHAPES, stream_parameters
         from .noise import noise_factory
 
         try:
             noise = noise_factory(self.settings.noise)()
             noise.close()
             width = 112 if self.settings.engine == "av-mossformer2" else 88
+            parameters = stream_parameters(self.settings.engine)
+            minimum = parameters["minimum_samples"]
+            shapes = (minimum,) if self.settings.engine == "av-mossformer2" else WARM_INPUT_SHAPES
             # Precompile common model shapes before accepting live input.
             # Padding to a warm shape never waits for future microphone samples.
-            for size in WARM_INPUT_SHAPES:
+            for size in shapes:
                 audio = (0.02 * np.sin(np.arange(size) * 0.13)).astype(np.float32)
                 frames = np.full((size // 640, width, width), 0.1, np.float32)
-                repetitions = 4 if size == MINIMUM_SAMPLES else 1
+                repetitions = 4 if size == minimum else 1
                 for iteration in range(repetitions):
                     begin = perf_counter()
                     self.separator.extract(audio, frames)
-                    if size == MINIMUM_SAMPLES and iteration:
+                    if size == minimum and iteration:
                         self.warm_timings.append(perf_counter() - begin)
                 if getattr(self.separator, "device", None) == "mps":
                     import torch
@@ -307,10 +310,12 @@ class Store:
             )
 
     def health(self) -> HealthView:
+        from .available_buffer import stream_parameters
         from .noise import noise_factory
         from .stream_profile import profile_for
 
         profile = profile_for(self.settings.engine)
+        parameters = stream_parameters(self.settings.engine)
         return HealthView(
             noise_processor=noise_factory(self.settings.noise).name,
             ready=self.separator is not None,
@@ -332,6 +337,9 @@ class Store:
             queued=self.queue.qsize(),
             window_seconds=profile.duration,
             stride_seconds=profile.stride_samples / 16000,
+            live_analysis_mode=parameters["analysis_mode"],
+            live_minimum_seconds=parameters["minimum_samples"] / 16000,
+            live_history_seconds=parameters["history_samples"] / 16000,
         )
 
     def analyse(self, identity: str, region: Box | None = None):

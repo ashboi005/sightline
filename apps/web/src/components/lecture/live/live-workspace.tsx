@@ -2,7 +2,7 @@
 
 import { Tabs, TabsList, TabsPanel, TabsTab } from "@sightline/ui/components/tabs";
 import { cn } from "@sightline/ui/lib/utils";
-import { ChevronDown, Ear, Hand, ImagePlus, Presentation } from "lucide-react";
+import { ChevronDown, Ear, Hand, ImagePlus, Presentation, Video } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { IconTile, InlineAlert } from "@/components/clay/clay";
@@ -13,10 +13,11 @@ import { useLiveLecture } from "@/providers/live-lecture-provider";
 import { BoardPanel } from "./board-panel";
 import { CaptionsView } from "./captions-view";
 import { LiveHeader } from "./live-header";
+import { SceneCameraPanel } from "./scene-camera-panel";
 import { SlidesPanel } from "./slides-panel";
 import { VoiceFocusPanel } from "./voice-focus-panel";
 
-type PanelId = "slides" | "voice" | "sign" | "board";
+type PanelId = "camera" | "slides" | "voice" | "sign" | "board";
 
 /** The session socket's error codes, in the student's words. */
 function socketErrorText(error: { code: string; message: string }) {
@@ -34,6 +35,7 @@ function socketErrorText(error: { code: string; message: string }) {
 const OPEN_KEY = "sightline.live-panels";
 
 const PANELS: { id: PanelId; title: string; short: string; icon: typeof Hand; tone: "marigold" | "sage" | "lilac" }[] = [
+  { id: "camera", title: "Scene camera", short: "Camera", icon: Video, tone: "marigold" },
   { id: "slides", title: "Slides", short: "Slides", icon: Presentation, tone: "marigold" },
   { id: "voice", title: "Voice focus", short: "Voice", icon: Ear, tone: "sage" },
   { id: "sign", title: "Sign", short: "Sign", icon: Hand, tone: "lilac" },
@@ -42,6 +44,7 @@ const PANELS: { id: PanelId; title: string; short: string; icon: typeof Hand; to
 
 function PanelBody({ id }: { id: PanelId }) {
   const lecture = useLiveLecture();
+  if (id === "camera") return <SceneCameraPanel />;
   if (id === "slides") return <SlidesPanel />;
   if (id === "voice") return <VoiceFocusPanel />;
   if (id === "sign") return <SignPanel sessionId={lecture.activeId} variant="panel" />;
@@ -50,7 +53,7 @@ function PanelBody({ id }: { id: PanelId }) {
 
 /** Remembered open/closed state of the side panels. */
 function useOpenPanels() {
-  const [open, setOpen] = useState<Record<PanelId, boolean>>({ slides: true, voice: true, sign: false, board: false });
+  const [open, setOpen] = useState<Record<PanelId, boolean>>({ camera: true, slides: true, voice: true, sign: false, board: false });
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(OPEN_KEY) ?? "null");
@@ -99,8 +102,8 @@ function SidePanels({ panels }: { panels: typeof PANELS }) {
 }
 
 /**
- * The lecture in progress: captions are the main reading region; slides, voice focus (hard-of-hearing mode), sign
- * and board snapshots sit beside them on wide screens and behind tabs on small ones. Only one layout is mounted,
+ * The lecture in progress: captions are the main reading region; the scene camera, slides, voice focus
+ * (hard-of-hearing mode), sign and board snapshots sit beside them on wide screens and behind tabs on small ones. Only one layout is mounted,
  * so devices and services are never opened twice.
  */
 export function LiveWorkspace() {

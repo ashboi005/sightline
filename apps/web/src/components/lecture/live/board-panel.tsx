@@ -31,7 +31,9 @@ export function BoardPanel() {
         </Button>
       ) : (
         <div className="space-y-2">
-          <p className="text-sm text-muted-foreground">Turn on the scene camera to save the board into your notes.</p>
+          <p className="text-sm text-muted-foreground">
+            Connect the scene camera (in the Scene camera panel) to save the board into your notes.
+          </p>
           <Button variant="clay-soft" onClick={() => void lecture.scene.start()}>
             <Camera /> Turn on scene camera
           </Button>

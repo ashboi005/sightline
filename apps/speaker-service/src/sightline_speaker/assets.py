@@ -5,6 +5,8 @@ import stat
 import zipfile
 from pathlib import Path
 
+from .settings import DEFAULT_ENGINE, default_asset_dir
+
 
 def sha256_file(path: Path) -> str:
     with path.open("rb") as source:
@@ -126,7 +128,9 @@ def setup_av_assets(asset_dir: Path, checkpoint: Path | None = None) -> dict:
     return manifest
 
 
-def setup_assets(asset_dir: Path, engine: str = "rtfs", checkpoint: Path | None = None) -> dict:
+def setup_assets(
+    asset_dir: Path, engine: str = DEFAULT_ENGINE, checkpoint: Path | None = None
+) -> dict:
     if engine == "av-mossformer2":
         return setup_av_assets(asset_dir, checkpoint)
     if engine != "rtfs":
@@ -173,9 +177,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Download and verify the official local model assets"
     )
-    parser.add_argument("--dir", type=Path, default=Path("data/assets"))
-    parser.add_argument("--engine", choices=["rtfs", "av-mossformer2"], default="rtfs")
+    parser.add_argument("--dir", type=Path)
+    parser.add_argument("--engine", choices=["rtfs", "av-mossformer2"], default=DEFAULT_ENGINE)
     parser.add_argument("--checkpoint", type=Path, help="Reuse a locally downloaded AV checkpoint")
     arguments = parser.parse_args()
-    setup_assets(arguments.dir, arguments.engine, arguments.checkpoint)
-    print(f"Verified model assets ready at {arguments.dir.resolve()}")
+    destination = arguments.dir or default_asset_dir(arguments.engine)
+    setup_assets(destination, arguments.engine, arguments.checkpoint)
+    print(f"Verified model assets ready at {destination.resolve()}")

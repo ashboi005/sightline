@@ -2,6 +2,9 @@ FROM node:24-slim AS builder
 COPY --from=oven/bun:1.4.4 /usr/local/bin/bun /usr/local/bin/bun
 WORKDIR /app
 
+# The browser speech model is prepared during the web build from a verified ZIP.
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates tar unzip && rm -rf /var/lib/apt/lists/*
+
 COPY . .
 RUN --mount=type=secret,id=web_env,target=/app/apps/web/.env.local --mount=type=secret,id=server_env,target=/app/apps/server/.env.local --mount=type=cache,target=/root/.bun/install/cache bun install
 
@@ -38,3 +41,22 @@ EXPOSE 3001
 
 WORKDIR /app/apps/web
 CMD ["node", "--import", "varlock/auto-load", "server.js"]
+
+# Opt in with --target tracking. Python and model files are built for Linux here;
+# the developer's virtual environment and local captures never enter this image.
+FROM runner AS tracking
+COPY --from=builder /usr/local/bin/bun /usr/local/bin/bun
+COPY --from=ghcr.io/astral-sh/uv:0.12.1 /uv /usr/local/bin/uv
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates git build-essential libgl1 libglib2.0-0 && rm -rf /var/lib/apt/lists/*
+ENV UV_PYTHON_INSTALL_DIR=/opt/python
+ENV UV_LINK_MODE=copy
+ENV SAM2_BUILD_CUDA=0
+ENV SIGHTLINE_LOCAL_VISION=1
+RUN uv python install 3.12
+COPY vision /app/vision
+RUN --mount=type=cache,target=/root/.cache/uv uv sync --project /app/vision --python 3.12 --frozen --no-dev && uv run --project /app/vision --no-sync python /app/vision/prepare.py
+COPY apps/web/scripts/vision-service.ts apps/web/scripts/start-production.ts ./scripts/
+CMD ["bun", "scripts/start-production.ts"]
+
+# Keep the ordinary standalone web image as the default build output.
+FROM runner AS final

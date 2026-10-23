@@ -1,4 +1,4 @@
-"""WebSocket server for Sightline's sign-language recognizer."""
+"""Protocol-v1 WebSocket gateway with bounded tracking and inference."""
 
 from __future__ import annotations
 
@@ -8,31 +8,34 @@ import binascii
 import json
 import os
 import time
-import uuid
 from collections import deque
-from dataclasses import dataclass, field
-from typing import Any, Callable, Awaitable
+from collections.abc import Callable
+from typing import Any
 
 import websockets
 
-from .model import VOCABULARY, Prediction
-from .recognizer import Recognizer
-
+from .decoding import PhraseDecoder
+from .scheduler import LatestInferenceScheduler
+from .types import continuity_gap_ms
 
 PROTOCOL_VERSION = "1"
-MODEL_NAME = "hf-asl-alphabet-wlasl-v2"
-PORT = int(os.environ.get("PORT", os.environ.get("SIGN_SERVICE_PORT", "7788")))
-PHRASE_END_AFTER_S = 1.0
+PORT = int(os.environ.get("SIGN_SERVICE_PORT", os.environ.get("PORT", "7788")))
 STALE_FRAME_MS = 150
-STABILITY_FRAMES = 4
+
+
+def frame_age_limit_ms() -> int:
+    value = int(os.environ.get("SIGN_SERVICE_MAX_FRAME_AGE_MS", str(STALE_FRAME_MS)))
+    if not 1 <= value <= 5000:
+        raise ValueError("SIGN_SERVICE_MAX_FRAME_AGE_MS must be between 1 and 5000")
+    return value
 
 
 def now_ms() -> int:
-    return int(time.time() * 1000)
+    return time.time_ns() // 1_000_000
 
 
 def _is_int(value: Any) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool)
+    return isinstance(value, int) and not isinstance(value, bool) and abs(value) <= 9007199254740991
 
 
 def _bad(message: str) -> dict[str, Any]:
@@ -43,6 +46,8 @@ def validate_command(command: Any) -> tuple[bool, str]:
     if not isinstance(command, dict):
         return False, "message must be a JSON object"
     kind = command.get("type")
+    if not isinstance(kind, str):
+        return False, "type must be a string"
     if kind == "stream.start":
         if set(command) != {"type", "protocolVersion", "source", "fps", "width", "height"}:
             return False, "stream.start contains unknown fields"
@@ -51,7 +56,7 @@ def validate_command(command: Any) -> tuple[bool, str]:
             return False, "stream.start requires protocolVersion, source, fps, width, and height"
         if command["protocolVersion"] != PROTOCOL_VERSION:
             return False, "unsupported protocolVersion"
-        if command["source"] not in {"SELF", "PEER"}:
+        if not isinstance(command["source"], str) or command["source"] not in {"SELF", "PEER"}:
             return False, "source must be SELF or PEER"
         if not _is_int(command["fps"]) or not 1 <= command["fps"] <= 30:
             return False, "fps must be an integer from 1 to 30"
@@ -84,258 +89,290 @@ def validate_command(command: Any) -> tuple[bool, str]:
     return False, "unknown command type"
 
 
-@dataclass
-class StreamState:
-    streaming: bool = False
-    source: str = "SELF"
-    token_ids: list[str] = field(default_factory=list)
-    prediction_queue: deque[Prediction] = field(default_factory=lambda: deque(maxlen=8))
-    stable_gloss: str | None = None
-    stable_count: int = 0
-    last_committed_gloss: str | None = None
-    spelled_letters: list[tuple[str, float]] = field(default_factory=list)
-    last_spelled_letter: str | None = None
-    hands_down_since: float | None = None
-    last_status_at: float = 0.0
-    last_hands_detected: int | None = None
-    last_partial_at: float = 0.0
-    generation: int = 0
-    processing: bool = False
+def _recognizer():
+    from .alphabet_recognizer import AlphabetRecognizer
 
-    def reset_recognition(self) -> None:
-        self.prediction_queue.clear()
-        self.stable_gloss = None
-        self.stable_count = 0
-        self.last_committed_gloss = None
-        self.spelled_letters.clear()
-        self.last_spelled_letter = None
-        self.hands_down_since = None
-        self.last_status_at = 0.0
-        self.last_hands_detected = None
-        self.last_partial_at = 0.0
-        self.generation += 1
-
-    def reset_all(self, streaming: bool | None = None, source: str | None = None) -> None:
-        if streaming is not None:
-            self.streaming = streaming
-        if source is not None:
-            self.source = source
-        self.token_ids.clear()
-        self.reset_recognition()
+    return AlphabetRecognizer()
 
 
-def _token_kind(prediction: Prediction) -> str:
-    if prediction.kind in {"SIGN", "FINGERSPELL", "NUMBER"}:
-        return prediction.kind
-    return "SIGN"
-
-
-async def handle(ws: Any, recognizer_factory: Callable[[], Any] = Recognizer) -> None:
-    recognizer = recognizer_factory()
-    state = StreamState()
+async def handle(
+    ws: Any,
+    recognizer_factory: Callable = _recognizer,
+    scheduler: LatestInferenceScheduler | None = None,
+) -> None:
+    max_frame_age_ms = frame_age_limit_ms()
+    initialization_error = None
+    try:
+        recognizer = await asyncio.to_thread(recognizer_factory)
+    except Exception as error:
+        recognizer = None
+        initialization_error = f"could not initialize recognizer: {error}"
+    owns_scheduler = scheduler is None
+    scheduler = scheduler or LatestInferenceScheduler()
+    stream_key = object()
+    decoder = PhraseDecoder(
+        fingerspell_threshold=getattr(recognizer, "confidence_threshold", 0.78),
+        spelling_decoder=getattr(recognizer, "spelling_decoder", None),
+    )
     send_lock = asyncio.Lock()
-    tasks: set[asyncio.Task[Any]] = set()
+    transition_lock = asyncio.Lock()
+    hand_events = deque()
+    pending_evidence: set[tuple[int, int]] = set()
+    frame_event = asyncio.Event()
+    pending = None
+    generation = 0
+    streaming = False
+    stream_fps = 12
+    closing = False
+    last_seq = -1
+    last_status_at = None
+    last_hands = 0
+    consumers: set[asyncio.Task] = set()
 
-    async def send(message: dict[str, Any]) -> None:
+    async def send(message: dict, epoch: int | None = None) -> None:
         async with send_lock:
-            await ws.send(json.dumps(message, separators=(",", ":")))
+            if closing or (epoch is not None and epoch != generation):
+                return
+            try:
+                await ws.send(json.dumps(message, separators=(",", ":"), allow_nan=False))
+            except websockets.ConnectionClosed:
+                pass
 
-    async def emit_token(gloss: str, kind: str, confidence: float) -> None:
-        if not gloss or (gloss == state.last_committed_gloss and state.hands_down_since is None):
-            return
-        timestamp = now_ms()
-        token = {
-            "id": f"tok_{uuid.uuid4().hex[:8]}",
-            "gloss": gloss,
-            "kind": kind,
-            "confidence": round(max(0.0, min(1.0, confidence)), 2),
-            "ts": timestamp,
-        }
-        state.token_ids.append(token["id"])
-        state.last_committed_gloss = gloss
-        await send({"type": "sign.token", "token": token, "ts": timestamp})
+    async def publish(messages: list[dict], epoch: int) -> None:
+        for message in messages:
+            await send(message, epoch)
 
-    async def flush_spelling() -> None:
-        if not state.spelled_letters:
-            return
-        gloss = "".join(letter for letter, _ in state.spelled_letters)
-        confidence = min(confidence for _, confidence in state.spelled_letters)
-        state.spelled_letters.clear()
-        state.last_spelled_letter = None
-        await emit_token(gloss, "FINGERSPELL", confidence)
+    async def drain_hand_events(epoch: int):
+        # The caller holds transition_lock. Hand status is immediate, but decoder
+        # transitions follow outstanding pre-release evidence in capture order.
+        while epoch == generation and hand_events:
+            seq, hands, at, ts = hand_events[0]
+            if any(g == epoch and observed < seq for g, observed in pending_evidence):
+                return
+            hand_events.popleft()
+            if hands and decoder.down_since is not None:
+                await publish(decoder.hands(0, at, ts), epoch)
+                if epoch != generation:
+                    return
+            await publish(decoder.hands(hands, at, ts), epoch)
+        if epoch == generation and not hand_events:
+            await publish(decoder.hands(last_hands, time.monotonic(), now_ms()), epoch)
 
-    async def commit_prediction(prediction: Prediction) -> None:
-        if prediction.kind == "FINGERSPELL" and len(prediction.gloss) == 1 and prediction.gloss.isalpha():
-            letter = prediction.gloss.upper()
-            # A held letter is one letter. The model must change its output
-            # before another letter is added; a pause/hands-down flushes the
-            # accumulated arbitrary spelling word.
-            if letter != state.last_spelled_letter:
-                state.spelled_letters.append((letter, prediction.confidence))
-                state.last_spelled_letter = letter
-            return
-        await flush_spelling()
-        await emit_token(prediction.gloss, _token_kind(prediction), prediction.confidence)
-
-    async def process_frame(command: dict[str, Any], generation: int) -> None:
+    async def consume(future, epoch: int, seq: int, captured_at: float, ts: int):
+        key = (epoch, seq)
         try:
-            jpeg = base64.b64decode(command["image"], validate=True)
-            result = await asyncio.to_thread(recognizer.process, jpeg, command["ts"])
-            if generation != state.generation or not state.streaming:
-                return
-            monotonic_now = time.monotonic()
-            hands = int(result.hands_detected)
-            if state.last_hands_detected != hands or monotonic_now - state.last_status_at >= 0.2:
-                state.last_status_at = monotonic_now
-                state.last_hands_detected = hands
-                await send({"type": "hands.status", "handsDetected": max(0, min(2, hands)), "ts": now_ms()})
-
-            prediction = result.partial
-            if hands == 0:
-                if state.hands_down_since is None:
-                    state.hands_down_since = monotonic_now
-                    state.stable_gloss = None
-                    state.stable_count = 0
-                    state.last_committed_gloss = None
-                if (state.token_ids or state.spelled_letters) and monotonic_now - state.hands_down_since >= PHRASE_END_AFTER_S:
-                    await flush_spelling()
-                if state.token_ids and monotonic_now - state.hands_down_since >= PHRASE_END_AFTER_S:
-                    await send({"type": "phrase.end", "tokenIds": list(state.token_ids), "ts": now_ms()})
-                    state.token_ids.clear()
-                return
-
-            if state.hands_down_since is not None:
-                state.hands_down_since = None
-                state.last_committed_gloss = None
-
-            if prediction is None:
-                state.prediction_queue.clear()
-                state.stable_gloss = None
-                state.stable_count = 0
-                return
-
-            state.prediction_queue.append(prediction)
-            spelling_partial = None
-            if prediction.kind == "FINGERSPELL" and len(prediction.gloss) == 1 and prediction.gloss.isalpha():
-                spelling_partial = "".join(letter for letter, _ in state.spelled_letters) + prediction.gloss.upper()
-            should_partial = (
-                0.55 <= prediction.confidence <= 0.78
-                or spelling_partial is not None and prediction.confidence >= 0.78
+            remaining = max(0.001, 1.0 - (time.monotonic() - captured_at))
+            result = await asyncio.wait_for(asyncio.shield(future), remaining)
+            async with transition_lock:
+                if (
+                    result is None
+                    or closing
+                    or not streaming
+                    or epoch != generation
+                    or time.monotonic() - captured_at > 1.0
+                ):
+                    return
+                await drain_hand_events(epoch)
+                if epoch != generation:
+                    return
+                evidence = result[0]
+                await publish(
+                    decoder.prediction(evidence.prediction, evidence.observation, ts), epoch
+                )
+        except asyncio.CancelledError:
+            future.cancel()
+            raise
+        except TimeoutError:
+            future.cancel()
+        except Exception as error:
+            await send(
+                {"type": "error", "code": "INFERENCE_ERROR", "message": str(error), "ts": now_ms()},
+                epoch,
             )
-            if should_partial and monotonic_now - state.last_partial_at >= 0.25:
-                state.last_partial_at = monotonic_now
-                await send({
-                    "type": "sign.partial",
-                    "gloss": spelling_partial or prediction.gloss,
-                    "confidence": round(prediction.confidence, 2),
-                    "ts": now_ms(),
-                })
-
-            if prediction.confidence >= 0.78:
-                if prediction.gloss == state.stable_gloss:
-                    state.stable_count += 1
-                else:
-                    state.stable_gloss = prediction.gloss
-                    state.stable_count = 1
-                if state.stable_count >= STABILITY_FRAMES:
-                    await commit_prediction(prediction)
-                    state.stable_count = 0
-                    state.stable_gloss = None
-            else:
-                state.stable_gloss = None
-                state.stable_count = 0
-        except Exception as exc:
-            await send(_bad(f"could not process frame: {exc}"))
         finally:
-            state.processing = False
+            pending_evidence.discard(key)
+            if not closing and epoch == generation:
+                async with transition_lock:
+                    await drain_hand_events(epoch)
 
-    async def reset_stream(streaming: bool | None = None, source: str | None = None) -> None:
-        state.reset_all(streaming=streaming, source=source)
-        reset = getattr(recognizer, "reset", None)
-        if reset is not None:
-            reset()
+    async def track_frames():
+        nonlocal pending, last_status_at, last_hands
+        applied_generation = -1
+        while True:
+            await frame_event.wait()
+            frame_event.clear()
+            if closing:
+                return
+            item, pending = pending, None
+            if item is None:
+                continue
+            command, epoch, captured_at = item
+            try:
+                if epoch != applied_generation:
+                    await asyncio.to_thread(recognizer.reset)
+                    configure = getattr(recognizer, "configure_frame_rate", None)
+                    if configure is not None:
+                        await asyncio.to_thread(configure, stream_fps)
+                    applied_generation = epoch
+                if epoch != generation or not streaming:
+                    continue
+                jpeg = base64.b64decode(command["image"], validate=True)
+                result = await asyncio.to_thread(recognizer.track, jpeg, command["ts"])
+                if epoch != generation or not streaming or closing:
+                    continue
+                async with transition_lock:
+                    if epoch != generation or not streaming or closing:
+                        continue
+                    at = time.monotonic()
+                    hands = max(0, min(2, int(result.hands_detected)))
+                    if bool(hands) != bool(last_hands):
+                        hand_events.append((command["seq"], hands, at, now_ms()))
+                    last_hands = hands
+                    if last_status_at is None or at - last_status_at >= 0.2:
+                        last_status_at = at
+                        await send(
+                            {"type": "hands.status", "handsDetected": hands, "ts": now_ms()}, epoch
+                        )
+                    await drain_hand_events(epoch)
+                    if not hands or epoch != generation:
+                        continue
+                    observation = getattr(result, "observation", None)
+                    if observation is None:
+                        await publish(
+                            decoder.prediction(result.partial, command["seq"], now_ms()), epoch
+                        )
+                    else:
+                        future = scheduler.submit(
+                            stream_key, lambda value=observation: (recognizer.predict(value),)
+                        )
+                        pending_evidence.add((epoch, command["seq"]))
+                        task = asyncio.create_task(
+                            consume(future, epoch, command["seq"], captured_at, command["ts"])
+                        )
+                        consumers.add(task)
+                        task.add_done_callback(consumers.discard)
+            except Exception as error:
+                await send(_bad(f"could not process frame: {error}"), epoch)
+
+    worker = asyncio.create_task(track_frames())
+
+    def reset(active: bool):
+        nonlocal generation, streaming, pending, last_seq, last_hands
+        generation += 1
+        streaming = active
+        pending = None
+        last_seq = -1
+        last_hands = 0
+        decoder.reset()
+        hand_events.clear()
+        scheduler.discard(stream_key)
 
     try:
-        await send({
-            "type": "service.ready",
-            "protocolVersion": PROTOCOL_VERSION,
-            "model": getattr(recognizer, "model_name", MODEL_NAME),
-            "vocabulary": getattr(recognizer, "vocabulary", VOCABULARY),
-            "ts": now_ms(),
-        })
-        if getattr(recognizer, "load_error", None):
-            await send({
-                "type": "error",
-                "code": "MODEL_UNAVAILABLE",
-                "message": getattr(recognizer, "load_error"),
-                "ts": now_ms(),
-            })
+        load_error = initialization_error or recognizer.load_error
+        if load_error:
+            await send(
+                {
+                    "type": "error",
+                    "code": "MODEL_UNAVAILABLE",
+                    "message": load_error,
+                    "ts": now_ms(),
+                }
+            )
+        else:
+            await send(
+                {
+                    "type": "service.ready",
+                    "protocolVersion": PROTOCOL_VERSION,
+                    "model": recognizer.model_name,
+                    "vocabulary": recognizer.vocabulary,
+                    "ts": now_ms(),
+                }
+            )
         async for raw in ws:
             try:
-                command = json.loads(raw.decode("utf-8") if isinstance(raw, bytes) else raw)
-            except (UnicodeDecodeError, json.JSONDecodeError, TypeError):
-                await send(_bad("messages must be valid JSON"))
+                if not isinstance(raw, str):
+                    raise ValueError("messages must be JSON text")
+                command = json.loads(raw)
+            except (ValueError, TypeError):
+                await send(_bad("messages must be valid JSON text"))
                 continue
             valid, message = validate_command(command)
             if not valid:
                 await send(_bad(message))
                 continue
-
             kind = command["type"]
-            if kind == "stream.start":
-                await reset_stream(streaming=True, source=command["source"])
-                continue
-            if kind == "phrase.reset":
-                await reset_stream(streaming=state.streaming)
-                continue
             if kind == "stream.stop":
-                await reset_stream(streaming=False)
-                continue
-            if kind != "frame":
-                continue
-            if not state.streaming:
+                reset(False)
+            elif kind == "phrase.reset":
+                reset(streaming)
+            elif kind == "stream.start":
+                if load_error:
+                    await send(
+                        {
+                            "type": "error",
+                            "code": "MODEL_UNAVAILABLE",
+                            "message": load_error,
+                            "ts": now_ms(),
+                        }
+                    )
+                else:
+                    stream_fps = command["fps"]
+                    decoder.max_evidence_gap_ms = continuity_gap_ms(stream_fps)
+                    reset(True)
+            elif not streaming:
                 await send(_bad("send stream.start before frame"))
-                continue
-            if now_ms() - command["ts"] > STALE_FRAME_MS:
-                continue
-            if state.processing:
-                continue
-            state.processing = True
-            task = asyncio.create_task(process_frame(command, state.generation))
-            tasks.add(task)
-            task.add_done_callback(tasks.discard)
+            elif now_ms() - command["ts"] <= max_frame_age_ms and command["seq"] > last_seq:
+                last_seq = command["seq"]
+                pending = (command, generation, time.monotonic())
+                frame_event.set()
     finally:
-        for task in tasks:
+        closing = True
+        generation += 1
+        pending = None
+        scheduler.discard(stream_key)
+        frame_event.set()
+        # Do not close a MediaPipe tracker while its tracking thread is still running.
+        await worker
+        for task in list(consumers):
             task.cancel()
-        close = getattr(recognizer, "close", None)
-        if close is not None:
-            close()
+        await asyncio.gather(*consumers, return_exceptions=True)
+        if recognizer is not None:
+            await asyncio.to_thread(recognizer.close)
+        if owns_scheduler:
+            await scheduler.close()
 
 
-def make_handler(recognizer_factory: Callable[[], Any] = Recognizer) -> Callable[[Any], Awaitable[None]]:
-    async def handler(ws: Any) -> None:
-        await handle(ws, recognizer_factory)
+def make_handler(
+    recognizer_factory: Callable = _recognizer, scheduler: LatestInferenceScheduler | None = None
+):
+    async def handler(ws):
+        await handle(ws, recognizer_factory, scheduler)
 
     return handler
 
 
 async def run() -> None:
-    # Download/load the shared pretrained models before accepting clients so
-    # the first camera frame is not blocked by a Hub download or model init.
-    from .hf_pipeline import shared_pipeline
+    frame_age_limit_ms()  # Validate configuration before loading weights/listening.
+    from .landmark_pipeline import shared_pipeline
 
-    await asyncio.to_thread(shared_pipeline().ensure_loaded)
-    if shared_pipeline().load_error:
-        print(f"[sign-service] model warning: {shared_pipeline().load_error}")
-    async with websockets.serve(
-        make_handler(),
-        "0.0.0.0",
-        PORT,
-        max_size=4 * 1024 * 1024,
-        max_queue=16,
-    ):
-        print(f"[sign-service] listening on ws://localhost:{PORT}/ws")
-        await asyncio.Future()
+    pipeline = shared_pipeline()
+    await asyncio.to_thread(pipeline.ensure_loaded)
+    if pipeline.load_error:
+        print(f"[sign-service] MODEL_UNAVAILABLE: {pipeline.load_error}", flush=True)
+    scheduler = LatestInferenceScheduler()
+    try:
+        async with websockets.serve(
+            make_handler(scheduler=scheduler),
+            "127.0.0.1",
+            PORT,
+            max_size=4 * 1024 * 1024,
+            max_queue=1,
+        ):
+            print(f"[sign-service] listening on ws://localhost:{PORT}/ws", flush=True)
+            await asyncio.Future()
+    finally:
+        await scheduler.close()
+        pipeline.close()
 
 
 def main() -> None:

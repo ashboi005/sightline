@@ -57,3 +57,10 @@ coverage
 tmp
 temp
 .data
+
+# Local object tracking models and Python environment
+.local-reference/
+vision/.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/

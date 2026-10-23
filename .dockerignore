@@ -31,3 +31,24 @@ docker-compose.yml
 local.db
 local.db-*
 .data
+
+# Local model caches, captures and platform-specific environments are rebuilt
+# inside the optional tracking image rather than copied from the host.
+**/.local-reference
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+**/*.tsbuildinfo
+**/.DS_Store
+tmp
+temp
+**/test-results
+**/playwright-report
+apps/web/public/voice-runtime
+apps/web/public/vision-runtime
+
+# Firmware is built independently of the web image
+firmware/

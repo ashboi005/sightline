@@ -130,6 +130,88 @@ async def test_generation_change_discards_late_worker_result(tmp_path):
         store.close()
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("engine", ["rtfs", "av-mossformer2"])
+async def test_confirming_face_keeps_latest_visual_context_but_never_old_pcm(tmp_path, engine):
+    from sightline_speaker.faces import FaceTrack
+
+    store = Store(Settings(data_dir=tmp_path, engine=engine), start_worker=False, load_model=False)
+    session = LiveSession(store, LiveConfig.model_validate(config()))
+    image = np.zeros((8, 8, 3), np.uint8)
+    session.faces.tracks["face"] = FaceTrack("face")
+    session.buffer.frame(8000, image)
+    session.buffer.audio(8000, 10, np.zeros(640, np.float32))
+    try:
+        session.select(TargetConfig(type="target", generation=1, target_id="face"))
+        assert len(session.buffer.frames) == 1
+        assert session.buffer.frames[0][0] == 8000
+        assert session.buffer.frames[0][1] is image
+        assert session.buffer.sample_count == 0
+        assert session.buffer.next_audio is None
+        session.select(TargetConfig(type="target", generation=2, target_id=None))
+        assert len(session.buffer.frames) == 1
+        assert session.buffer.next_audio is None
+    finally:
+        await session.close()
+        store.close()
+
+
+@pytest.mark.asyncio
+async def test_positive_video_offset_keeps_the_preselection_frames_needed_for_alignment(
+    tmp_path, monkeypatch
+):
+    from sightline_speaker.faces import FaceTrack
+
+    owner = Store(Settings(data_dir=tmp_path), start_worker=False, load_model=False)
+    session = LiveSession(owner, LiveConfig.model_validate(config(video_offset_ms=500)))
+    image = np.zeros((8, 8, 3), np.uint8)
+    monkeypatch.setattr("sightline_speaker.live_session.decode_frame", lambda _: image)
+    monkeypatch.setattr(session.faces, "detect", lambda *_: None)
+    monkeypatch.setattr(session.faces, "view", lambda: [])
+    session.faces.tracks["face"] = FaceTrack("face")
+    try:
+        for sample in range(0, 12801, 640):
+            await session.packet(encode_packet(2, 0, sample, 10 + sample / 16000, b"jpeg"))
+        session.select(TargetConfig(type="target", generation=1, target_id="face"))
+        session.select(TargetConfig(type="target", generation=2, target_id=None))
+        session.select(TargetConfig(type="target", generation=3, target_id="face"))
+        session.buffer.audio(12800, 10.8, np.zeros(48000, np.float32))
+        for sample in range(13440, 60801, 640):
+            session.buffer.frame(sample + 8000, image)
+        window = session.buffer.window()
+        assert window is not None
+        assert window.start_sample == 12800
+        assert window.valid_samples == 48000
+    finally:
+        await session.close()
+        owner.close()
+
+
+@pytest.mark.asyncio
+async def test_negative_video_offset_waits_for_aligned_frames_without_waiving_gap_checks(tmp_path):
+    owner = Store(Settings(data_dir=tmp_path), start_worker=False, load_model=False)
+    session = LiveSession(owner, LiveConfig.model_validate(config(video_offset_ms=-500)))
+    image = np.zeros((8, 8, 3), np.uint8)
+    try:
+        session.buffer.audio(0, 10, np.zeros(48000, np.float32))
+        for sample in range(-8000, 40001, 640):
+            session.buffer.frame(sample, image)
+        assert session.buffer.window() is None
+        for sample in range(40640, 48001, 640):
+            session.buffer.frame(sample, image)
+        window = session.buffer.window()
+        assert window is not None
+        assert window.start_sample == 0
+        session.buffer.reset()
+        session.buffer.audio(0, 10, np.zeros(48000, np.float32))
+        session.buffer.frame(32000, image)
+        with pytest.raises(ValueError, match="gap"):
+            session.buffer.window()
+    finally:
+        await session.close()
+        owner.close()
+
+
 def test_jpeg_bomb_rejected_before_decode():
     from io import BytesIO
 
@@ -195,7 +277,7 @@ async def test_final_drain_delivers_every_accepted_sample_with_bounded_queue(tmp
 
 
 def test_stream_warmup_excludes_cold_call_and_preserves_file_capability_on_failure(tmp_path):
-    store = Store(Settings(data_dir=tmp_path), start_worker=False, load_model=False)
+    store = Store(Settings(data_dir=tmp_path, engine="rtfs"), start_worker=False, load_model=False)
     calls = []
     store.separator = SimpleNamespace(extract=lambda audio, frames: calls.append((audio, frames)))
     store._warm_streaming()
@@ -234,7 +316,8 @@ async def test_face_discovery_without_target_does_not_accumulate_full_scene_fram
             await session.packet(encode_packet(2, 0, index * 1600, now, b"jpeg"))
             while not session.replies.empty():
                 session.replies.get_nowait()
-        assert len(session.buffer.frames) <= 1
+        assert len(session.buffer.frames) <= 3
+        assert session.buffer.frame_bytes <= 3 * 480 * 640 * 3
     finally:
         await session.close()
         owner.close()
@@ -249,6 +332,7 @@ async def test_replay_rewind_reacquires_faces_without_future_observations(tmp_pa
     session.faces.tracks["future-face"] = FaceTrack("future-face")
     session.faces.last_detection = 9
     session.last_feed = 9
+    session.buffer.frame(144000, np.zeros((8, 8, 3), np.uint8))
     try:
         session.select(
             TargetConfig(type="target", generation=1, target_id=None, replay_start_sample=16000)
@@ -257,6 +341,7 @@ async def test_replay_rewind_reacquires_faces_without_future_observations(tmp_pa
         assert session.faces.last_detection == -1
         assert session.last_feed == -1
         assert session.buffer.sample_count == 0
+        assert not session.buffer.frames
     finally:
         await session.close()
         store.close()
@@ -270,6 +355,9 @@ def test_health_reports_the_active_model_stream_profile(tmp_path):
         health = store.health()
         assert health.window_seconds == 3
         assert health.stride_seconds == 1.8
+        assert health.live_analysis_mode == "windowed"
+        assert health.live_minimum_seconds == 3
+        assert health.live_history_seconds == 1.2
     finally:
         store.close()
 
@@ -463,7 +551,7 @@ async def test_transport_cancellation_holds_the_lease_until_native_cleanup_finis
 async def test_live_batches_only_available_input_without_pausing_capture(tmp_path):
     from sightline_speaker.faces import FaceTrack
 
-    store = Store(Settings(data_dir=tmp_path), start_worker=False, load_model=False)
+    store = Store(Settings(data_dir=tmp_path, engine="rtfs"), start_worker=False, load_model=False)
     session = LiveSession(store, LiveConfig.model_validate(config()))
     session.faces.tracks["face"] = FaceTrack("face")
     session.select(TargetConfig(type="target", generation=1, target_id="face"))

@@ -49,7 +49,7 @@ export const SignServiceMessage = z.discriminatedUnion("type", [
     type: z.literal("service.ready"),
     protocolVersion: z.string(),
     model: z.string(),
-    /** Every gloss this model can output — the UI can show it as a cheat-sheet. */
+    /** Finite supported lexical labels plus spelling alphabet; composed fingerspelled words are not enumerated. */
     vocabulary: z.array(z.string()),
     ts: Timestamp,
   }),
@@ -63,13 +63,16 @@ export const SignServiceMessage = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("sign.partial"),
     gloss: z.string(),
+    /** Stable raw spelling prefix; the remaining gloss suffix is still tentative. */
+    acceptedGloss: z.string().optional(),
     confidence: Confidence,
     ts: Timestamp,
   }),
   /** A committed sign. Append to the current phrase. */
   z.object({ type: z.literal("sign.token"), token: SignToken, ts: Timestamp }),
   /**
-   * The signer paused (hands down ~1 s) — the phrase is complete. The web app then POSTs the phrase's
+   * The signer paused (hands down ~1 s) — a recognition segment is complete.
+   * The web app preserves its editable draft; manual Enter/Send POSTs the sentence's
    * tokens to /api/sessions/:id/sign/utterances to get a sentence + audio.
    */
   z.object({

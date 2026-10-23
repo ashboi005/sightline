@@ -15,7 +15,7 @@ from .live_faces import LiveFaces, decode_frame
 from .noise import noise_factory
 from .stream_processor import StreamProcessor
 from .stream_profile import profile_for
-from .stream_protocol import InputCapacityError, decode_packet
+from .stream_protocol import InputCapacityError, LiveBuffer, decode_packet
 
 
 class LiveSession:
@@ -23,7 +23,13 @@ class LiveSession:
         self.owner = owner
         self.config = config
         self.profile = profile_for(owner.settings.engine)
-        self.buffer = AvailableBuffer()
+        # Preserve enough real video for a positive offset plus the existing 150 ms skew limit.
+        self.selection_frame_history = max(0, round(config.video_offset_ms * 16)) + 2400
+        self.buffer = (
+            LiveBuffer(self.profile, video_lag_samples=max(0, round(-config.video_offset_ms * 16)))
+            if owner.settings.engine == "av-mossformer2"
+            else AvailableBuffer()
+        )
         self.faces = LiveFaces()
         self.generation = 0
         self.target = None
@@ -69,10 +75,21 @@ class LiveSession:
             }
         )
 
+    def _reset_input(self, *, keep_video: bool):
+        cutoff = (
+            self.buffer.frames[-1][0] - self.selection_frame_history if self.buffer.frames else 0
+        )
+        recent_frames = (
+            [frame for frame in self.buffer.frames if frame[0] >= cutoff] if keep_video else []
+        )
+        self.buffer.reset()
+        for frame in recent_frames:
+            self.buffer.frame(*frame)
+
     def pause(self, message):
         self.target = None
         self.generation += 1
-        self.buffer.reset()
+        self._reset_input(keep_video=True)
         self.put_reply(
             {
                 "type": "error",
@@ -95,7 +112,8 @@ class LiveSession:
         self.generation = target.generation
         self.capture_times.clear()
         self.target = target.target_id
-        self.buffer.reset()
+        # Keep bounded visual context across confirmation, never old microphone PCM.
+        self._reset_input(keep_video=target.replay_start_sample is None)
         self.end_sample = None
         self.accepted_end = None
         self.last_track = None
@@ -133,7 +151,9 @@ class LiveSession:
             image, tracks = await self.loop.run_in_executor(self.executor, observe)
             # Camera observations use its capture clock; replay uses source seconds.
             if not self.target:
-                self.buffer.reset()
+                cutoff = index - self.selection_frame_history
+                while self.buffer.frames and self.buffer.frames[0][0] < cutoff:
+                    self.buffer.frame_bytes -= self.buffer.frames.popleft()[1].nbytes
             if self.end_sample is None:
                 try:
                     self.buffer.frame(index, image)

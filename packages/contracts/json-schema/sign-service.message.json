@@ -72,6 +72,9 @@
         "gloss": {
           "type": "string"
         },
+        "acceptedGloss": {
+          "type": "string"
+        },
         "confidence": {
           "type": "number",
           "minimum": 0,

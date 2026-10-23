@@ -11,6 +11,7 @@ import { Logo, LogoMark } from "@/components/brand/logo";
 import type { Tone } from "@/components/clay/clay";
 import { useLiveLecture } from "@/providers/live-lecture-provider";
 
+import { SceneCameraCard } from "./scene-camera-card";
 import { AccountFooter } from "./account-footer";
 import { ActiveLectureCard } from "./active-lecture-card";
 import { EnvironmentBadge } from "./environment-badge";
@@ -47,7 +48,7 @@ export function SidebarContent({
 
   return (
     <div className={cn("flex h-full flex-col gap-5", collapsed ? "items-center px-2.5 py-4" : "p-4")}>
-      <div className={cn("flex w-full items-center gap-2", collapsed ? "flex-col" : "justify-between")}>
+      <div className={cn("flex w-full shrink-0 items-center gap-2", collapsed ? "flex-col" : "justify-between")}>
         <Link
           href="/dashboard"
           onClick={onNavigate}
@@ -72,7 +73,7 @@ export function SidebarContent({
         )}
       </div>
 
-      <nav aria-label="Workspace" className={cn(collapsed ? "w-full" : "-mx-1")}>
+      <nav aria-label="Workspace" className={cn("min-h-0 overflow-y-auto", collapsed ? "w-full" : "-mx-1")}>
         <ul className="space-y-1">
           {NAV.map((item) => {
             const active = isActive(pathname, item.href);
@@ -121,9 +122,10 @@ export function SidebarContent({
         </ul>
       </nav>
 
-      <div className={cn("mt-auto space-y-3", collapsed && "flex w-full flex-col items-center")}>
+      <div className={cn("mt-auto shrink-0 space-y-3", collapsed && "flex w-full flex-col items-center")}>
         <ActiveLectureCard onNavigate={onNavigate} collapsed={collapsed} />
         <EnvironmentBadge collapsed={collapsed} />
+        <SceneCameraCard collapsed={collapsed} onNavigate={onNavigate} />
         <AccountFooter collapsed={collapsed} />
       </div>
     </div>

@@ -1,6 +1,7 @@
-"""Positional face tracks and model-aligned mouth observations."""
+"""Face continuity and model-aligned mouth observations."""
 
 import os
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from uuid import uuid4
@@ -39,12 +40,25 @@ def box_iou(a: Box, b: Box) -> float:
     return overlap / union if union > 0 else 0.0
 
 
-def associate_boxes(previous: dict[str, Box], current: list[Box]) -> list[str | None]:
+def associate_boxes(
+    previous: dict[str, Box],
+    current: list[Box],
+    *,
+    supports: Callable[[str, Box], bool] | None = None,
+) -> list[str | None]:
     result: list[str | None] = [None] * len(current)
     if not previous or not current:
         return result
     identities = list(previous)
-    scores = np.array([[box_iou(previous[key], box) for box in current] for key in identities])
+    scores = np.array(
+        [
+            [
+                box_iou(previous[key], box) if supports is None or supports(key, box) else 0.0
+                for box in current
+            ]
+            for key in identities
+        ]
+    )
     for index in range(len(current)):
         row = int(scores[:, index].argmax())
         score = scores[row, index]
@@ -65,21 +79,246 @@ class FaceAssociator:
         self.max_gap = max_gap
         self.last_seen: dict[str, tuple[Box, float]] = {}
 
-    def update(self, boxes: list[Box], timestamp: float) -> list[str]:
+    def update(
+        self,
+        boxes: list[Box],
+        timestamp: float,
+        *,
+        verified: dict[str, Box] | None = None,
+        consecutive: dict[str, Box] | None = None,
+        supports: Callable[[str, Box], bool] | None = None,
+    ) -> list[str]:
         self.last_seen = {
             key: value
             for key, value in self.last_seen.items()
             if 0 <= timestamp - value[1] <= self.max_gap
         }
         previous = {key: value[0] for key, value in self.last_seen.items()}
-        matches = associate_boxes(previous, boxes)
+        if verified is not None:
+            candidates = {**verified, **(consecutive or {})}
+            previous = {key: box for key, box in candidates.items() if key in previous}
+        matches = associate_boxes(previous, boxes, supports=supports)
         identities = [identity or uuid4().hex[:12] for identity in matches]
-        # Box overlap alone cannot establish who returned after an occlusion.
-        # Only people observed in consecutive detection passes keep continuity.
+        retained = {
+            key: (box, self.last_seen[key][1])
+            for key, box in previous.items()
+            if verified is not None
+            and key in verified
+            and key not in identities
+            # An unmatched detection near this track is identity ambiguity, not a miss.
+            and not any(box_iou(box, current) >= 0.15 for current in boxes)
+        }
+        # Only image-verified continuity can bridge a missed landmark fit. Its age
+        # remains measured from the last real detection, not the last flow update.
         self.last_seen = {
             identity: (box, timestamp) for identity, box in zip(identities, boxes, strict=True)
         }
+        self.last_seen.update(retained)
         return identities
+
+
+class FaceFlow:
+    """Short-term texture continuity; never generates facial/mouth observations."""
+
+    def __init__(self):
+        self.gray: np.ndarray | None = None
+        self.points: dict[str, np.ndarray] = {}
+        self.geometry: dict[str, np.ndarray] = {}
+        self.fresh: dict[str, tuple[Box, np.ndarray, np.ndarray | None]] = {}
+
+    @staticmethod
+    def _covers_face(
+        points: np.ndarray, box: Box, shape: tuple[int, int], minimum: int = 6
+    ) -> bool:
+        height, width = shape
+        x, y, w, h = np.array(box) * [width, height, width, height]
+        xy = points.reshape(-1, 2)
+        inside = (
+            (xy[:, 0] >= x) & (xy[:, 0] <= x + w) & (xy[:, 1] >= y) & (xy[:, 1] <= y + 0.75 * h)
+        )
+        supported = xy[inside]
+        if len(supported) < max(minimum, 0.8 * len(xy)):
+            return False
+        # An exposed edge of one face cannot support a different overlapping face.
+        return bool(
+            np.all(np.ptp(supported, axis=0) >= [0.25 * w, 0.15 * h])
+            and np.count_nonzero(supported[:, 0] < x + w / 2) >= 2
+            and np.count_nonzero(supported[:, 0] >= x + w / 2) >= 2
+            # Split the seeded upper-face band (10–65% of face height), so a
+            # surviving eye band cannot be relabeled as a different face above.
+            and np.count_nonzero(supported[:, 1] < y + 0.375 * h) >= 2
+            and np.count_nonzero(supported[:, 1] >= y + 0.375 * h) >= 2
+        )
+
+    def supports(
+        self, identity: str, box: Box, *, fresh: bool = False, anchors: np.ndarray | None = None
+    ) -> bool:
+        if fresh:
+            evidence = self.fresh.get(identity)
+            if self.gray is None or evidence is None or evidence[2] is None or anchors is None:
+                return False
+            expected = evidence[2]
+            if np.any(np.ptp(expected, axis=0) < [4, 2]) or not np.isfinite(anchors).all():
+                return False
+            height, width = self.gray.shape
+            tolerance = max(2, 0.1 * box[2] * width)
+            errors = np.linalg.norm(expected - anchors, axis=1)
+            x, y, w, h = np.array(box) * [width, height, width, height]
+            points = evidence[1][:, 0]
+            inside = (
+                (points[:, 0] >= x)
+                & (points[:, 0] <= x + w)
+                & (points[:, 1] >= y)
+                & (points[:, 1] <= y + h)
+            )
+            # Use real eye/nose positions to confirm a turning face. A landmark
+            # box's height shifts with mouth opening and is unreliable for this.
+            return bool(
+                errors.mean() <= tolerance
+                and errors.max() <= 2 * tolerance
+                and inside.sum() >= 0.8 * len(points)
+            )
+        points = self.points.get(identity)
+        return (
+            self.gray is not None
+            and points is not None
+            and self._covers_face(points, box, self.gray.shape)
+        )
+
+    @classmethod
+    def _fit(cls, source, destination, box, shape, minimum=6):
+        if not cls._covers_face(source, box, shape, minimum):
+            return None
+        height, width = shape
+        # Fresh landmark fits can confirm a turning face whose locally matched
+        # texture moves nonrigidly by a few pixels. Gap retention stays at 2 px.
+        tolerance = (
+            max(2, min(4, 0.08 * min(box[2] * width, box[3] * height))) if minimum == 4 else 2
+        )
+        transform, inliers = cv2.estimateAffinePartial2D(
+            source, destination, method=cv2.RANSAC, ransacReprojThreshold=tolerance
+        )
+        if (
+            transform is None
+            or inliers is None
+            or inliers.sum() < max(minimum, 0.75 * len(source))
+            or not 0.8 <= float(np.linalg.norm(transform[:, 0])) <= 1.25
+        ):
+            return None
+        x, y, w, h = np.array(box) * [width, height, width, height]
+        corners = np.array([[x, y], [x + w, y], [x, y + h], [x + w, y + h]])
+        moved = corners @ transform[:, :2].T + transform[:, 2]
+        minimum_corner, maximum = moved.min(axis=0), moved.max(axis=0)
+        if np.any(minimum_corner < 0) or np.any(maximum > [width, height]):
+            return None
+        predicted = tuple(
+            np.r_[minimum_corner, maximum - minimum_corner] / [width, height, width, height]
+        )
+        return predicted, destination[inliers.ravel().astype(bool)].reshape(-1, 1, 2), transform
+
+    @staticmethod
+    def _matching_texture(previous, current, source, destination):
+        matches = []
+        for before, after in zip(source, destination, strict=True):
+            first = cv2.getRectSubPix(previous, (9, 9), tuple(before))
+            second = cv2.getRectSubPix(current, (9, 9), tuple(after))
+            matches.append(
+                first.std() >= 2
+                and second.std() >= 2
+                and cv2.matchTemplate(first, second, cv2.TM_CCOEFF_NORMED)[0, 0] >= 0.8
+            )
+        return np.array(matches, dtype=bool)
+
+    def update(self, image: np.ndarray, boxes: dict[str, Box]) -> dict[str, Box]:
+        gray = cv2.GaussianBlur(cv2.cvtColor(image, cv2.COLOR_RGB2GRAY), (5, 5), 0)
+        verified: dict[str, Box] = {}
+        retained = {}
+        geometry = {}
+        self.fresh = {}
+        if self.gray is not None and self.gray.shape == gray.shape:
+            for identity, box in boxes.items():
+                points = self.points.get(identity)
+                if points is None or len(points) < 6:
+                    continue
+                forward, status, error = cv2.calcOpticalFlowPyrLK(
+                    self.gray, gray, points, None, winSize=(15, 15), maxLevel=2
+                )
+                if forward is None or status is None or error is None:
+                    continue
+                backward, reverse, _ = cv2.calcOpticalFlowPyrLK(
+                    gray, self.gray, forward, None, winSize=(15, 15), maxLevel=2
+                )
+                if backward is None or reverse is None:
+                    continue
+                good = (
+                    status.ravel().astype(bool)
+                    & reverse.ravel().astype(bool)
+                    & (np.linalg.norm(points - backward, axis=2).ravel() <= 1.0)
+                    & (error.ravel() <= 12)
+                )
+                source, destination = points[good, 0], forward[good, 0]
+                fitted = (
+                    self._fit(source, destination, box, gray.shape)
+                    if good.sum() >= max(6, 0.6 * len(points))
+                    else None
+                )
+                if fitted is not None:
+                    verified[identity], retained[identity], transform = fitted
+                    if identity in self.geometry:
+                        geometry[identity] = (
+                            self.geometry[identity] @ transform[:, :2].T + transform[:, 2]
+                        )
+                elif len(source) >= 4:
+                    # This route may match a fresh, closely aligned detection only.
+                    # Strong texture agreement replaces the survivor ratio; it never
+                    # permits retaining a face when its real landmark fit is missing.
+                    textured = self._matching_texture(self.gray, gray, source, destination)
+                    fitted = self._fit(
+                        source[textured], destination[textured], box, gray.shape, minimum=4
+                    )
+                    if fitted is not None:
+                        predicted, matched_points, transform = fitted
+                        anchors = self.geometry.get(identity)
+                        self.fresh[identity] = (
+                            predicted,
+                            matched_points,
+                            anchors @ transform[:, :2].T + transform[:, 2]
+                            if anchors is not None
+                            else None,
+                        )
+        self.gray = gray
+        self.points = retained
+        self.geometry = geometry
+        return verified
+
+    def observe(self, identity: str, box: Box, anchors: np.ndarray | None = None) -> None:
+        """Refresh features only from a fresh face detection, never a missing fit."""
+        if self.gray is None:
+            return
+        if anchors is not None:
+            self.geometry[identity] = anchors.copy()
+        height, width = self.gray.shape
+        x, y, w, h = box
+        # Follow the inner upper face; speaking mouth motion must not guide identity.
+        # Balance the samples across that region. A global corner limit starves
+        # small/blurred faces of nose-area evidence while oversampling the eyes.
+        samples = []
+        for left, right in [(0.1, 0.5), (0.5, 0.9)]:
+            for top, bottom in [(0.1, 0.375), (0.375, 0.65)]:
+                mask = np.zeros_like(self.gray)
+                mask[
+                    round((y + top * h) * height) : round((y + bottom * h) * height),
+                    round((x + left * w) * width) : round((x + right * w) * width),
+                ] = 255
+                points = cv2.goodFeaturesToTrack(
+                    self.gray, 10, 0.02, max(1, min(w * width, h * height) / 20), mask=mask
+                )
+                if points is not None:
+                    samples.append(points)
+        if samples and sum(len(points) for points in samples) >= 6:
+            self.points[identity] = np.concatenate(samples)
+        else:
+            self.points.pop(identity, None)
 
 
 def validate_region(region: Box) -> None:

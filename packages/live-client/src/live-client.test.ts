@@ -49,6 +49,17 @@ describe("floatToLinear16 / Chunker", () => {
 });
 
 describe("PlaybackScheduler", () => {
+  it("never schedules the same source samples twice within a generation", () => {
+    const scheduler = new PlaybackScheduler({ initialDelay: 0.4 });
+    scheduler.schedule(1, 1000, 3200, 10);
+    expect(scheduler.schedule(1, 1000, 3200, 10.1)).toBeNull();
+    expect(scheduler.schedule(1, 0, 1000, 10.1)).toBeNull();
+    const next = scheduler.schedule(1, 4000, 3200, 10.1)!;
+    expect(next.when).toBeCloseTo(10.6);
+    expect(next.offsetSamples).toBe(200);
+    expect(scheduler.schedule(1, 7200, 3200, 10.2)!.when).toBeCloseTo(10.7875);
+  });
+
   it("keeps source spacing, grows the delay on underrun, and drops older generations", () => {
     const s = new PlaybackScheduler({ initialDelay: 0.4, underrunPadding: 0.1 });
     const a = s.schedule(1, 0, 3200, 10)!;
@@ -126,7 +137,7 @@ describe("LookToHearController", () => {
     const pcm = binary.map(header).filter((h) => h.kind === 1);
     expect(pcm).toEqual([{ kind: 1, generation: 1, sample: 3200 }]); // 1800 samples wait in the chunker
     c.pushFrame(new Uint8Array([2]));
-    expect(header(binary.at(-1)!)).toEqual({ kind: 2, generation: 1, sample: 6400 });
+    expect(header(binary.at(-1)!)).toEqual({ kind: 2, generation: 1, sample: 8200 });
 
     const stopping = c.stop();
     expect(sent.at(-1)).toEqual({ type: "end", source_end_sample: 6400 });

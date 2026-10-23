@@ -3,14 +3,20 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 3001",
-    "build": "next build",
+    "dev": "bun run prepare:vision && bun run prepare:voice && bun scripts/run-with-vision.ts dev",
+    "dev:tracking": "SIGHTLINE_LOCAL_VISION=1 bun run dev",
+    "build": "bun run prepare:vision && bun run prepare:voice && next build --webpack",
     "check-types": "tsc --noEmit",
-    "start": "next start",
+    "start": "bun scripts/run-with-vision.ts start",
+    "start:tracking": "SIGHTLINE_LOCAL_VISION=1 bun run start",
     "env:generate": "varlock codegen",
-    "test": "bun test src"
+    "test": "bun test src",
+    "prepare:vision": "bun scripts/prepare-vision.ts",
+    "prepare:voice": "bun scripts/prepare-voice.ts"
   },
   "dependencies": {
+    "@lichess-org/vosk-browser": "0.0.3",
+    "@mediapipe/tasks-vision": "0.10.32",
     "@sightline/contracts": "workspace:*",
     "@sightline/live-client": "workspace:*",
     "@sightline/ui": "workspace:*",
@@ -18,11 +24,13 @@
     "@tanstack/react-form": "^1.33.5",
     "@tanstack/react-query": "^5.104.5",
     "@tanstack/react-query-devtools": "^5.104.5",
+    "@techstark/opencv-js": "4.12.0-release.1",
     "@varlock/nextjs-integration": "1.2.2",
     "babel-plugin-react-compiler": "^1.0.0",
     "better-auth": "catalog:",
     "katex": "^0.19.0",
     "lucide-react": "catalog:",
+    "mqtt": "5.14.1",
     "next": "^16.3.4",
     "next-themes": "catalog:",
     "react": "catalog:",
@@ -32,6 +40,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@happy-dom/global-registrator": "20.14.5",
     "@sightline/config": "workspace:*",
     "@tailwindcss/postcss": "catalog:",
     "@types/katex": "^0.16.8",

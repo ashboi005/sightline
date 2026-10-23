@@ -50,7 +50,7 @@
     "mock:sign": "bun run --filter @sightline/mocks sign",
     "mock:validate": "bun run --filter @sightline/mocks validate",
     "contracts:json-schema": "bun run --filter @sightline/contracts json-schema",
-    "speaker:setup": "cd apps/speaker-service && uv sync --frozen && uv run python -m sightline_speaker.assets --dir data/assets",
+    "speaker:setup": "cd apps/speaker-service && uv sync --frozen && uv run python -m sightline_speaker.assets",
     "speaker:dev": "cd apps/speaker-service && uv run sightline-speaker --device auto",
     "speaker:test": "cd apps/speaker-service && uv run pytest -q",
     "mock:speaker": "bun run --filter @sightline/mocks speaker",
@@ -58,7 +58,15 @@
     "gaze:test": "cd apps/gaze-bridge && uv run pytest -q",
     "mobile:apk": "cd apps/mobile && ./scripts/android.sh :app:assembleDebug",
     "mobile:install": "cd apps/mobile && ./scripts/android.sh :app:installDebug",
-    "mobile:check": "cd apps/mobile && ./scripts/android.sh :app:testDebugUnitTest :app:lintDebug"
+    "mobile:check": "cd apps/mobile && ./scripts/android.sh :app:testDebugUnitTest :app:lintDebug",
+    "sign:setup": "bun scripts/sign-service.ts setup",
+    "sign:dev": "bun scripts/sign-service.ts dev",
+    "sign:test": "bun scripts/sign-service.ts test",
+    "sign:verify": "bun scripts/sign-service.ts verify",
+    "sign:camera": "bun scripts/sign-service.ts camera",
+    "sign:eval": "bun scripts/sign-service.ts eval",
+    "sign:check-compose": "bun scripts/check-sign-compose.ts",
+    "sign:tunnel": "bun --env-file=.env.local scripts/sign-tunnel.ts"
   },
   "dependencies": {
     "zod": "catalog:"
@@ -70,7 +78,8 @@
     "varlock": "catalog:"
   },
   "overrides": {
-    "@next/env": "npm:@varlock/nextjs-integration@1.2.2"
+    "@next/env": "npm:@varlock/nextjs-integration@1.2.2",
+    "uuid": "11.1.1"
   },
   "packageManager": "bun@1.4.4"
 }

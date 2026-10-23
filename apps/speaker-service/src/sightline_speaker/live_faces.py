@@ -9,6 +9,7 @@ from PIL import Image
 
 from .faces import (
     FaceAssociator,
+    FaceFlow,
     FaceObservation,
     FaceTrack,
     associate_boxes,
@@ -53,8 +54,10 @@ class LiveFaces:
     def __init__(self):
         self.detector = None
         self.associator = FaceAssociator()
+        self.flow = FaceFlow()
         self.tracks: dict[str, FaceTrack] = {}
         self.last_detection = -1.0
+        self.last_frame = -1.0
         self.region = None
 
     def correct(self, region):
@@ -62,8 +65,10 @@ class LiveFaces:
             validate_region(region)
         self.region = region
         self.associator = FaceAssociator()
+        self.flow = FaceFlow()
         self.tracks.clear()
         self.last_detection = -1.0
+        self.last_frame = -1.0
 
     def initialize(self):
         import mediapipe as mp
@@ -79,30 +84,89 @@ class LiveFaces:
             self.detector = mp.tasks.vision.FaceLandmarker.create_from_options(options)
 
     def detect(self, image: np.ndarray, timestamp: float, retain_from: float | None = None):
-        if timestamp - self.last_detection < 0.18:
+        if timestamp <= self.last_frame:
+            return
+        self.last_frame = timestamp
+        previous = {
+            key: value[0]
+            for key, value in self.associator.last_seen.items()
+            if 0 <= timestamp - value[1] <= self.associator.max_gap
+        }
+        verified = self.flow.update(image, previous)
+        consecutive = {
+            key: evidence[0]
+            for key, evidence in self.flow.fresh.items()
+            if key in self.tracks
+            and self.tracks[key].observations[-1].timestamp == self.last_detection
+            and timestamp - self.last_detection <= 0.25
+        }
+        if timestamp - self.last_detection < 0.18 and not consecutive:
+            # Accumulate each camera-frame transform without advancing the real
+            # face/mouth detection deadline or fabricating landmark observations.
+            self.associator.last_seen = {
+                key: (box, self.associator.last_seen[key][1]) for key, box in verified.items()
+            }
+            self.tracks = {key: track for key, track in self.tracks.items() if key in verified}
             return
         self.initialize()
+
+        def supports(identity, box):
+            observation = next(item for item in observations if item.box == box)
+            return self.flow.supports(
+                identity, box, fresh=identity in consecutive, anchors=observation.anchors
+            )
+
         observations = self._observe(image, timestamp, self.region)
         if self.region is None:
-            previous = {key: track.observations[-1].box for key, track in self.tracks.items()}
-            matched = associate_boxes(previous, [item.box for item in observations])
-            for identity, track in self.tracks.items():
-                last = track.observations[-1]
-                if identity in matched or timestamp - last.timestamp > 0.35:
+            candidates = {**verified, **consecutive}
+            matched = associate_boxes(
+                candidates, [item.box for item in observations], supports=supports
+            )
+            for identity in self.tracks:
+                if identity not in candidates or identity in matched:
                     continue
-                if any(box_iou(last.box, item.box) >= 0.35 for item in observations):
+                box = candidates[identity]
+                overlapping = [item for item in observations if box_iou(box, item.box) >= 0.35]
+                if overlapping and (
+                    identity not in consecutive
+                    or any(supports(identity, item.box) for item in overlapping)
+                ):
                     continue
-                x, y, w, h = last.box
+                x, y, w, h = box
                 left = max(0, x - 0.6 * w)
                 top = max(0, y - 0.6 * h)
                 region = (left, top, min(1, x + 1.6 * w) - left, min(1, y + 1.6 * h) - top)
                 recovered = self._observe(image, timestamp, region)
-                if len(recovered) == 1 and box_iou(last.box, recovered[0].box) >= 0.35:
+                if len(recovered) == 1 and box_iou(box, recovered[0].box) >= 0.35:
+                    if not self.flow.supports(
+                        identity,
+                        recovered[0].box,
+                        fresh=identity in consecutive,
+                        anchors=recovered[0].anchors,
+                    ):
+                        continue
+                    # A supported crop replaces a rejected scene fit of the same
+                    # face. Preserve other faces with independent continuity.
+                    rejected = {
+                        id(item)
+                        for item in overlapping
+                        if not any(
+                            other != identity and supports(other, item.box) for other in candidates
+                        )
+                    }
+                    observations = [item for item in observations if id(item) not in rejected]
                     observations += recovered
         elif len(observations) > 1:
             raise ValueError("Correct a region containing exactly one face")
-        identities = self.associator.update([o.box for o in observations], timestamp)
+        identities = self.associator.update(
+            [o.box for o in observations],
+            timestamp,
+            verified=verified,
+            consecutive=consecutive,
+            supports=supports,
+        )
         for identity, observation in zip(identities, observations, strict=True):
+            self.flow.observe(identity, observation.box, observation.anchors)
             track = self.tracks.setdefault(
                 identity, FaceTrack(identity, manual=self.region is not None)
             )
@@ -115,9 +179,10 @@ class LiveFaces:
         if retain_from is not None:
             oldest = min(oldest, retain_from - 0.35)
         for track in self.tracks.values():
-            # Covers the bounded 4 MiB source queue (65.5 s), plus context, at >=180 ms/fit.
+            # Covers the 4 MiB audio queue (65.5 s), plus context, even when fresh
+            # evidence requires landmark fits at the supported 25 camera fps.
             track.observations = list(
-                deque((o for o in track.observations if o.timestamp >= oldest), maxlen=384)
+                deque((o for o in track.observations if o.timestamp >= oldest), maxlen=2048)
             )
 
     def _observe(self, image, timestamp, region):
@@ -165,3 +230,4 @@ class LiveFaces:
         if self.detector:
             self.detector.close()
             self.detector = None
+        self.flow = FaceFlow()

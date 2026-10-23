@@ -10,7 +10,7 @@ import {
   connectSpeakerService,
   type TypedSocket,
 } from "@sightline/contracts/client";
-import type { GazeZone, SessionClientMessage, SessionServerMessage, SnapshotTrigger } from "@sightline/contracts";
+import type { GazeZone, SceneGazeSample, SessionClientMessage, SessionServerMessage, SnapshotTrigger } from "@sightline/contracts";
 
 import { LookToHearController, type LookToHearState } from "./look-to-hear-controller";
 import { Chunker, floatToLinear16, StreamingResampler, TARGET_RATE } from "./pcm";
@@ -113,31 +113,86 @@ export function streamMicToSession(socket: TypedSocket<SessionClientMessage>, mi
 // Scene frames: <video> (scene camera / ESP32 stream / file) → JPEG bytes
 // ---------------------------------------------------------------------------
 
+export type SceneFrameCapture = {
+  key: string;
+  image: CanvasImageSource;
+  width: number;
+  height: number;
+  /** Original decoded-frame time, performance.now() milliseconds. */
+  capturedAt: number;
+};
+
 export function startFrameGrabber(
   video: HTMLVideoElement,
-  onFrame: (jpeg: Uint8Array) => void,
-  options: { fps?: number; maxWidth?: number; quality?: number } = {},
+  onFrame: (jpeg: Uint8Array, capturedAt: number) => void,
+  options: {
+    fps?: number;
+    maxWidth?: number;
+    maxHeight?: number;
+    quality?: number;
+    readFrame?: () => SceneFrameCapture | null;
+  } = {},
 ) {
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d")!;
   let busy = false;
-  const timer = setInterval(() => {
-    if (busy || video.readyState < 2 || !video.videoWidth) return;
-    const scale = Math.min(1, (options.maxWidth ?? 640) / video.videoWidth);
-    canvas.width = Math.round(video.videoWidth * scale);
-    canvas.height = Math.round(video.videoHeight * scale);
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    busy = true;
-    canvas.toBlob(
-      async (blob) => {
-        busy = false;
-        if (blob) onFrame(new Uint8Array(await blob.arrayBuffer()));
-      },
-      "image/jpeg",
-      options.quality ?? 0.7,
-    );
-  }, 1000 / (options.fps ?? 15));
-  return { stop: () => clearInterval(timer) };
+  let stopped = false;
+  let lastKey: string | null = null;
+  const timer = setInterval(
+    () => {
+      if (stopped || busy) return;
+      const frame = options.readFrame
+        ? options.readFrame()
+        : video.readyState >= 2 && video.videoWidth
+          ? {
+              key: String(video.currentTime),
+              image: video,
+              width: video.videoWidth,
+              height: video.videoHeight,
+              capturedAt: performance.now(),
+            }
+          : null;
+      if (
+        !frame ||
+        frame.key === lastKey ||
+        performance.now() - frame.capturedAt > 1000 ||
+        !Number.isFinite(frame.capturedAt) ||
+        frame.capturedAt > performance.now()
+      )
+        return;
+      const scale = Math.min(
+        1,
+        (options.maxWidth ?? 640) / frame.width,
+        (options.maxHeight ?? 480) / frame.height,
+      );
+      canvas.width = Math.round(frame.width * scale);
+      canvas.height = Math.round(frame.height * scale);
+      ctx.drawImage(frame.image, 0, 0, canvas.width, canvas.height);
+      lastKey = frame.key;
+      busy = true;
+      canvas.toBlob(
+        async (blob) => {
+          try {
+            if (blob && !stopped) {
+              const bytes = new Uint8Array(await blob.arrayBuffer());
+              if (!stopped) onFrame(bytes, frame.capturedAt);
+            }
+          } finally {
+            busy = false;
+          }
+        },
+        "image/jpeg",
+        options.quality ?? 0.7,
+      );
+    },
+    1000 / (options.fps ?? 25),
+  );
+  return {
+    stop: () => {
+      stopped = true;
+      clearInterval(timer);
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -148,12 +203,17 @@ export class FocusedAudioPlayer {
   private readonly scheduler: PlaybackScheduler;
   private readonly gain: GainNode;
   private sources: AudioBufferSourceNode[] = [];
+  private minimumGeneration = 0;
+  private stopped = false;
+  private routing = false;
 
   constructor(
     private readonly context: AudioContext,
-    options: { initialDelay?: number; sinkId?: string } = {},
+    options: { initialDelay?: number } = {},
   ) {
-    this.scheduler = new PlaybackScheduler({ initialDelay: options.initialDelay ?? 0.4 });
+    this.scheduler = new PlaybackScheduler({
+      initialDelay: options.initialDelay ?? 0.4,
+    });
     this.gain = context.createGain();
     this.gain.connect(context.destination);
   }
@@ -164,25 +224,58 @@ export class FocusedAudioPlayer {
   }
 
   play(pcm: Float32Array, startSample: number, generation: number) {
-    if (generation > this.scheduler.currentGeneration) this.fadeOutCurrent();
-    const slot = this.scheduler.schedule(generation, startSample, pcm.length, this.context.currentTime);
+    if (this.stopped || this.routing || generation < this.minimumGeneration)
+      return;
+    if (generation > this.scheduler.currentGeneration) this.reset(generation);
+    const slot = this.scheduler.schedule(
+      generation,
+      startSample,
+      pcm.length,
+      this.context.currentTime,
+    );
     if (!slot) return;
-    const buffer = this.context.createBuffer(1, pcm.length, TARGET_RATE);
-    buffer.copyToChannel(pcm as Float32Array<ArrayBuffer>, 0);
+    const fresh = pcm.subarray(slot.offsetSamples);
+    const buffer = this.context.createBuffer(1, fresh.length, TARGET_RATE);
+    buffer.copyToChannel(fresh as Float32Array<ArrayBuffer>, 0);
     const node = this.context.createBufferSource();
     node.buffer = buffer;
     node.connect(this.gain);
     node.start(slot.when);
-    node.onended = () => (this.sources = this.sources.filter((s) => s !== node));
+    node.onended = () =>
+      (this.sources = this.sources.filter((s) => s !== node));
     this.sources.push(node);
   }
 
-  /** Short fade on target switch so it never clicks. */
+  /** Use the requested output, or reject explicitly; never silently substitute another speaker. */
+  async setOutputDevice(deviceId: string) {
+    this.reset(this.minimumGeneration);
+    this.routing = true;
+    try {
+      const context = this.context as AudioContext & {
+        setSinkId?: (id: string) => Promise<void>;
+      };
+      if (context.setSinkId) await context.setSinkId(deviceId);
+      else if (deviceId && deviceId !== "default")
+        throw new Error(
+          "This browser cannot select an audio output. Use a browser with speaker selection or choose the system default.",
+        );
+    } finally {
+      this.routing = false;
+    }
+  }
+
+  reset(generation: number) {
+    this.minimumGeneration = generation;
+    this.fadeOutCurrent();
+    this.scheduler.reset();
+  }
+
+  /** Stop queued speech immediately; fade in the next target to avoid a click. */
   private fadeOutCurrent() {
     const now = this.context.currentTime;
     for (const s of this.sources) {
       try {
-        s.stop(now + 0.03);
+        s.stop(now);
       } catch {
         /* already stopped */
       }
@@ -194,6 +287,7 @@ export class FocusedAudioPlayer {
   }
 
   stop() {
+    this.stopped = true;
     this.fadeOutCurrent();
     this.gain.disconnect();
   }
@@ -207,49 +301,159 @@ export async function startLookToHear(options: {
   mic: MicCapture;
   sceneVideo: HTMLVideoElement;
   speakerUrl: string;
-  gazeBridgeUrl: string;
+  gazeBridgeUrl?: string;
+  selectionMode?: "dwell" | "confirmed";
+  outputDeviceId?: string;
+  readFrame?: () => SceneFrameCapture | null;
+  /** Cancels pending audio initialization before the session is returned. */
+  signal?: AbortSignal;
   source?: "camera" | "network" | "replay";
   /** Manual A/V alignment offset from the UI's clap test (ms). */
   videoOffsetMs?: number;
   onState?: (state: LookToHearState & { playbackDelay: number }) => void;
 }) {
-  const player = new FocusedAudioPlayer(options.mic.context);
-  let controller: LookToHearController;
-  const speaker = connectSpeakerService(
-    options.speakerUrl,
-    { source: options.source ?? "camera", videoOffsetMs: options.videoOffsetMs ?? 0 },
-    { onMessage: (m) => controller.onSpeakerMessage(m) },
-  );
-  controller = new LookToHearController({
-    send: (c) => speaker.send(c),
-    sendBinary: (p) => speaker.sendBinary(p),
-    onAudio: (pcm, start, generation) => player.play(pcm, start, generation),
-    onState: (s) => options.onState?.({ ...s, playbackDelay: player.delay }),
+  options.signal?.throwIfAborted();
+  if (options.mic.context.state === "closed")
+    throw new Error(
+      "The microphone disconnected. Reconnect it before starting voice focus.",
+    );
+  // Playback owns its output/context. Changing speakers never reroutes the shared caption microphone.
+  const output = new AudioContext();
+  const player = new FocusedAudioPlayer(output);
+  let rejectStartup!: (reason: unknown) => void;
+  const cancelled = new Promise<never>((_, reject) => {
+    rejectStartup = reject;
   });
-
-  const gaze = connectGazeBridge(options.gazeBridgeUrl, {
-    onMessage: (m) => {
-      if (m.type === "gaze.scene") controller.onGaze(m);
+  const abort = () =>
+    rejectStartup(
+      options.signal?.reason ??
+        new DOMException("Voice focus stopped", "AbortError"),
+    );
+  options.signal?.addEventListener("abort", abort, { once: true });
+  try {
+    await Promise.race([
+      cancelled,
+      (async () => {
+        if (options.mic.context.state !== "running")
+          await options.mic.context.resume();
+        options.signal?.throwIfAborted();
+        await output.resume();
+        options.signal?.throwIfAborted();
+        await player.setOutputDevice(options.outputDeviceId ?? "");
+        options.signal?.throwIfAborted();
+      })(),
+    ]);
+  } catch (error) {
+    player.stop();
+    await output.close();
+    throw error;
+  } finally {
+    options.signal?.removeEventListener("abort", abort);
+  }
+  let stopped = false;
+  let minimumFrameTime = -Infinity;
+  let speaker: ReturnType<typeof connectSpeakerService> | null = null;
+  let gaze: ReturnType<typeof connectGazeBridge> | null = null;
+  let unsubscribeMic = () => {};
+  let frames: ReturnType<typeof startFrameGrabber> | null = null;
+  let heartbeat: ReturnType<typeof setInterval> | undefined;
+  let freshness: ReturnType<typeof setInterval> | undefined;
+  const controller = new LookToHearController({
+    send: (c) => speaker?.send(c),
+    sendBinary: (p) => speaker?.sendBinary(p),
+    onAudio: (pcm, start, generation) => {
+      if (!stopped) player.play(pcm, start, generation);
     },
+    onResetAudio: (generation) => {
+      player.reset(generation);
+    },
+    onState: (s) => {
+      if (!stopped) options.onState?.({ ...s, playbackDelay: player.delay });
+    },
+    selectionMode: options.selectionMode,
+    videoOffsetMs: options.videoOffsetMs,
   });
-  const unsubscribeMic = options.mic.subscribe((s) => controller.pushMic(s));
-  const frames = startFrameGrabber(options.sceneVideo, (jpeg) => controller.pushFrame(jpeg));
-  const heartbeat = setInterval(() => controller.heartbeat(), 2000);
-
-  return {
-    controller,
-    /** Click-to-select a face (or null to stop listening). */
-    select: (targetId: string | null) => controller.selectTarget(targetId),
-    async stop() {
-      clearInterval(heartbeat);
-      frames.stop();
-      unsubscribeMic();
-      gaze.close();
-      await controller.stop(); // lets the last focused audio drain and play
-      speaker.close();
-      player.stop();
-    },
+  const stop = async () => {
+    if (stopped) return;
+    stopped = true;
+    player.stop();
+    clearInterval(heartbeat);
+    clearInterval(freshness);
+    frames?.stop();
+    unsubscribeMic();
+    gaze?.close();
+    try {
+      await controller.stop(0);
+    } finally {
+      speaker?.close();
+      await output.close();
+    }
   };
+  try {
+    speaker = connectSpeakerService(
+      options.speakerUrl,
+      {
+        source: options.source ?? "camera",
+        videoOffsetMs: options.videoOffsetMs ?? 0,
+      },
+      {
+        onMessage: (m) => {
+          if (!stopped) controller.onSpeakerMessage(m);
+        },
+        onStatus: (status) => {
+          if (!stopped && status !== "OPEN") {
+            minimumFrameTime = performance.now();
+            controller.onDisconnected();
+          }
+        },
+      },
+    );
+
+    gaze = options.gazeBridgeUrl
+      ? connectGazeBridge(options.gazeBridgeUrl, {
+          onMessage: (m) => {
+            if (m.type === "gaze.scene") controller.onGaze(m);
+          },
+        })
+      : null;
+    unsubscribeMic = options.mic.subscribe((s) => controller.pushMic(s));
+    frames = startFrameGrabber(
+      options.sceneVideo,
+      (jpeg, capturedAt) => {
+        const age = performance.now() - capturedAt;
+        if (stopped || capturedAt < minimumFrameTime || age > 1000) return;
+        const sample = controller.sourceSampleAt(capturedAt / 1000);
+        if (sample !== null && sample >= 0)
+          controller.pushFrame(jpeg, sample, capturedAt / 1000);
+      },
+      { readFrame: options.readFrame },
+    );
+    heartbeat = setInterval(() => controller.heartbeat(), 2000);
+    freshness = setInterval(() => controller.checkFreshness(), 100);
+
+    return {
+      controller,
+      /** Click-to-select a face (or null to stop listening). */
+      select: (targetId: string | null) => controller.selectTarget(targetId),
+      selectAtGaze: (gaze: SceneGazeSample | null, now?: number) =>
+        controller.selectAtGaze(gaze, now),
+      async setOutputDevice(deviceId: string) {
+        try {
+          await player.setOutputDevice(deviceId);
+        } catch (error) {
+          controller.fail(
+            error instanceof Error ? error.message : "Audio output failed.",
+          );
+          await stop();
+          throw error;
+        }
+      },
+      stop,
+    };
+  } catch (error) {
+    await stop();
+    throw error;
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -10,6 +10,7 @@ import { useState } from "react";
 
 import { ClayCard, InlineAlert, PageHeader, SectionTitle, StatusPill } from "@/components/clay/clay";
 import { DeleteLectureButton } from "@/components/dashboard/delete-lecture-button";
+import { MicrophoneInput } from "@/components/lecture/live/microphone-input";
 import { useUpdateSession } from "@/hooks/use-sessions";
 import { errorMessage } from "@/lib/api";
 import { useLiveLecture } from "@/providers/live-lecture-provider";
@@ -55,10 +56,11 @@ export function LecturePrep({ session }: { session: Session }) {
   const router = useRouter();
   const lecture = useLiveLecture();
   const update = useUpdateSession(session.id);
-  const [capture, setCapture] = useState<CaptureChoice>({ record: null, sceneCamera: false });
+  const [capture, setCapture] = useState<CaptureChoice>({ sceneCamera: false, record: false, webcam: false });
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const otherLive = lecture.activeId && lecture.activeId !== session.id;
+  const needsMicrophone = lecture.needsMicForCaptions || session.mode === "HARD_OF_HEARING";
 
   const start = async () => {
     if (starting) return;
@@ -99,6 +101,7 @@ export function LecturePrep({ session }: { session: Session }) {
             </div>
           </ClayCard>
           <CaptureCard value={capture} onChange={setCapture} hardOfHearing={session.mode === "HARD_OF_HEARING"} />
+          <ClayCard className="p-5"><MicrophoneInput /></ClayCard>
         </div>
 
         <div className="space-y-4 lg:sticky lg:top-6 lg:self-start">
@@ -106,13 +109,14 @@ export function LecturePrep({ session }: { session: Session }) {
           <ClayCard tone="marigold" className="p-5">
             <p className="font-bold">Start when the teacher starts</p>
             <p className="mt-1 text-sm opacity-80">
-              {capture.record ? "Recording starts with the lecture." : "No recording."}{" "}
-              {capture.sceneCamera || capture.record === "SCENE_CAMERA" ? "Scene camera on." : ""}
+              {capture.record ? "Recording the scene camera from the start." : capture.sceneCamera ? "Scene camera on, no recording." : "No recording."}{" "}
+              {capture.webcam ? "The webcam follows where you look." : ""}
             </p>
-            <Button variant="clay-soft" size="lg" className="mt-4 w-full" onClick={start} disabled={starting || Boolean(otherLive)}>
+            <Button variant="clay-soft" size="lg" className="mt-4 w-full" onClick={start} disabled={starting || Boolean(otherLive) || (needsMicrophone && !lecture.mic.deviceId)}>
               {starting ? <LoaderCircle className="animate-spin motion-reduce:animate-none" /> : <Play />}
               {starting ? "Starting the lecture" : "Start lecture"}
             </Button>
+            {needsMicrophone && !lecture.mic.deviceId && <p className="mt-2 text-sm">Choose a microphone input before starting.</p>}
           </ClayCard>
           {otherLive && <InlineAlert>Another lecture is still live. End it before starting this one.</InlineAlert>}
           {error && <InlineAlert>{error}</InlineAlert>}

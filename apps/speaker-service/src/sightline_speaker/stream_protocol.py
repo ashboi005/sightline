@@ -81,9 +81,16 @@ class InputCapacityError(ValueError):
 
 class LiveBuffer:
     def __init__(
-        self, profile: StreamProfile, max_pcm_bytes=4 * 1024**2, max_frame_bytes=128 * 1024**2
+        self,
+        profile: StreamProfile,
+        max_pcm_bytes=4 * 1024**2,
+        max_frame_bytes=128 * 1024**2,
+        video_lag_samples=0,
     ):
+        if not 0 <= video_lag_samples <= 8000:
+            raise ValueError("Video lag must stay within the supported 500 ms offset")
         self.profile = profile
+        self.video_lag_samples = video_lag_samples
         self.max_pcm_bytes = max_pcm_bytes
         self.max_frame_bytes = max_frame_bytes
         self.reset()
@@ -146,8 +153,10 @@ class LiveBuffer:
             raise ValueError("Missing video; check camera/microphone synchronization")
         samples = np.array([item[0] for item in self.frames], dtype=np.int64)
         if not final and samples[-1] < end - 2400:
-            if self.next_audio and self.next_audio - samples[-1] > 4800:
-                raise ValueError("Audio/video gap exceeds 150 ms")
+            if self.next_audio and self.next_audio - samples[-1] > 4800 + self.video_lag_samples:
+                raise ValueError(
+                    "Audio/video gap exceeds the configured timing offset and grace period"
+                )
             return None
         indices = np.flatnonzero((samples >= start - 2400) & (samples <= end + 2400))
         chosen = samples[indices]

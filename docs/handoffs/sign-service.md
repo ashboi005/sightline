@@ -1,319 +1,43 @@
-# Sign Service Handover
+# Sign service handoff
 
-**Updated:** 2026-10-22
-**Repository:** Sightline
-**Current revision:** `38ca735 sign-service model inintial implementation`
-**Owner:** Harnoor / sign-service
+> Current runtime: one CPU A–Z landmark classifier, movement suppression and a one-second letter hold. Legacy CNN/word-model code and CUDA dependencies are removed. Previous four-frame video results below are historical: the current priority-video reevaluation returns K and fails. See the [fresh setup and testing guide](../../apps/sign-service/README.md).
 
-## Goal
 
-Deliver a real-time sign service at `ws://localhost:7788/ws` that follows the
-Sightline sign-service contract and recognizes live signing without a
-project-specific training dataset or prototype calibration.
+Updated 2026-10-23. Original implementation: `38ca735`; original handoff: `8e416a0`.
+Owner: Harnoor. Runtime: `apps/sign-service`. Authoritative protocol: `packages/contracts/src/protocols/sign-service.ts` and generated JSON Schemas.
 
-The active recognition design is a two-model pretrained pipeline:
+## Completion follow-up
 
-```text
-MediaPipe Hands
-  ├── isolated hand crop → Hugging Face A-Z alphabet model
-  └── rolling 16-frame video window → Hugging Face WLASL VideoMAE model
-```
+The original handoff implemented a model-only pretrained alphabet/WLASL pipeline but left accuracy, performance and fresh-machine verification open. The completion work fixes malformed-command crashes, per-client state isolation, blocking reset behavior, lost repeated letters, status throttling, stale/cached inference evidence, optimistic readiness and browser reconnect/deduplication.
 
-Stable alphabet predictions are assembled into arbitrary fingerspelled glosses.
-There is no special handling for `KCL`, `RIA`, `OHM`, or any other acronym.
+The active design shares weights only, gives each connection its own tracker/history, and serializes GPU inference through a bounded latest-input scheduler. Tracking does not wait for inference. Four fresh stable observations commit a token; generic letters assemble without acronym maps. Model confidence is not renormalized over the small demo vocabulary. Unsupported/ambiguous predictions abstain.
 
-The service must preserve these protocol outputs:
+## Reproducible setup
 
-- `service.ready`
-- `hands.status`
-- `sign.partial`
-- `sign.token`
-- `phrase.end`
-- `error`
-
-## Current state
-
-### Implemented
-
-- WebSocket server at `ws://localhost:7788/ws`.
-- `SELF` and `PEER` stream support.
-- Stale-frame dropping and concurrent-processing protection.
-- Hands status throttling.
-- Stable token commitment and hands-down phrase detection.
-- Standalone OpenCV webcam client:
-  - `python -m sign_service.camera_client`
-  - `sign-service-camera`
-- MediaPipe hand landmark boxes and skeleton overlay in the camera viewer.
-- Hugging Face A-Z image classifier.
-- Hugging Face WLASL dynamic video classifier.
-- Generic spelling aggregation:
-  - `K`, `C`, `L` → `KCL`
-  - `R`, `I`, `A` → `RIA`
-  - arbitrary words are handled the same way.
-- Legacy prototype recording/reset utilities removed from the active code path.
-- Legacy landmark BiLSTM/checkpoint recognition removed from the active code path.
-- Geometric hand-shape, finger-count, acronym, and motion-to-word fallbacks
-  removed from the active code path.
-
-### Active Hugging Face models
-
-```text
-SIGN_IMAGE_MODEL_ID=prithivMLmods/Alphabet-Sign-Language-Detection
-SIGN_VIDEO_MODEL_ID=Shawon16/VideoMAE_WLASL_2000_200_epochs_p20_SR_8_kinetics
-```
-
-The image model exposes 26 alphabet labels. The WLASL model exposes 2000
-dynamic-sign labels. WLASL outputs are filtered against the Sightline
-vocabulary before being emitted as gloss tokens.
-
-### GPU verification already completed
-
-The current local virtual environment was upgraded from CPU-only PyTorch to:
-
-```text
-torch 2.11.0+cu128
-CUDA build 12.8
-cuda_available True
-NVIDIA GeForce RTX 5060 Laptop GPU
-compute capability (12, 0)
-```
-
-`nvidia-smi` reports an RTX 5060 Laptop GPU with approximately 8 GB VRAM and a
-CUDA 13.1-capable driver.
-
-The two pretrained models loaded successfully on CUDA:
-
-```text
-[sign-model] device=cuda amp=True image_labels=26 video_labels=2000
-```
-
-The model-only synthetic inference smoke test reported approximately:
-
-```text
-alphabet inference: 1463 ms
-video inference:     235 ms
-GPU allocated:       698 MB
-GPU peak:            744 MB
-```
-
-The synthetic image was blank, so those predictions are not an accuracy
-measurement. A real-camera accuracy evaluation is still required.
-
-## Important files
-
-### Runtime
-
-- `apps/sign-service/sign_service/server.py`
-  - WebSocket protocol and phrase state machine.
-- `apps/sign-service/sign_service/recognizer.py`
-  - Per-stream prediction smoothing and frame result adapter.
-- `apps/sign-service/sign_service/hf_pipeline.py`
-  - Hugging Face model loading, MediaPipe crops, GPU device selection,
-    FP16 autocast, A-Z inference, WLASL inference, and diagnostics.
-- `apps/sign-service/sign_service/model.py`
-  - MediaPipe Hands extraction, normalization, preview drawing, and shared
-    vocabulary/prediction types.
-- `apps/sign-service/sign_service/camera_client.py`
-  - Standalone webcam/WebSocket viewer.
-
-### Configuration and docs
-
-- `apps/sign-service/pyproject.toml`
-  - Python dependencies and console entry points.
-- `apps/sign-service/README.md`
-  - Local install, GPU setup, server startup, and camera-client instructions.
-- `packages/contracts/src/protocols/sign-service.ts`
-  - Protocol source of truth.
-- `docs/contracts/sign-service.md`
-  - Protocol contract and message examples.
-- `packages/mocks/fixtures/sign.phrases.json`
-  - Six demo phrases and required gloss vocabulary.
-
-### Tests
-
-- `apps/sign-service/tests/test_ws_protocol.py`
-  - Executable WebSocket contract test.
-
-The previous prototype recorder/reset files are intentionally no longer part of
-the model-only implementation.
-
-## Fresh-machine setup
-
-Do not rely on an existing Hugging Face cache. The next verification must use a
-fresh cache and download the models again.
-
-From `apps/sign-service`:
+Use Python 3.12, uv, the committed CUDA lockfile and Bun 1.4.4. No manual pip uninstall/reinstall sequence is needed.
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-
-python -m pip install --upgrade pip
-python -m pip install -e ".[test]"
-
-python -m pip uninstall -y torch torchvision torchaudio
-python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+bun run sign:setup
+bun run sign:verify --offline
+bun run sign:verify --offline
+bun run sign:test
+bun run sign:dev
+# Second terminal:
+bun run sign:camera
 ```
 
-Use a clean Hugging Face cache:
+A fresh-cache run must use an empty directory; for another cold run choose a new `--cache-dir`, then use that same directory for offline verification. Caches and reports are ignored local artifacts. Full details, revision IDs and configuration are in [service README](../../apps/sign-service/README.md).
 
-```powershell
-$env:HF_HOME = "$env:TEMP\sightline-hf-clean"
-$env:HF_HUB_CACHE = "$env:HF_HOME\hub"
-Remove-Item Env:HF_HUB_OFFLINE -ErrorAction SilentlyContinue
-```
+## Capability boundaries
 
-Verify CPU/GPU/runtime state before starting the server:
+The current alphabet checkpoint exposes A-Z. The video checkpoint exposes 2000 labels but only supported Sightline lexical labels are advertised/emitted. FORMULA and BOARD are not in its trained label map; spell unsupported words generically. Arbitrary names/acronyms are handled the same way as other spellings. Held letters do not repeat; release between consecutive identical letters.
 
-```powershell
-python -c "import torch; print(torch.__version__); print(torch.version.cuda); print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0)); print(torch.cuda.get_device_capability(0))"
-nvidia-smi
-```
+Retain automatic switching, no prototype calibration, no project-specific training, no handcrafted ASL/acronym mappings. A replacement pretrained model requires pinned revisions, verified processor/tensor/label compatibility and evidence supporting the change.
 
-Expected values include:
+## Evidence and remaining acceptance
 
-```text
-CUDA-enabled torch build
-True
-NVIDIA GeForce RTX 5060
-(12, 0)
-```
+The original RTX 5060 / 8 GB measurements are historical and are not evidence for this workstation, which has RTX 3050 / 4 GB. Blank-image execution and schema tests never establish real signing accuracy. Current verification results, architectural decisions and open acceptance items are recorded in [implementation record](../implementation/sign-service-plan.md).
 
-Start the service with CUDA required:
+Verification completed: 31 Python tests, browser lifecycle tests, all workspace type checks, fixture checks, real-service readiness/JPEG smoke and all six fixture-to-compose/audio sequences. Offline RTX 3050 execution used CUDA FP16; median alphabet/video/no-hands tracking times were 18.41/110.19/15.13 ms, peak PyTorch allocation 414.93 MiB. The full backend suite retains one independently reproduced baseline glossary fallback failure; real-provider smoke lacks credentials.
 
-```powershell
-$env:SIGN_MODEL_DEVICE = "cuda"
-$env:SIGN_REQUIRE_CUDA = "1"
-python -m sign_service.server
-```
-
-The first start downloads both models. Keep the terminal open until the server
-prints its listening message and model diagnostics. Later starts may use the
-cache; use `HF_HUB_OFFLINE=1` only after a successful fresh download/load.
-
-## Fresh model/API verification
-
-The next implementation pass must load the actual downloaded model configs and
-processors rather than assuming model-card behavior.
-
-Verify all of the following after a fresh download:
-
-1. `AutoImageProcessor` loads for the alphabet model.
-2. `AutoModelForImageClassification` loads for the alphabet model.
-3. The alphabet `id2label` contains exactly the expected A-Z labels.
-4. `AutoImageProcessor` loads for the WLASL model.
-5. `AutoModelForVideoClassification` loads for the WLASL model.
-6. The WLASL `id2label` map is present and deterministic.
-7. Both models are on `cuda:0`.
-8. Input tensors are on CUDA before inference.
-9. FP16 autocast is active.
-10. `nvidia-smi` shows the Python process using model VRAM during inference.
-
-If a fresh model exposes a different processor API, tensor shape, label map, or
-normalization configuration, adapt `hf_pipeline.py` to the downloaded model.
-Do not silently reuse the previous preprocessing assumptions.
-
-## How to run locally
-
-Terminal 1:
-
-```powershell
-cd apps/sign-service
-.\.venv\Scripts\Activate.ps1
-$env:SIGN_MODEL_DEVICE = "cuda"
-$env:SIGN_REQUIRE_CUDA = "1"
-python -m sign_service.server
-```
-
-Terminal 2:
-
-```powershell
-cd apps/sign-service
-.\.venv\Scripts\Activate.ps1
-python -m sign_service.camera_client
-```
-
-Camera controls:
-
-- `r`: send `phrase.reset`
-- `s`: stop/start the WebSocket stream
-- `q` or `Escape`: quit
-
-Watch both the camera overlay and server terminal. The server should report
-device/model diagnostics and the camera should show hand landmarks and boxes.
-
-## Checks and evidence
-
-### Passed previously
-
-```powershell
-python -m pip check
-```
-
-Result:
-
-```text
-No broken requirements found.
-```
-
-The executable protocol test passed before the latest handover-only changes:
-
-```powershell
-python tests/test_ws_protocol.py
-```
-
-Results included:
-
-```text
-sign-service websocket protocol test passed
-```
-
-### Needs rerun after handover cleanup
-
-Run these after the fresh-machine setup and any further changes:
-
-```powershell
-python -m pytest -q tests
-python tests/test_ws_protocol.py
-python -m compileall -q sign_service tests
-python -m pip check
-git diff --check
-```
-
-At the time of this handover, the pytest folder has no regular pytest test
-function after removing the legacy checkpoint test; the executable protocol
-test remains the primary WebSocket check. Add a focused Hugging Face runtime
-test before calling the model-only path complete.
-
-## Known gaps
-
-1. No real-camera accuracy benchmark has been recorded after switching to the
-   Hugging Face models.
-2. Blank-image inference was used only for a GPU execution smoke test.
-3. The WLASL model is large and may not meet the service's original 60 ms
-   per-frame target on every machine. It is throttled to a rolling video window
-   rather than run on every frame.
-4. WLASL can only emit labels that exist in its trained vocabulary and the
-   service vocabulary. Unsupported complex words must be fingerspelled through
-   the alphabet model.
-5. The README model ID may need synchronization with the current active image
-   model if it still names the older `dima806` model.
-6. CUDA model installation is currently documented separately from the broad
-   `torch>=2,<3` package requirement. A future setup script should make the
-   CUDA wheel selection explicit for Windows/NVIDIA machines.
-
-## Next concrete action
-
-On a clean environment, redownload both Hugging Face models with a fresh
-`HF_HOME`, verify the model processors/label maps and CUDA placement, then run
-the camera client while recording:
-
-- alphabet accuracy for at least A, B, C, K, L, R, I, and A;
-- generic spelling of `KCL` and `RIA`;
-- dynamic WLASL predictions for simple supported signs;
-- image/video inference latency and GPU memory;
-- false repeated-label behavior.
-
-Use those measurements to tune only the actual model-specific preprocessing and
-arbitration in `hf_pipeline.py`. Do not reintroduce prototype files,
-handcrafted ASL rules, or hardcoded acronym maps.
+Owner acceptance remains the original checklist: the six demo phrases reliably recognized from at least two team members, M2 webcam → real service → web → mock compose/tone, and correct reset/stop. Unsupported words may be fingerspelled. No additional trial counts or numerical accuracy threshold were approved. Do not call recognition complete before those observations exist.

@@ -1,6 +1,6 @@
 "use client";
 
-import type { AccessibilityMode, GazeTransition, RecordingSource, SessionServerMessage } from "@sightline/contracts";
+import type { AccessibilityMode, GazeTransition, SessionServerMessage } from "@sightline/contracts";
 import { startSmartSnapshots, streamMicToSession } from "@sightline/live-client";
 import { createContext, use, useCallback, useEffect, useEffectEvent, useReducer, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -37,10 +37,12 @@ const writeActive = (id: string | null) => {
 };
 
 export type BeginOptions = {
-  /** Record the lecture from this source, or don't record. */
-  record: RecordingSource | null;
-  /** Turn on the scene camera (needed for voice focus, board snapshots and scene recording). */
+  /** Turn on the scene camera: board snapshots, voice focus and the recording come from it. */
   sceneCamera: boolean;
+  /** Record the lecture from the scene camera (turns it on). */
+  record: boolean;
+  /** Watch the student's face through the webcam to pause captions and catch board looks. */
+  webcam: boolean;
 };
 
 type SmartSnapshots = ReturnType<typeof startSmartSnapshots>;
@@ -65,6 +67,13 @@ function useLiveLectureRuntime() {
   const scene = useSceneCamera();
   const recorder = useLectureRecorder();
   const voice = useVoiceFocus();
+  const [preparingVoice, setPreparingVoice] = useState(false);
+  const voiceRequest = useRef(0);
+  const voicePending = useRef(false);
+  useEffect(() => () => {
+    voiceRequest.current++;
+    voicePending.current = false;
+  }, []);
   const snapshots = useRef<SmartSnapshots | null>(null);
   const [pause, dispatchPause] = useReducer(pauseReducer, LIVE);
 
@@ -116,13 +125,26 @@ function useLiveLectureRuntime() {
   }
   const mode: AccessibilityMode = session?.mode ?? "DEAF";
 
+  const stopVoiceFocus = useCallback(async () => {
+    voiceRequest.current++;
+    voicePending.current = false;
+    setPreparingVoice(false);
+    await voice.stop();
+  }, [voice.stop]);
+
+  // Standalone focus owns its mic only while starting or running. A live lecture keeps sharing it for captions.
+  useEffect(() => {
+    if (!activeId && !preparingVoice && !voice.starting && !voice.active && (mic.mic || mic.busy)) void mic.stop();
+  }, [activeId, preparingVoice, voice.starting, voice.active, mic.mic, mic.busy, mic.stop]);
+
   /** Stops everything this device runs for the lecture: recording (waiting for the last upload) first. */
   const teardown = async () => {
     if (recorder.state.status === "recording") await recorder.stop();
-    await voice.stop();
+    await stopVoiceFocus();
     snapshots.current?.stop();
     await mic.stop();
     scene.stop();
+    gaze.attention.stop();
   };
 
   // Ended or deleted somewhere else (another tab or device, or it was never live here): save what this device was
@@ -202,21 +224,24 @@ function useLiveLectureRuntime() {
   const begin = useCallback(
     async (sessionId: string, options: BeginOptions) => {
       const current = await api.getSession(sessionId);
+      if ((needsMicForCaptions || current.mode === "HARD_OF_HEARING") && !mic.deviceId) throw new Error("Choose a microphone input before starting the lecture.");
       const started = current.status === "DRAFT" ? await startSession.mutateAsync(sessionId) : current;
       setActiveId(sessionId);
       if (needsMicForCaptions || started.mode === "HARD_OF_HEARING") await mic.start();
-      const video = options.sceneCamera ? await scene.start() : null;
+      const video = options.sceneCamera || options.record ? await scene.start() : null;
+      const webcamFailure = options.webcam ? await gaze.attention.start() : null;
+      if (webcamFailure) toast.error("Webcam tracking didn't start", { description: `${webcamFailure} Captions still work.` });
       if (options.record) {
         await recorder.start({
           sessionId,
           sessionStartedAt: started.startedAt ?? Date.now(),
-          source: options.record,
+          source: "SCENE_CAMERA",
           sceneStream: (video?.srcObject as MediaStream | null) ?? null,
         });
       }
       return started;
     },
-    [needsMicForCaptions, startSession, setActiveId, mic, scene, recorder],
+    [needsMicForCaptions, startSession, setActiveId, mic, scene, recorder, gaze.attention],
   );
 
   /** Stops recording (waiting for the last upload), voice focus, snapshots and devices, then ends the lecture. */
@@ -242,22 +267,43 @@ function useLiveLectureRuntime() {
       await updateSession.mutateAsync({ mode: next });
       gaze.setMode(next);
       if (next === "DEAF") {
-        await voice.stop();
+        await stopVoiceFocus();
       } else {
         dispatchPause({ type: "resume" });
         await mic.start();
       }
     },
-    [activeId, updateSession, gaze, voice, mic],
+    [activeId, updateSession, gaze, stopVoiceFocus, mic],
   );
 
-  /** Voice focus needs the lecture mic and the scene camera; turns on whichever is missing. */
+  /** Also works outside a lecture; cancellation invalidates pending mic/camera startup before it can open focus. */
   const startVoiceFocus = useCallback(async () => {
-    const m = await mic.start();
-    const video = scene.video ?? (await scene.start());
-    if (!m || !video) return;
-    await voice.start(m, video);
+    if (voicePending.current || voice.active || voice.starting) return;
+    const request = ++voiceRequest.current;
+    voicePending.current = true;
+    setPreparingVoice(true);
+    try {
+      const m = await mic.start();
+      if (!m || request !== voiceRequest.current) return;
+      const video = scene.video ?? (await scene.start());
+      if (!video || request !== voiceRequest.current) return;
+      await voice.start(m, video);
+    } finally {
+      if (request === voiceRequest.current) {
+        voicePending.current = false;
+        setPreparingVoice(false);
+      }
+    }
   }, [mic, scene, voice]);
+
+  const selectMicrophone = useCallback(async (deviceId: string) => {
+    const resumeCaptions = !!mic.mic && activeId && (needsMicForCaptions || mode === "HARD_OF_HEARING");
+    const stopping = stopVoiceFocus();
+    const request = voiceRequest.current;
+    voice.setSyncVerified(false);
+    await Promise.all([stopping, mic.select(deviceId)]);
+    if (deviceId && request === voiceRequest.current && resumeCaptions) await mic.start();
+  }, [mic, voice.setSyncVerified, stopVoiceFocus, activeId, needsMicForCaptions, mode]);
 
   return {
     activeId,
@@ -269,10 +315,10 @@ function useLiveLectureRuntime() {
     pauseCaptions: () => dispatchPause({ type: "pause", lastSeq }),
     resumeLive: () => dispatchPause({ type: "resume" }),
     needsMicForCaptions,
-    mic,
+    mic: { ...mic, select: selectMicrophone },
     scene,
     recorder,
-    voice: { ...voice, start: startVoiceFocus },
+    voice: { ...voice, starting: preparingVoice || voice.starting, start: startVoiceFocus, stop: stopVoiceFocus },
     saveBoard: () => snapshots.current?.capture("MANUAL", "You saved the board"),
     canSaveBoard: Boolean(scene.video && session?.status === "LIVE"),
     begin,

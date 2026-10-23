@@ -10,7 +10,7 @@ from fastapi import WebSocket
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from starlette.websockets import WebSocketDisconnect
 
-from .available_buffer import HISTORY_SAMPLES, MAX_INPUT_SAMPLES, MINIMUM_SAMPLES
+from .available_buffer import stream_parameters
 from .jobs import ServiceError, Store
 from .live_session import LiveSession
 from .noise import noise_factory
@@ -80,11 +80,8 @@ async def serve_live(socket: WebSocket):
                 "generation": 0,
                 "device": owner.separator.device,
                 "protocol_version": 3,
-                "analysis_mode": "available",
                 "engine": owner.settings.engine,
-                "minimum_samples": MINIMUM_SAMPLES,
-                "history_samples": HISTORY_SAMPLES,
-                "maximum_input_samples": MAX_INPUT_SAMPLES,
+                **stream_parameters(owner.settings.engine),
                 "noise_processor": noise_factory(owner.settings.noise).name,
                 "warm_timings": owner.warm_timings,
             }

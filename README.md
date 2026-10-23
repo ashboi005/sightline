@@ -62,6 +62,9 @@ Tushar's implementation, recovery, migration and Docker instructions: [platform 
 | --- | --- |
 | `bun run dev` / `dev:web` / `dev:server` | Run apps |
 | `bun run mock:gaze` / `mock:sign` / `mock:speaker` | Mock device services |
+| `bun run sign:setup` / `sign:dev` / `sign:test` / `sign:verify` / `sign:camera` | Alphabet sign service (Python 3.12 + uv; CPU landmark model and backend decoding); [setup and acceptance](apps/sign-service/README.md) |
+| `bun run sign:tunnel` | Expose the running alphabet WebSocket at the static NGROK_DOMAIN; prints its WSS URL |
+| `bun run sign:check-compose` | Check all six gloss sequences and served speech against the running mock backend |
 | `bun run speaker:setup` / `speaker:dev` / `speaker:test` | Real look-to-hear service (uv + PyTorch, downloads pinned weights once) |
 | `bun run gaze:dev` / `gaze:test` | Gaze bridge (fake tracker until the hardware is plugged in) |
 | `bun run --filter server test` / `check:pipeline` / `eval:captions` | Server unit tests · keyless end-to-end caption pipeline · LLM golden-set eval (needs key) |
@@ -83,3 +86,9 @@ Sarvam · KaTeX · Python (OpenCV / MediaPipe) · Docker + Coolify.
 Native Kotlin/Jetpack Compose app in [`apps/mobile`](apps/mobile/README.md). Detects external USB webcams and serves separate MJPEG feeds to browsers on your local network. See its README for APK installation, Android Studio setup, wireless debugging, and hardware troubleshooting.
 
 Build with `bun run mobile:apk`; run checks with `bun run mobile:check`. The Android app runs independently of the web/backend services.
+
+## Eye tracking and ESP-CAM
+
+The web setup includes eye/scene calibration, per-profile saved mappings, a sidebar scene preview, and an ESP-CAM person-following segment. See [camera setup](docs/implementation/scene-camera-calibration.md), [person tracking and deployment](docs/implementation/esp-camera-setup.md), and the [local vision companion](vision/README.md).
+
+The matching ESP32-CAM source, pinned build configuration and host tests are in [firmware/esp32-cam](firmware/esp32-cam/README.md). Downloaded libraries, model weights, toolchains, recordings and build outputs are excluded from Git.

@@ -60,7 +60,7 @@ bun run dev:server
 | Model bake-off (captions, glossary, sign, notes, vision; latency + fidelity) | `bun run --filter server bench:models -- --tasks captions --lines all --models a,b` | LLM keys |
 | Live client | `bun run --filter @sightline/live-client test` | no |
 | Gaze bridge | `bun run gaze:test` | no |
-| Speaker service | `bun run speaker:test` (`SPEAKER_MODEL_TESTS=1` for real-model tests) | no |
+| Speaker service | `bun run speaker:test` (`SPEAKER_AV_MODEL_TESTS=1` for default AV real-model tests) | no |
 | Contract smoke (REST + WS) | `bun run --filter server smoke` (server with `MOCK_SPEECH=true`) | no |
 
 ## Implementation notes
@@ -77,7 +77,7 @@ bun run dev:server
 - **Gaze bridge:** zones from tracker output (screen rectangle from calibration; above the screen = BOARD),
   150 ms debounce, 1 Hz heartbeat, plus `gaze.scene` (gaze in scene-camera coordinates) for look-to-hear.
 - **Speaker service** (`bun run speaker:setup`, `bun run speaker:dev`): scene frames + room mic → faces → the
-  web app selects a face from `gaze.scene` with `createGazeTargetSelector` → the RTFS-Net-extracted voice is
+  web app confirms a face using calibrated scene gaze or a click → the AV-MossFormer2-extracted voice is
   streamed back. Next steps: on-device latency tuning, an RNNoise wheel on macOS 26+ (or `--noise off`), and
   testing with the real tracker's scene camera.
 - **Deploy:** Coolify runs server + web from the Dockerfiles, with Postgres + Qdrant as services, a volume on
