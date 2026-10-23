@@ -1,0 +1,11 @@
+Local speech uses Vosk and its English model, all licensed under Apache License 2.0.
+
+Vosk API: Copyright 2019 Alpha Cephei Inc.
+https://github.com/alphacep/vosk-api
+Model: vosk-model-small-en-us-0.15
+https://alphacephei.com/vosk/models
+
+Browser WASM build: Ciaran O'Reilly; maintained fork by Lichess contributors.
+https://github.com/lichess-org/vosk-browser
+
+Apache License 2.0: https://www.apache.org/licenses/LICENSE-2.0
