@@ -88,3 +88,186 @@
     transform: translateX(300%);
   }
 }
+
+/* The reference tracking controls inherit Sightline's clay design tokens. */
+.scene-setup {
+  --line: var(--border);
+  --dim: var(--muted-foreground);
+  --eye-accent: var(--sage-ink);
+  --eye-preview: #12171b;
+  --eye-preview-text: #f3f4f1;
+  --eye-preview-muted: #b4babf;
+  --eye-preview-line: #38434a;
+  --eye-sphere: #a8d8c6;
+  --eye-iris: #f5b301;
+}
+.scene-setup .eye-button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 650;
+  background: var(--clay-surface);
+  box-shadow: var(--clay-shadow-sm);
+  color: var(--foreground);
+  cursor: pointer;
+}
+.scene-setup .camera-transform-controls {
+  background: var(--card);
+  border-radius: 0.9rem;
+  padding: 0.4rem;
+}
+.scene-setup .camera-transform-controls button {
+  color: var(--foreground);
+}
+.scene-setup .camera-transform-controls button:hover,
+.scene-setup .camera-transform-controls button[aria-pressed="true"] {
+  background: var(--sage);
+  color: var(--sage-ink);
+}
+.scene-setup .eye-button.primary {
+  background: var(--clay-marigold);
+  box-shadow: var(--clay-marigold-shadow);
+  color: #16181c;
+}
+.scene-setup .eye-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.scene-setup .eye-source-type .eye-button {
+  width: auto;
+  flex: 1;
+  gap: 8px;
+}
+.scene-setup .eye-source-type .eye-button[aria-pressed="true"] {
+  background: var(--clay-sage);
+  color: var(--sage-ink);
+  outline: 2px solid var(--sage-ink);
+  outline-offset: -2px;
+}
+.scene-setup button:focus-visible,
+.scene-setup input:focus-visible,
+.scene-setup select:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+.scene-setup .eye-field {
+  font-size: 14px;
+}
+.scene-setup .eye-field input:not([type="range"]),
+.scene-setup .eye-field select {
+  height: 44px;
+  border-radius: 12px;
+  font-size: 14px;
+}
+.scene-setup .eye-muted,
+.scene-setup .eye-small,
+.scene-setup .eye-details summary {
+  font-size: 13px;
+  line-height: 1.6;
+}
+.scene-setup .scene-instruction {
+  font-size: 15px;
+  color: var(--foreground);
+}
+.scene-setup .scene-capture-count strong {
+  color: var(--sage-ink);
+}
+.scene-setup .scene-estimated-label,
+.scene-setup .scene-preview-warning {
+  color: var(--marigold-ink);
+}
+.scene-setup .scene-projection-controls,
+.scene-setup .gaze-offset-controls {
+  color: var(--foreground);
+  border-color: var(--border);
+}
+.scene-setup .gaze-offset-heading small {
+  color: var(--muted-foreground);
+}
+.scene-setup .gaze-offset-number {
+  color: var(--foreground);
+  background: var(--card);
+  border-color: var(--border);
+}
+.scene-setup .gaze-offset-reset {
+  border-color: var(--border);
+}
+.scene-setup .scene-metrics {
+  background: var(--muted);
+  border-color: var(--border);
+  border-radius: 16px;
+}
+.scene-setup .scene-metrics span {
+  color: var(--muted-foreground);
+}
+.scene-setup .scene-metrics strong {
+  color: var(--foreground);
+}
+.scene-setup .scene-calibration-methods button[aria-checked="true"] {
+  background: var(--clay-sage);
+  color: var(--sage-ink);
+  box-shadow: var(--clay-shadow-sm);
+  outline: 2px solid var(--sage-ink);
+  outline-offset: -2px;
+}
+.scene-setup .scene-hold-status {
+  color: var(--foreground);
+}
+.scene-setup progress {
+  width: 100%;
+  height: 10px;
+  accent-color: var(--sage-ink);
+}
+.scene-setup .eye-sphere-metrics small {
+  font-size: 12px;
+}
+.scene-setup .eye-preview {
+  min-height: 360px;
+}
+.scene-setup .eye-preview-empty {
+  border-radius: 18px;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+}
+.scene-setup .eye-preview-empty p {
+  font-size: 14px;
+  padding-inline: 16px;
+  text-align: center;
+}
+.scene-setup .eye-preview-stage {
+  min-height: 300px;
+}
+.scene-setup .scene-eye-preview {
+  min-height: 240px;
+  border-radius: 20px;
+}
+.scene-setup .scene-eye-preview .eye-preview-stage {
+  min-height: 180px;
+}
+.scene-setup .screen-marker-stage {
+  position: absolute;
+  inset: 0;
+}
+.scene-feed .scene-preview {
+  position: absolute;
+  inset: 0;
+}
+.scene-feed .scene-empty {
+  color: #f3f4f1;
+}
+.scene-feed .scene-empty p {
+  color: #b4babf;
+}
+.scene-feed .scene-preview-caption {
+  font-size: 11px;
+  padding: 8px;
+}
+@media (max-width: 640px) {
+  .scene-setup .eye-preview {
+    min-height: 280px;
+  }
+  .scene-setup .eye-preview-stage {
+    min-height: 230px;
+  }
+}

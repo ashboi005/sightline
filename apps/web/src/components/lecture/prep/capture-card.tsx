@@ -6,10 +6,13 @@ import { Label } from "@sightline/ui/components/label";
 import { cn } from "@sightline/ui/lib/utils";
 import { Camera, CircleOff, MonitorUp, Video } from "lucide-react";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 import { ClayCard, SectionTitle } from "@/components/clay/clay";
 import { readSceneCameraId, saveSceneCameraId } from "@/hooks/live/use-scene-camera";
+import { useSceneTracking } from "@/providers/scene/context";
 import { describeMediaError } from "@/lib/media/errors";
+import { readSceneSourcePreferences } from "@/features/scene-tracking/features/eye-tracking/use-camera-source-preferences";
 
 export type CaptureChoice = { record: RecordingSource | null; sceneCamera: boolean };
 
@@ -22,9 +25,11 @@ const SOURCES: { value: RecordingSource | null; label: string; body: string; ico
 
 /** Which camera is the scene camera. Device names appear once the browser allows camera access. */
 function SceneCameraSelect() {
+  const { scene } = useSceneTracking();
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [selected, setSelected] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  const [network, setNetwork] = useState(false);
 
   const list = async () => {
     const all = await navigator.mediaDevices.enumerateDevices();
@@ -33,7 +38,8 @@ function SceneCameraSelect() {
 
   useEffect(() => {
     setSelected(readSceneCameraId() ?? "");
-    if (navigator.mediaDevices) void list();
+    setNetwork(readSceneSourcePreferences().kind === "network");
+    if (navigator.mediaDevices) void list().catch((cause) => setError(describeMediaError(cause, "camera")));
   }, []);
 
   const allowAndList = async () => {
@@ -51,13 +57,20 @@ function SceneCameraSelect() {
   return (
     <div className="space-y-2">
       <Label htmlFor="scene-camera">Scene camera</Label>
-      {named.length > 0 ? (
+      {network ? (
+        <div className="rounded-xl bg-muted/70 p-3 text-sm">
+          <p className="font-semibold">Network scene camera from Setup</p>
+          <p className="mt-1 text-muted-foreground">Your saved stream and camera orientation will be used.</p>
+          <Link href="/setup" className="mt-2 inline-block font-semibold underline underline-offset-4">Change camera in Setup</Link>
+        </div>
+      ) : named.length > 0 ? (
         <select
           id="scene-camera"
           value={selected}
           onChange={(e) => {
             setSelected(e.target.value);
             saveSceneCameraId(e.target.value || null);
+            scene.camera.stop();
           }}
           className="h-11 w-full rounded-2xl border border-input bg-card px-3.5 text-base outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >

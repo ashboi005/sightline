@@ -40,7 +40,7 @@ export function EnvironmentBadge({ collapsed = false }: { collapsed?: boolean })
 
   const mocked = Object.entries(health.data?.mocks ?? {}).filter(([, on]) => on).map(([name]) => MODULE_LABELS[name] ?? name);
   if (mocked.length === 0) return null;
-  const summary = `Demo data: ${mocked.length === 7 ? "everything simulated" : `${mocked.length} parts simulated`}`;
+  const summary = `Demo data: ${mocked.length} services simulated`;
 
   if (collapsed) {
     return (
@@ -58,7 +58,7 @@ export function EnvironmentBadge({ collapsed = false }: { collapsed?: boolean })
         <FlaskConical aria-hidden="true" className="size-3.5 shrink-0" />
         {summary}
       </summary>
-      <p className="mt-1.5 leading-relaxed">Simulated by the server: {mocked.join(", ")}.</p>
+      <p className="mt-1.5 leading-relaxed">Simulated by the server: {mocked.join(", ")}. Camera and servo connections use real devices.</p>
     </details>
   );
 }
