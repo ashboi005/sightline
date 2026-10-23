@@ -1,6 +1,8 @@
 import { ENV } from "./env.server";
 
-const inherit = (override: boolean | undefined) => override ?? ENV.USE_MOCK_DATA;
+// An empty override inherits USE_MOCK_DATA. Hosts like Coolify pass unset variables as "" rather than leaving them
+// out, which used to leak "" into the flags (and /api/health) instead of a boolean.
+const inherit = (override: boolean | undefined) => (override === undefined || (override as unknown) === "" ? ENV.USE_MOCK_DATA : override === true || (override as unknown) === "true");
 
 /** Resolved runtime configuration. Read flags from here, not from ENV directly. */
 export const config = {

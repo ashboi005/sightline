@@ -5,7 +5,9 @@
 const trim = (url: string) => url.replace(/\/$/, "");
 
 export const SERVER_URL = trim(process.env.NEXT_PUBLIC_SERVER_URL || "http://localhost:3000");
-export const SERVER_WS_URL = trim(process.env.NEXT_PUBLIC_SERVER_WS_URL || "ws://localhost:3000");
+// The live socket lives on the same host as the API: derive it unless set (https → wss, http → ws). A missing value
+// used to fall back to ws://localhost:3000, so a deployed app kept "reconnecting" to the visitor's own machine.
+export const SERVER_WS_URL = trim(process.env.NEXT_PUBLIC_SERVER_WS_URL || SERVER_URL.replace(/^http/, "ws"));
 export const GAZE_BRIDGE_URL = process.env.NEXT_PUBLIC_GAZE_BRIDGE_URL || "ws://localhost:7777";
 export const SIGN_SERVICE_URL = process.env.NEXT_PUBLIC_SIGN_SERVICE_URL || "ws://localhost:7788/ws";
 export const SPEAKER_SERVICE_URL = process.env.NEXT_PUBLIC_SPEAKER_SERVICE_URL || "ws://127.0.0.1:7799/live";

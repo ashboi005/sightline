@@ -64,8 +64,12 @@
 - Build: Dockerfile `apps/web/Dockerfile`, context = repo root, port 3001, domain `https://<domain>`.
 - **Build args** (Next.js inlines them at build time):
   - `NEXT_PUBLIC_SERVER_URL=https://api.<domain>`
-  - `NEXT_PUBLIC_SERVER_WS_URL=wss://api.<domain>`
+  - `NEXT_PUBLIC_SERVER_WS_URL=wss://api.<domain>`: optional now (derived from the API URL when empty). Before
+    that change, an unset value baked in `ws://localhost:3000` and the deployed app showed "Reconnecting" forever with
+    nothing in the server logs. **Changing any `NEXT_PUBLIC_*` value needs a rebuild (redeploy), not a restart.**
   - the laptop-local URLs keep their defaults (`ws://localhost:7777`, `ws://localhost:7788`, `ws://127.0.0.1:7799/live`).
+  - Check after deploying: the live socket must point at the API, not localhost (`grep -o "wss://[^\"]*" ` on the
+    page's JS, or DevTools → Network → WS).
 - Cookies: better-auth uses `SameSite=None; Secure`. Both apps must be served over HTTPS.
 
 ## 4. Student laptop (demo machine)
