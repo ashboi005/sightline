@@ -1,8 +1,10 @@
 "use client";
 import { Camera, CameraOff, Maximize2 } from "lucide-react";
+import type { Route } from "next";
 import Link from "next/link";
 import { ScenePreview } from "@/components/setup/scene-preview";
 import { hasCurrentAccuracyCheck } from "@/features/scene-tracking/features/scene-eye-tracking/scene-session";
+import { useLiveLecture } from "@/providers/live-lecture-provider";
 import { useSceneTracking } from "@/providers/scene/context";
 import { RailTip } from "./rail-tip";
 
@@ -14,6 +16,9 @@ export function SceneCameraCard({
   onNavigate?: () => void;
 }) {
   const { scene, state } = useSceneTracking();
+  // During a lecture the camera connects from the lecture page; Setup is only needed for eye-tracker calibration.
+  const { activeId } = useLiveLecture();
+  const connectHref = (activeId ? `/lecture/${activeId}` : "/setup") as Route;
   const live = scene.connection === "live" && !!scene.frame;
   const label = !live
     ? scene.connection === "reconnecting"
@@ -67,12 +72,12 @@ export function SceneCameraCard({
         <ScenePreview compact />
       ) : (
         <Link
-          href="/setup"
+          href={connectHref}
           onClick={onNavigate}
           className="flex aspect-video flex-col items-center justify-center gap-2 rounded-2xl bg-muted text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <CameraOff className="size-6" />
-          <span className="text-xs font-semibold">Connect in Setup</span>
+          <span className="text-xs font-semibold">{activeId ? "Connect in the lecture" : "Connect in Setup"}</span>
         </Link>
       )}
       <div className="mt-2 flex items-center gap-1.5 px-1 text-[11px] font-semibold text-muted-foreground">
