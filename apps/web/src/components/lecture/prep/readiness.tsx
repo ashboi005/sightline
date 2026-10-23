@@ -82,7 +82,7 @@ export function Readiness({ mode }: { mode: AccessibilityMode }) {
             ? gaze.device?.calibrated
               ? { status: "Connected and calibrated", kind: "ready" as const }
               : { status: "Not calibrated", kind: "attention" as const, detail: "Gaze pausing works best after calibration in Setup." }
-            : { status: "Not connected", kind: "idle" as const, detail: "Captions still work; pause them yourself when you look away." })}
+            : { status: "Not connected", kind: "idle" as const, detail: "Turn on the webcam below so captions pause when you look away, or pause them yourself." })}
         />
         {mode === "HARD_OF_HEARING" && (
           <Row

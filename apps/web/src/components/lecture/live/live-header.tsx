@@ -11,8 +11,9 @@ import {
   DialogFooter,
 } from "@sightline/ui/components/dialog";
 import { cn } from "@sightline/ui/lib/utils";
-import { Ear, Eye, LoaderCircle, Mic, MicOff, ScanEye } from "lucide-react";
+import { Crosshair, Ear, Eye, LoaderCircle, Mic, MicOff, ScanEye, ScanFace } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 
 import { StatusPill } from "@/components/clay/clay";
 import { useElapsed } from "@/components/workspace/active-lecture-card";
@@ -91,11 +92,40 @@ function EndLectureButton() {
   );
 }
 
+/** Where the student is looking, from the webcam or the eye tracker, with a way to turn the webcam on. */
+function GazeStatus() {
+  const gaze = useGaze();
+  const { attention } = gaze;
+  const tracker = gaze.status === "OPEN" && gaze.device?.tracker === "CONNECTED";
+
+  const startWebcam = async () => {
+    const failure = await attention.start();
+    if (failure) toast.error("Webcam tracking didn't start", { description: failure });
+  };
+
+  if (attention.status === "starting") return <StatusPill kind="working" icon={LoaderCircle}>Starting the webcam…</StatusPill>;
+  if (attention.status === "learning") return <StatusPill kind="working" icon={ScanFace}>Look at your screen…</StatusPill>;
+  if (attention.status === "tracking") {
+    return (
+      <span className="inline-flex items-center gap-1">
+        <StatusPill kind="ready" icon={ScanFace}>Eyes {ZONE_TEXT[gaze.zone]}</StatusPill>
+        <Button variant="ghost" size="icon-xs" onClick={attention.recenter} aria-label="Re-center: I'm looking at my screen now" title="Re-center: I'm looking at my screen now">
+          <Crosshair />
+        </Button>
+      </span>
+    );
+  }
+  if (tracker) return <StatusPill kind="ready" icon={ScanEye}>Eyes {ZONE_TEXT[gaze.zone]}</StatusPill>;
+  return (
+    <Button variant="ghost" size="xs" onClick={() => void startWebcam()}>
+      <ScanFace /> Follow my eyes with the webcam
+    </Button>
+  );
+}
+
 export function LiveHeader() {
   const lecture = useLiveLecture();
-  const gaze = useGaze();
   const elapsed = useElapsed(lecture.session?.startedAt);
-  const tracking = gaze.status === "OPEN" && gaze.device?.tracker === "CONNECTED";
   const socket = lecture.live.status;
 
   return (
@@ -105,9 +135,7 @@ export function LiveHeader() {
           <StatusPill kind={socket === "OPEN" ? "live" : "working"}>
             {socket === "OPEN" ? `Live · ${formatClock(elapsed)}` : socket === "RECONNECTING" ? "Reconnecting…" : "Connecting…"}
           </StatusPill>
-          <StatusPill kind={tracking ? "ready" : "idle"} icon={ScanEye}>
-            {tracking ? `Eyes ${ZONE_TEXT[gaze.zone]}` : "No eye tracker"}
-          </StatusPill>
+          <GazeStatus />
           {lecture.live.isReplay ? (
             <StatusPill kind="idle" icon={Mic}>Replayed lecture</StatusPill>
           ) : (
