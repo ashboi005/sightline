@@ -7,9 +7,20 @@ export const api = createSightlineApi({ baseUrl: SERVER_URL });
 
 export { ApiRequestError };
 
-/** Server URLs can be relative (`/api/assets/…`); media elements need them absolute. */
+/**
+ * Asset URLs as the browser should load them. Relative ones get this server's origin. Absolute `/api/assets/…` URLs
+ * are re-pointed at this server too: another backend sharing the database (the deployed one) may have processed the
+ * upload and written its own host, and assets need the sign-in cookie, which only this server's origin has.
+ */
 export function assetUrl(url: string) {
-  return url.startsWith("/") ? `${SERVER_URL}${url}` : url;
+  if (url.startsWith("/")) return `${SERVER_URL}${url}`;
+  try {
+    const { pathname, search } = new URL(url);
+    if (pathname.startsWith("/api/assets/")) return `${SERVER_URL}${pathname}${search}`;
+  } catch {
+    // not a URL: leave it alone
+  }
+  return url;
 }
 
 /** A sentence for an error, for toasts and inline alerts. */
