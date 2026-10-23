@@ -50,6 +50,10 @@ In terminal A:
 ```powershell
 uv run --project apps/sign-service --frozen sign-service
 ```
+ngrok.exe Command:
+
+ngrok http 7788 --url=https://innocent-dominant-dingo.ngrok-free.app
+
 
 Expected startup line:
 
