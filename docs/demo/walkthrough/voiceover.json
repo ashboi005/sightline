@@ -1,0 +1,16 @@
+{
+  "voice_id": "JBFqnCBsd6RMkjVDRZzb",
+  "model_id": "eleven_v4",
+  "lines": [
+    { "at": 0.4, "text": "Meet Sightline: captions that wait for you." },
+    { "at": 4.0, "text": "Built for deaf and hard-of-hearing students." },
+    { "at": 7.6, "text": "Upload the slides before class. Sightline learns the lecture's jargon, so captions spell it right." },
+    { "at": 15.3, "text": "As the teacher speaks, captions appear live. Spoken maths becomes real formulas, and the slides follow along on their own." },
+    { "at": 24.5, "text": "Look up at the board, and the captions pause. Look back, and every line you missed is highlighted." },
+    { "at": 31.2, "text": "It works both ways. The student fingerspells a question," },
+    { "at": 35.85, "text": "Could you please repeat the formula?", "voice_id": "EXAVITQu4vr4xnSDxMaL", "note": "the laptop speaking for the student" },
+    { "at": 38.5, "text": "and the teacher answers, right in the captions." },
+    { "at": 42.4, "text": "End the lecture, and Sightline saves the recording and writes your notes, formulas included." },
+    { "at": 48.65, "text": "Sightline. Captions that wait for you.", "tempo": 1.12 }
+  ]
+}

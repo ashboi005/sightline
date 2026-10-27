@@ -1,0 +1,1209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Sightline walkthrough</title>
+<meta name="viewport" content="width=1920" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:wght@400;500;600;700;800&display=block" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<!--
+  A scripted, frame-deterministic walkthrough of Sightline (no real camera, mic or server).
+  Everything on screen is a pure function of time t, set by window.__render(t), except the caption scroll, which
+  eases toward its target frame by frame. Open with ?play to watch it in real time; render.mjs captures it to MP4.
+-->
+<style>
+:root {
+  --bg: #f3f4f1; --fg: #16181c; --card: #fff; --muted: #e9eae6; --muted-fg: #565b62; --border: #d8dad4;
+  --marigold: #f5b301; --umber: #8a5a00; --highlight: rgb(245 179 1 / 0.3); --slate: #181c21;
+  --sage: #dfeadf; --sage-ink: #3d6b47; --lilac: #e8e2f6; --lilac-ink: #5b4a8b; --live: #c4321f; --sidebar: #eceee9;
+  --clay-surface: linear-gradient(165deg, #ffffff 0%, #f7f7f3 100%);
+  --clay-shadow: inset 0 1.5px 0 rgb(255 255 255 / .95), inset 0 -3px 8px rgb(22 24 28 / .05), 0 14px 30px -16px rgb(22 24 28 / .32), 0 4px 10px -6px rgb(22 24 28 / .14);
+  --clay-shadow-sm: inset 0 1px 0 rgb(255 255 255 / .95), inset 0 -2px 5px rgb(22 24 28 / .05), 0 8px 18px -12px rgb(22 24 28 / .3), 0 2px 5px -3px rgb(22 24 28 / .12);
+  --clay-sunken: inset 0 2px 6px rgb(22 24 28 / .09), inset 0 -1px 0 rgb(255 255 255 / .85);
+  --clay-marigold: linear-gradient(165deg, #ffd25a 0%, #f5b301 100%);
+  --clay-marigold-shadow: inset 0 1.5px 0 rgb(255 255 255 / .55), inset 0 -3px 6px rgb(138 90 0 / .18), 0 12px 24px -14px rgb(176 120 0 / .65), 0 3px 8px -5px rgb(138 90 0 / .35);
+  --clay-sage: linear-gradient(165deg, #ecf3ec 0%, #dfeadf 100%);
+  --clay-lilac: linear-gradient(165deg, #f2eefb 0%, #e8e2f6 100%);
+  --sans: "Atkinson Hyperlegible Next", ui-sans-serif, system-ui, sans-serif;
+  --mono: "Atkinson Hyperlegible Mono", ui-monospace, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #101317; }
+body { font-family: var(--sans); color: var(--fg); -webkit-font-smoothing: antialiased; }
+svg.i { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+/* ---------- stage ---------- */
+#stage { position: relative; width: 1920px; height: 1080px; overflow: hidden;
+  background:
+    radial-gradient(900px 520px at 78% 8%, rgb(245 179 1 / .16), transparent 70%),
+    radial-gradient(800px 600px at 8% 100%, rgb(232 226 246 / .08), transparent 70%),
+    linear-gradient(180deg, #1b2026 0%, #121519 100%); }
+#grid { position: absolute; inset: 0; opacity: .35;
+  background-image: radial-gradient(rgb(255 255 255 / .07) 1.2px, transparent 1.2px); background-size: 28px 28px; }
+#cam { position: absolute; inset: 0; transform-origin: 0 0; }
+#win { position: absolute; left: 224px; top: 124px; width: 1600px; height: 940px; transform: scale(.92); transform-origin: 0 0;
+  border-radius: 20px; overflow: hidden; background: var(--bg);
+  box-shadow: 0 0 0 1px rgb(255 255 255 / .08), 0 50px 120px -30px rgb(0 0 0 / .8), 0 20px 40px -20px rgb(0 0 0 / .6); }
+#chrome { height: 40px; display: flex; align-items: center; gap: 16px; padding: 0 16px; background: #e4e6e1; border-bottom: 1px solid #d3d6cf; }
+.dots { display: flex; gap: 8px; } .dots i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+#url { flex: 1; max-width: 560px; margin: 0 auto; height: 26px; border-radius: 9px; background: #f6f7f4; display: flex; align-items: center; justify-content: center; gap: 7px;
+  font-size: 13.5px; color: #565b62; font-weight: 500; }
+#vp { position: relative; width: 1600px; height: 900px; overflow: hidden; background: var(--bg); }
+.scene, .view { position: absolute; inset: 0; }
+
+/* step chip */
+#chip { position: absolute; top: 38px; left: 0; right: 0; display: flex; justify-content: center; pointer-events: none; z-index: 5; }
+.chipi { position: absolute; display: inline-flex; align-items: center; gap: 14px; padding: 9px 22px 9px 9px; border-radius: 999px;
+  background: rgb(24 28 33 / .82); border: 1px solid rgb(255 255 255 / .1); color: #ecedea; backdrop-filter: blur(10px);
+  box-shadow: 0 10px 30px -12px rgb(0 0 0 / .6); white-space: nowrap; }
+.chipi b { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 50%; background: var(--marigold); color: #16181c; font-size: 14px; font-weight: 800; }
+.chipi strong { font-size: 19px; font-weight: 700; letter-spacing: -.01em; }
+.chipi span { font-size: 17px; color: #a3a9b1; }
+
+/* cursor */
+#cursor { position: absolute; left: 0; top: 0; width: 30px; height: 30px; z-index: 50; pointer-events: none; transform-origin: 4px 3px; }
+#ripple { position: absolute; width: 60px; height: 60px; margin: -30px 0 0 -30px; border-radius: 50%; border: 3px solid var(--marigold); z-index: 49; opacity: 0; pointer-events: none; }
+#dragfile { position: absolute; z-index: 48; display: flex; align-items: center; gap: 10px; padding: 10px 14px 10px 10px; border-radius: 14px; background: #fff;
+  box-shadow: 0 18px 40px -12px rgb(0 0 0 / .45); font-size: 15px; font-weight: 700; opacity: 0; transform-origin: 0 0; }
+#dragfile .ft { width: 36px; height: 44px; border-radius: 6px; background: #d24726; color: #fff; font-size: 10px; font-weight: 800; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 5px; }
+
+/* ---------- shared bits ---------- */
+.clay { background: var(--clay-surface); box-shadow: var(--clay-shadow); }
+.clay-sm { background: var(--clay-surface); box-shadow: var(--clay-shadow-sm); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 16px; border-radius: 14px; font: 700 15px var(--sans); color: var(--fg); border: 0; white-space: nowrap; }
+.btn .i { width: 16px; height: 16px; }
+.btn-clay { background: var(--clay-marigold); box-shadow: var(--clay-marigold-shadow); }
+.btn-soft { background: var(--clay-surface); box-shadow: var(--clay-shadow-sm); }
+.btn-ghost { background: transparent; color: var(--fg); }
+.btn-red { background: var(--live); color: #fff; box-shadow: 0 8px 18px -10px rgb(196 50 31 / .8); }
+.btn-lg { height: 50px; padding: 0 22px; font-size: 17px; border-radius: 17px; }
+.pressed { transform: scale(.96); filter: brightness(.96); }
+.pill { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: 999px; font-size: 13.5px; font-weight: 700; white-space: nowrap; }
+.pill .i { width: 14px; height: 14px; }
+.pill-live { background: rgb(196 50 31 / .1); color: var(--live); }
+.pill-live .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--live); }
+.pill-ready { background: var(--sage); color: var(--sage-ink); }
+.pill-work { background: var(--highlight); color: var(--umber); }
+.pill-idle { background: var(--muted); color: var(--muted-fg); }
+.pill-mari { background: var(--marigold); color: #16181c; }
+.muted { color: var(--muted-fg); }
+.term { text-decoration: underline dotted var(--marigold) 2.5px; text-underline-offset: .2em; border-radius: 4px; }
+.k-inline { white-space: nowrap; }
+.mono { font-family: var(--mono); }
+.icontile { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 11px; box-shadow: var(--clay-shadow-sm); }
+.icontile .i { width: 17px; height: 17px; }
+.t-mari { background: linear-gradient(165deg, #fff1c6, #ffe08a); color: var(--umber); }
+.t-sage { background: var(--clay-sage); color: var(--sage-ink); }
+.t-lilac { background: var(--clay-lilac); color: var(--lilac-ink); }
+.logo { display: inline-flex; align-items: center; gap: 10px; font-size: 19px; font-weight: 800; letter-spacing: -.02em; }
+.logo svg { width: 30px; height: 30px; }
+
+/* ---------- A: landing ---------- */
+#sA { background: var(--bg); }
+.lp-shape { position: absolute; border-radius: 50%; }
+.lp-head { position: absolute; top: 14px; left: 120px; right: 120px; height: 66px; border-radius: 32px; display: flex; align-items: center; justify-content: space-between; padding: 0 22px; }
+.lp-nav { display: flex; gap: 6px; } .lp-nav a { padding: 10px 14px; font-size: 15px; font-weight: 600; color: var(--muted-fg); }
+.hero { position: absolute; top: 150px; left: 140px; right: 140px; display: grid; grid-template-columns: 1fr 1.05fr; gap: 64px; align-items: center; }
+.eyebrow { display: inline-flex; align-items: center; gap: 12px; font-size: 14px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--umber); }
+.eyebrow .gl { position: relative; width: 74px; height: 3px; border-radius: 3px; background: var(--fg); }
+.eyebrow .gl::after { content: ""; position: absolute; right: 8px; top: -9px; width: 14px; height: 14px; border-radius: 50%; background: var(--marigold); }
+.hero h1 { margin: 22px 0 0; font-size: 76px; line-height: 1.02; letter-spacing: -.035em; font-weight: 800; }
+.hero p.lead { margin: 24px 0 0; font-size: 21px; line-height: 1.55; color: var(--muted-fg); max-width: 560px; }
+.hero .ctas { margin-top: 34px; display: flex; gap: 12px; }
+.hero small { display: block; margin-top: 28px; font-size: 14.5px; color: var(--muted-fg); }
+.demo-card { border-radius: 32px; padding: 14px; }
+.demo { border-radius: 24px; background: var(--card); box-shadow: var(--clay-sunken); overflow: hidden; }
+.demo-h { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--border); font-size: 15px; font-weight: 700; }
+.demo-h .live { display: inline-flex; gap: 10px; align-items: center; }
+.demo-h .live i { width: 10px; height: 10px; border-radius: 50%; background: var(--marigold); display: block; }
+.demo-b { height: 420px; padding: 24px 22px; display: flex; flex-direction: column; justify-content: flex-end; gap: 16px; }
+.dl { display: grid; grid-template-columns: 48px 1fr; gap: 12px; font-size: 21px; line-height: 1.5; font-weight: 500; }
+.dl .ts { font-family: var(--mono); font-size: 12.5px; color: var(--muted-fg); padding-top: 6px; }
+.fbox { display: block; margin-top: 8px; border-radius: 12px; background: var(--muted); padding: 2px 12px; }
+
+/* ---------- B: sign in ---------- */
+#sB { background: var(--bg); display: grid; grid-template-columns: 1fr 1fr; }
+.aside { margin: 22px; border-radius: 32px; background: var(--slate); color: #ecedea; padding: 56px; position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; }
+.aside .logo { color: #ecedea; }
+.aside h2 { font-size: 46px; line-height: 1.08; letter-spacing: -.03em; margin: 0; font-weight: 800; }
+.aside p { color: #a3a9b1; font-size: 19px; line-height: 1.55; margin: 18px 0 0; max-width: 520px; }
+.aside .mini { margin-top: 34px; border-radius: 20px; background: #20262d; padding: 18px 20px; font-size: 18px; line-height: 1.5; }
+.aside .mini .hl { background: rgb(245 179 1 / .22); border-radius: 6px; padding: 1px 4px; }
+.aside .mini .bm { display: flex; align-items: center; gap: 10px; color: var(--marigold); font-size: 13px; font-weight: 700; margin: 10px 0; }
+.aside .mini .bm::before, .aside .mini .bm::after { content: ""; height: 0; border-top: 2px dashed var(--marigold); }
+.aside .mini .bm::before { flex: 1; } .aside .mini .bm::after { width: 28px; }
+.form { align-self: center; justify-self: center; width: 470px; }
+.form h1 { font-size: 40px; letter-spacing: -.03em; margin: 26px 0 8px; font-weight: 800; }
+.form .sub { font-size: 17px; color: var(--muted-fg); margin: 0 0 32px; }
+.field { margin-bottom: 20px; }
+.field label { display: block; font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+.input { position: relative; height: 52px; border-radius: 16px; background: var(--card); box-shadow: var(--clay-sunken); border: 1.5px solid var(--border); display: flex; align-items: center; gap: 10px; padding: 0 16px; font-size: 17px; }
+.input .i { width: 18px; height: 18px; color: var(--muted-fg); }
+.input.focus { border-color: var(--marigold); box-shadow: 0 0 0 4px rgb(245 179 1 / .25); }
+.input .ph { color: #9aa0a6; }
+.caret { display: inline-block; width: 2px; height: 22px; background: var(--fg); margin-left: 1px; vertical-align: middle; }
+.form .btn { width: 100%; height: 54px; font-size: 17px; border-radius: 17px; margin-top: 8px; }
+.form .alt { margin-top: 22px; text-align: center; font-size: 15px; color: var(--muted-fg); }
+.form .alt b { color: var(--fg); text-decoration: underline var(--marigold) 2px; text-underline-offset: 4px; }
+
+/* ---------- C: workspace ---------- */
+#sC { background: var(--bg); }
+.side { position: absolute; left: 12px; top: 12px; bottom: 12px; width: 244px; border-radius: 28px; padding: 18px 14px; display: flex; flex-direction: column; gap: 18px; }
+.nav { display: flex; flex-direction: column; gap: 4px; }
+.nav a { display: flex; align-items: center; gap: 11px; height: 46px; padding: 0 8px; border-radius: 16px; font-size: 15px; font-weight: 600; color: var(--muted-fg); }
+.nav a .ic { width: 32px; height: 32px; border-radius: 11px; display: inline-flex; align-items: center; justify-content: center; }
+.nav a .ic .i { width: 16px; height: 16px; }
+.nav a.on { color: var(--fg); font-weight: 800; }
+.nav a.on-m { background: color-mix(in oklch, var(--marigold) 26%, var(--card)); box-shadow: var(--clay-shadow-sm); }
+.nav a.on-s { background: var(--clay-sage); box-shadow: var(--clay-shadow-sm); }
+.nav a.on .ic { background: var(--clay-surface); box-shadow: var(--clay-shadow-sm); }
+.nav .lv { margin-left: auto; border-radius: 999px; background: var(--live); color: #fff; font-size: 10.5px; font-weight: 800; padding: 2px 7px; letter-spacing: .04em; }
+.side .foot { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
+.envb { display: flex; align-items: center; gap: 10px; border-radius: 18px; background: var(--clay-sage); padding: 10px 12px; font-size: 13.5px; font-weight: 700; color: var(--sage-ink); }
+.envb .d { width: 9px; height: 9px; border-radius: 50%; background: #3d9b54; box-shadow: 0 0 0 4px rgb(61 155 84 / .18); }
+.acct { display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 18px; }
+.avatar { width: 38px; height: 38px; border-radius: 13px; background: var(--clay-lilac); color: var(--lilac-ink); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; box-shadow: var(--clay-shadow-sm); }
+.acct b { display: block; font-size: 14.5px; } .acct span { font-size: 12.5px; color: var(--muted-fg); }
+.main { position: absolute; left: 268px; right: 0; top: 0; bottom: 0; }
+
+/* C1 new lecture */
+.pagehead .eb { font-size: 13.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--umber); }
+.pagehead h1 { margin: 8px 0 6px; font-size: 38px; letter-spacing: -.03em; font-weight: 800; }
+.pagehead p { margin: 0; font-size: 17px; color: var(--muted-fg); }
+#c1 { padding: 34px 32px; }
+.c1grid { margin-top: 26px; display: grid; grid-template-columns: 1.45fr 1fr; gap: 22px; }
+.card { border-radius: 28px; padding: 28px; }
+.modes { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.mode { border-radius: 20px; border: 2px solid var(--border); padding: 18px; background: var(--card); }
+.mode h3 { margin: 12px 0 6px; font-size: 18px; } .mode p { margin: 0; font-size: 14.5px; line-height: 1.5; color: var(--muted-fg); }
+.mode.sel { border-color: var(--marigold); background: color-mix(in oklch, var(--marigold) 10%, var(--card)); box-shadow: 0 0 0 4px rgb(245 179 1 / .18); }
+.mode .rb { float: right; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; }
+.mode.sel .rb { border-color: var(--marigold); background: var(--marigold); }
+.mode.sel .rb::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #16181c; }
+.recent h3 { margin: 0 0 14px; font-size: 18px; }
+.rrow { display: flex; align-items: center; gap: 14px; padding: 14px 0; border-top: 1px solid var(--border); }
+.rrow b { display: block; font-size: 15.5px; } .rrow span.s { font-size: 13.5px; color: var(--muted-fg); }
+.rrow .pill { margin-left: auto; }
+
+/* C2 prep */
+#c2 { padding: 30px 32px; }
+.prephead { display: flex; align-items: flex-end; justify-content: space-between; }
+.c2grid { margin-top: 22px; display: grid; grid-template-columns: 1.3fr 1fr; gap: 22px; }
+.card h2 { margin: 0 0 4px; font-size: 20px; display: flex; align-items: center; gap: 12px; } .card .cs { margin: 0 0 18px; font-size: 14.5px; color: var(--muted-fg); }
+.drop { height: 150px; border-radius: 22px; border: 2.5px dashed var(--border); background: rgb(233 234 230 / .5); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; }
+.drop .i { width: 26px; height: 26px; color: var(--muted-fg); }
+.drop b { font-size: 16.5px; } .drop span { font-size: 14px; color: var(--muted-fg); }
+.drop.hot { border-color: var(--marigold); background: var(--highlight); }
+.upl { margin-top: 16px; height: 34px; display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; }
+.bar { flex: 1; max-width: 260px; height: 8px; border-radius: 8px; background: var(--muted); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--marigold); border-radius: 8px; }
+.thumbs { margin-top: 12px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.slide { aspect-ratio: 16/10; border-radius: 12px; background: #fff; border: 1px solid var(--border); box-shadow: 0 6px 14px -10px rgb(22 24 28 / .4); padding: 10px 12px; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+.slide .sn { position: absolute; right: 8px; bottom: 6px; font-size: 10px; color: var(--muted-fg); font-family: var(--mono); }
+.slide h4 { margin: 0; font-size: 12.5px; font-weight: 800; letter-spacing: -.01em; }
+.slide .bd { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+.slide .stripe { position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--marigold); }
+.gloss { display: flex; flex-wrap: wrap; gap: 10px; min-height: 140px; align-content: flex-start; }
+.gchip { display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 14px; border-radius: 13px; background: var(--card); box-shadow: var(--clay-shadow-sm); font-size: 15px; font-weight: 700; }
+.gchip u { text-decoration: underline dotted var(--marigold) 2.5px; text-underline-offset: .22em; }
+.gph { height: 38px; border-radius: 13px; background: var(--muted); }
+.ready { margin-top: 20px; border-top: 1px solid var(--border); padding-top: 14px; }
+.rd { display: flex; align-items: center; gap: 12px; height: 42px; font-size: 15.5px; font-weight: 600; }
+.rd .ck { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--muted); color: var(--muted-fg); }
+.rd .ck .i { width: 14px; height: 14px; }
+.rd .ck.ok { background: #3d9b54; color: #fff; }
+.rd em { margin-left: auto; font-style: normal; font-size: 13.5px; color: var(--muted-fg); }
+
+/* C3 live */
+#c3 { padding: 14px 16px 16px 4px; display: flex; flex-direction: column; gap: 12px; }
+.lhead { border-radius: 26px; padding: 12px 18px; display: flex; align-items: center; gap: 16px; }
+.lhead .meta { flex: 1; min-width: 0; }
+.lhead .pills { display: flex; gap: 8px; align-items: center; }
+.lhead h1 { margin: 6px 0 0; font-size: 25px; font-weight: 800; letter-spacing: -.02em; }
+.seg { display: inline-flex; padding: 4px; border-radius: 16px; background: var(--muted); box-shadow: var(--clay-sunken); }
+.seg span { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border-radius: 12px; font-size: 14px; font-weight: 600; color: var(--muted-fg); }
+.seg span.on { background: var(--card); color: var(--fg); box-shadow: var(--clay-shadow-sm); }
+.seg .i { width: 16px; height: 16px; }
+.rec { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: 14px; background: var(--card); box-shadow: var(--clay-shadow-sm); font-size: 14px; font-weight: 700; }
+.rec .d { width: 10px; height: 10px; border-radius: 50%; background: var(--live); }
+.lgrid { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 410px; gap: 14px; }
+.cap { position: relative; border-radius: 26px; background: var(--card); box-shadow: var(--clay-shadow-sm); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.capbar { display: flex; align-items: center; justify-content: space-between; padding: 10px 18px; border-bottom: 1px solid var(--border); font-size: 15px; font-weight: 700; color: var(--muted-fg); }
+.capbar .tools { display: flex; align-items: center; gap: 4px; color: var(--fg); }
+.capbar .tools .btn { height: 34px; padding: 0 10px; font-size: 14px; }
+.capbar .sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+#capScroll { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+#capList { list-style: none; margin: 0; padding: 22px 26px 140px; display: flex; flex-direction: column; gap: 18px; font-size: 27px; line-height: 1.5; font-weight: 500; }
+.cl { display: grid; grid-template-columns: 58px 1fr; gap: 12px; }
+.cl .ts { font-family: var(--mono); font-size: 14px; color: var(--muted-fg); padding-top: 11px; }
+.cl .bdy { margin: 0 -6px; padding: 0 6px; border-radius: 8px; }
+.cl .interim { color: var(--muted-fg); font-style: italic; }
+.cl .katex { font-size: 1.04em; }
+.blockf { display: block; margin: 8px 0 2px; border-radius: 14px; background: rgb(233 234 230 / .75); padding: 2px 14px 4px; }
+.blockf .katex-display { margin: .45em 0; }
+.blockf .lbl { display: block; text-align: center; font-size: 14px; color: var(--muted-fg); font-weight: 600; margin-top: -4px; padding-bottom: 6px; }
+.bookmark { display: flex; align-items: center; gap: 12px; font-size: 15px; font-weight: 800; color: var(--umber); }
+.bookmark::before, .bookmark::after { content: ""; height: 0; border-top: 2.5px dashed var(--marigold); }
+.bookmark::before { flex: 1; } .bookmark::after { width: 34px; }
+#capFade { position: absolute; left: 0; right: 0; top: 0; height: 40px; background: linear-gradient(#fff, rgb(255 255 255 / 0)); pointer-events: none; }
+#awayPill { position: absolute; left: 0; right: 0; bottom: 18px; display: flex; justify-content: center; pointer-events: none; }
+#awayPill .p { display: inline-flex; align-items: center; gap: 12px; border-radius: 999px; background: var(--fg); color: var(--bg); padding: 8px 8px 8px 18px; font-size: 15.5px; font-weight: 800; box-shadow: 0 14px 30px -10px rgb(0 0 0 / .45); min-height: 48px; }
+#awayPill .p .i { width: 18px; height: 18px; }
+#awayPill .btn { height: 34px; font-size: 14px; padding: 0 14px; border-radius: 12px; }
+.panels { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.panel { border-radius: 24px; padding: 12px 14px 14px; }
+.panel h2 { margin: 0 0 10px; display: flex; align-items: center; gap: 12px; font-size: 16px; font-weight: 800; }
+.panel h2 .r { margin-left: auto; }
+.scam { position: relative; height: 236px; border-radius: 16px; overflow: hidden; background: #3b4148; }
+.slidebig { position: relative; height: 222px; border-radius: 16px; border: 1px solid var(--border); background: #fff; overflow: hidden; }
+.slidebig .sv { position: absolute; inset: 0; padding: 16px 20px; display: flex; flex-direction: column; }
+.slidebig h4 { margin: 0; font-size: 19px; font-weight: 800; letter-spacing: -.02em; }
+.slidebig .bd { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 19px; }
+.slidebig .stripe { position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: var(--marigold); }
+.slidemeta { margin-top: 10px; display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--muted-fg); font-weight: 600; }
+#toast { position: absolute; right: 22px; bottom: 22px; display: flex; align-items: center; gap: 12px; padding: 12px 18px 12px 12px; border-radius: 18px; background: var(--card); box-shadow: 0 20px 40px -16px rgb(22 24 28 / .45), 0 0 0 1px var(--border); font-size: 15px; z-index: 20; }
+#toast b { display: block; font-size: 15px; } #toast span { font-size: 13.5px; color: var(--muted-fg); }
+
+/* C5 sign language */
+#c5 { padding: 30px 32px; }
+.nav a.on-l { background: var(--clay-lilac); box-shadow: var(--clay-shadow-sm); }
+.signhead { display: flex; align-items: flex-end; justify-content: space-between; }
+.saveto { display: inline-flex; align-items: center; gap: 10px; height: 46px; padding: 0 16px; border-radius: 16px; font-size: 15px; font-weight: 600; }
+.saveto b { font-weight: 800; }
+.signcard { margin-top: 18px; border-radius: 28px; padding: 22px; display: grid; grid-template-columns: 1.22fr 1fr; gap: 20px; }
+.who { display: flex; gap: 8px; margin-bottom: 12px; }
+.who span { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: 15px; font-size: 14px; font-weight: 600; background: var(--muted); color: var(--muted-fg); }
+.who span.on { background: var(--clay-lilac); color: var(--lilac-ink); box-shadow: var(--clay-shadow-sm); }
+.who .i { width: 16px; height: 16px; }
+.webcam { position: relative; height: 430px; border-radius: 24px; overflow: hidden; background: var(--slate); box-shadow: var(--clay-shadow-sm); }
+.webcam svg.cam { position: absolute; inset: 0; width: 100%; height: 100%; }
+.webcam .tags { position: absolute; top: 14px; left: 14px; display: flex; gap: 6px; }
+.webcam .rec { position: absolute; right: 14px; bottom: 14px; height: auto; padding: 6px 12px; background: rgb(24 28 33 / .7); color: #ecedea; box-shadow: none; font-size: 12.5px; }
+.sctl { margin-top: 12px; display: flex; gap: 8px; }
+.draft { border-radius: 24px; padding: 16px; }
+.draft .lbl { display: flex; justify-content: space-between; align-items: center; font-size: 14px; font-weight: 700; color: var(--muted-fg); }
+.ta { margin-top: 8px; min-height: 84px; border-radius: 16px; border: 1.5px solid var(--marigold); box-shadow: 0 0 0 4px rgb(245 179 1 / .2); background: var(--card); padding: 12px 14px; font-family: var(--mono); font-size: 22px; letter-spacing: .04em; }
+.guess { margin-top: 8px; min-height: 28px; font-size: 14px; color: var(--muted-fg); }
+.guess .g { display: inline-block; border: 1.5px dashed var(--border); border-radius: 9px; padding: 1px 9px; font-family: var(--mono); }
+.draft .btns { margin-top: 8px; display: flex; gap: 8px; }
+.draft .btns .btn { height: 38px; font-size: 14px; }
+.draft .chk { margin-top: 12px; display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; }
+.draft .chk i { width: 18px; height: 18px; border-radius: 5px; background: var(--marigold); display: inline-flex; align-items: center; justify-content: center; }
+.said { margin-top: 14px; border-radius: 24px; padding: 16px 18px; background: var(--clay-marigold); box-shadow: var(--clay-marigold-shadow); }
+.said .k { font-size: 12.5px; font-weight: 800; opacity: .75; }
+.said .s { margin-top: 2px; font-size: 24px; font-weight: 800; line-height: 1.25; letter-spacing: -.01em; }
+.said .alt { margin-top: 4px; font-size: 14px; opacity: .75; }
+.said .spk { margin-top: 10px; display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; }
+.bars { display: inline-flex; align-items: center; gap: 3px; height: 22px; }
+.bars i { width: 4px; border-radius: 3px; background: #16181c; display: block; }
+.convo { margin-top: 14px; }
+.convo h3 { margin: 0 0 8px; font-size: 14px; color: var(--muted-fg); }
+.cv { border-radius: 16px; padding: 10px 14px; margin-bottom: 8px; background: rgb(233 234 230 / .7); }
+.cv.peer { background: rgb(232 226 246 / .6); }
+.cv .w { font-size: 12.5px; font-weight: 600; color: var(--muted-fg); }
+.cv .t { font-size: 16px; font-weight: 600; margin-top: 1px; }
+.cv .gl { font-family: var(--mono); font-size: 12px; color: var(--muted-fg); margin-top: 2px; }
+
+/* dialog */
+#dlg { position: absolute; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; }
+#dlg .ov { position: absolute; inset: 0; background: rgb(22 24 28 / .45); }
+#dlg .box { position: relative; width: 500px; border-radius: 26px; background: var(--card); padding: 28px; box-shadow: 0 40px 80px -24px rgb(0 0 0 / .5); }
+#dlg h3 { margin: 0; font-size: 22px; font-weight: 800; }
+#dlg p { margin: 10px 0 24px; font-size: 16px; line-height: 1.55; color: var(--muted-fg); }
+#dlg .row { display: flex; justify-content: flex-end; gap: 10px; }
+.spin { width: 16px; height: 16px; border-radius: 50%; border: 2.5px solid rgb(255 255 255 / .4); border-top-color: #fff; }
+.spin.dk { border-color: rgb(22 24 28 / .2); border-top-color: var(--fg); }
+
+/* C4 notes */
+#c4 { padding: 22px 26px 0 8px; }
+.fhead { display: flex; align-items: center; gap: 16px; }
+.fhead h1 { margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -.025em; }
+.fhead .r { margin-left: auto; display: flex; gap: 10px; }
+.c4grid { margin-top: 16px; display: grid; grid-template-columns: 1fr 450px; gap: 18px; height: 800px; }
+.notes { position: relative; border-radius: 26px; background: var(--card); box-shadow: var(--clay-shadow-sm); overflow: hidden; }
+#notesIn { padding: 30px 40px; font-size: 17px; line-height: 1.68; }
+#notesIn h2 { margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -.02em; line-height: 1.15; }
+#notesIn .gen { margin-top: 4px; font-size: 14px; color: var(--muted-fg); }
+#notesIn .sum { margin: 14px 0 0; font-size: 18px; }
+.take { margin-top: 20px; border-radius: 22px; background: rgb(223 234 223 / .75); padding: 16px 22px; }
+.take h3 { margin: 0; font-size: 17px; } .take ul { margin: 6px 0 0; padding-left: 20px; font-size: 16px; }
+.take li::marker { color: var(--umber); }
+.nsec { margin-top: 26px; }
+.nsec h3 { margin: 0; display: flex; align-items: baseline; justify-content: space-between; font-size: 21px; font-weight: 800; letter-spacing: -.01em; }
+.nsec h3 a { font-size: 14px; font-weight: 600; text-decoration: underline var(--marigold) 2px; text-underline-offset: 4px; }
+.nsec .sl { font-size: 14px; color: var(--muted-fg); }
+.nform { margin-top: 10px; border-radius: 18px; background: rgb(233 234 230 / .65); padding: 4px 16px; font-size: 19px; }
+.nform .katex-display { margin: .5em 0; }
+.nform figcaption { text-align: center; font-size: 13.5px; color: var(--muted-fg); margin: -6px 0 8px; }
+.bfocus { margin-top: 10px; display: inline-flex; align-items: center; gap: 8px; border-radius: 999px; background: var(--highlight); padding: 4px 14px; font-size: 14.5px; font-weight: 700; }
+.bfocus .i { width: 16px; height: 16px; }
+.ndef { margin-top: 10px; border-radius: 18px; background: rgb(223 234 223 / .6); padding: 12px 16px; font-size: 16px; }
+.ndef dt { font-weight: 800; }
+.board-call { margin-top: 10px; display: grid; grid-template-columns: 220px 1fr; gap: 16px; align-items: center; border-radius: 18px; background: var(--highlight); padding: 12px; font-size: 15.5px; }
+.board-call .img { height: 120px; border-radius: 12px; overflow: hidden; }
+.skel { position: absolute; inset: 0; padding: 34px 40px; }
+.skel .sl { height: 16px; border-radius: 8px; background: var(--muted); margin-bottom: 14px; }
+.writing { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; color: var(--umber); margin-bottom: 22px; }
+.recc { border-radius: 26px; padding: 14px; display: flex; flex-direction: column; gap: 12px; height: 100%; }
+.player { position: relative; height: 240px; border-radius: 18px; overflow: hidden; background: #3b4148; }
+.player .ctl { position: absolute; left: 0; right: 0; bottom: 0; padding: 30px 14px 10px; background: linear-gradient(transparent, rgb(0 0 0 / .65)); color: #fff; display: flex; align-items: center; gap: 12px; font-size: 13px; font-family: var(--mono); }
+.player .ctl .pb { flex: 1; height: 5px; border-radius: 5px; background: rgb(255 255 255 / .3); position: relative; }
+.player .ctl .pb i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 5px; background: var(--marigold); }
+.player .ctl .pb .mk { position: absolute; top: -3px; width: 4px; height: 11px; border-radius: 2px; background: #fff; }
+.tlist { flex: 1; border-radius: 18px; background: var(--card); box-shadow: var(--clay-sunken); padding: 8px; overflow: hidden; }
+.tr { display: grid; grid-template-columns: 52px 1fr; gap: 10px; padding: 9px 10px; border-radius: 12px; font-size: 15px; line-height: 1.45; }
+.tr .mono { font-size: 12.5px; color: var(--muted-fg); padding-top: 2px; }
+.tr.cur { background: var(--highlight); }
+.tr.away { box-shadow: inset 3px 0 0 var(--marigold); }
+
+/* end card */
+#endc { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #ecedea; z-index: 60;
+  background: radial-gradient(900px 500px at 50% 40%, rgb(245 179 1 / .14), transparent 70%), linear-gradient(180deg, #1b2026, #111418); }
+#endc .lm svg { width: 96px; height: 96px; }
+#endc h1 { margin: 26px 0 0; font-size: 92px; font-weight: 800; letter-spacing: -.04em; line-height: 1; }
+#endc p { margin: 18px 0 0; font-size: 30px; color: #a3a9b1; }
+#endc .feat { margin-top: 44px; display: flex; gap: 12px; }
+#endc .feat span { border-radius: 999px; border: 1px solid rgb(255 255 255 / .14); padding: 10px 20px; font-size: 18px; font-weight: 600; color: #d8dbd6; background: rgb(255 255 255 / .04); }
+#endc .feat span b { color: var(--marigold); margin-right: 6px; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-pres" viewBox="0 0 24 24"><path d="M2 3h20"/><path d="M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3"/><path d="m7 21 5-5 5 5"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></symbol>
+    <symbol id="i-dash" viewBox="0 0 24 24"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></symbol>
+    <symbol id="i-cap" viewBox="0 0 24 24"><rect width="18" height="14" x="3" y="5" rx="2" ry="2"/><path d="M7 15h4M15 15h2M7 11h2M13 11h4"/></symbol>
+    <symbol id="i-clap" viewBox="0 0 24 24"><path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3Z"/><path d="m6.2 5.3 3.1 3.9"/><path d="m12.4 3.4 3.1 4"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></symbol>
+    <symbol id="i-notes" viewBox="0 0 24 24"><path d="M2 6h4"/><path d="M2 10h4"/><path d="M2 14h4"/><path d="M2 18h4"/><rect width="16" height="20" x="4" y="2" rx="2"/><path d="M9.5 8h5"/><path d="M9.5 12H16"/><path d="M9.5 16H14"/></symbol>
+    <symbol id="i-hand" viewBox="0 0 24 24"><path d="M18 11V6a2 2 0 0 0-4 0v5M14 10V4a2 2 0 0 0-4 0v2M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></symbol>
+    <symbol id="i-scan" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="1"/><path d="M18.944 12.33a1 1 0 0 0 0-.66 7.5 7.5 0 0 0-13.888 0 1 1 0 0 0 0 .66 7.5 7.5 0 0 0 13.888 0"/></symbol>
+    <symbol id="i-video" viewBox="0 0 24 24"><path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5"/><rect x="2" y="6" width="14" height="12" rx="2"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><polygon points="6 3 20 12 6 21 6 3"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+    <symbol id="i-ear" viewBox="0 0 24 24"><path d="M6 8.5a6.5 6.5 0 1 1 13 0c0 6-6 6-6 10a3.5 3.5 0 1 1-7 0"/><path d="M15 8.5a2.5 2.5 0 0 0-5 0v1a2 2 0 1 1 0 4"/></symbol>
+    <symbol id="i-mail" viewBox="0 0 24 24"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></symbol>
+    <symbol id="i-vol" viewBox="0 0 24 24"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.364 18.364a9 9 0 0 0 0-12.728"/></symbol>
+    <symbol id="i-camoff" viewBox="0 0 24 24"><path d="M2 2l20 20"/><path d="M7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16"/><path d="M9.5 4h5L17 7h3a2 2 0 0 1 2 2v7.5"/><path d="M14.121 15.121A3 3 0 1 1 9.88 10.88"/></symbol>
+    <symbol id="i-square" viewBox="0 0 24 24"><rect width="16" height="16" x="4" y="4" rx="2"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+    <symbol id="i-lockurl" viewBox="0 0 24 24"><rect width="16" height="10" x="4" y="11" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+    <symbol id="i-aa-down" viewBox="0 0 24 24"><path d="M3.5 13h6"/><path d="m2 16 4.5-9 4.5 9"/><path d="M18 7v9"/><path d="m14 12 4 4 4-4"/></symbol>
+    <symbol id="i-aa-up" viewBox="0 0 24 24"><path d="M3.5 13h6"/><path d="m2 16 4.5-9 4.5 9"/><path d="M18 16V7"/><path d="m14 11 4-4 4 4"/></symbol>
+    <symbol id="logo" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#16181c"/><rect x="7" y="19" width="18" height="2.5" rx="1.25" fill="#f3f4f1"/><circle cx="19" cy="12.5" r="4" fill="#f5b301"/></symbol>
+    <symbol id="logo-dk" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#ecedea"/><rect x="7" y="19" width="18" height="2.5" rx="1.25" fill="#181c21"/><circle cx="19" cy="12.5" r="4" fill="#f5b301"/></symbol>
+    <!-- the whiteboard the scene camera sees -->
+    <symbol id="board" viewBox="0 0 400 240">
+      <rect width="400" height="240" fill="#4a5058"/>
+      <rect x="0" y="196" width="400" height="44" fill="#3a3f46"/>
+      <rect x="22" y="16" width="356" height="178" rx="4" fill="#f7f7f2" stroke="#8b9097" stroke-width="5"/>
+      <rect x="140" y="194" width="120" height="6" rx="2" fill="#2e3238"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div id="stage">
+  <div id="grid"></div>
+  <div id="cam">
+    <div id="win">
+      <div id="chrome">
+        <div class="dots"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i></div>
+        <div id="url"><svg class="i" style="width:13px;height:13px"><use href="#i-lockurl"/></svg><span id="urltext">sightline.app</span></div>
+        <div style="width:52px"></div>
+      </div>
+      <div id="vp">
+
+        <!-- A: landing -->
+        <section class="scene" id="sA">
+          <div class="lp-shape" style="width:420px;height:420px;right:-120px;top:-160px;background:rgb(245 179 1 / .14)"></div>
+          <div class="lp-shape" style="width:260px;height:260px;left:-90px;bottom:-110px;background:rgb(232 226 246 / .7)"></div>
+          <header class="lp-head clay">
+            <span class="logo"><svg><use href="#logo"/></svg>Sightline</span>
+            <nav class="lp-nav"><a>Features</a><a>How it works</a><a>Modes</a></nav>
+            <div style="display:flex;gap:8px">
+              <span class="btn btn-ghost" id="lpSignIn">Sign in</span>
+              <span class="btn btn-clay">Create account</span>
+            </div>
+          </header>
+          <div class="hero">
+            <div>
+              <span class="eyebrow"><span class="gl"></span>For deaf &amp; hard-of-hearing students</span>
+              <h1>Captions that<br/>wait for you.</h1>
+              <p class="lead">Sightline is a lecture workspace that follows your eyes. Look up at the board and the captions hold still, then show you exactly what you missed.</p>
+              <div class="ctas">
+                <span class="btn btn-clay btn-lg">Create an account</span>
+                <span class="btn btn-soft btn-lg">See how a lecture works</span>
+              </div>
+              <small>Works with the Sightline eye tracker, a webcam and your lecture slides. Captions in English and Hinglish.</small>
+            </div>
+            <div class="demo-card clay">
+              <div class="demo">
+                <div class="demo-h"><span class="live"><i></i>EE101: Kirchhoff's laws</span><span class="pill pill-idle"><svg class="i"><use href="#i-eye"/></svg>Reading captions</span></div>
+                <div class="demo-b">
+                  <div class="dl lpl"><span class="ts">10:02</span><span>So today we start with <span class="term">Kirchhoff's</span> current law.</span></div>
+                  <div class="dl lpl"><span class="ts">10:02</span><span>The current flowing into a node equals the current flowing out.</span></div>
+                  <div class="dl lpl"><span class="ts">10:03</span><span>Written as<span class="fbox" data-tex="\sum I_{\text{in}} = \sum I_{\text{out}}" data-display="1"></span></span></div>
+                  <div class="dl lpl"><span class="ts">10:03</span><span>Around any closed loop, <span class="k-inline" data-tex="\sum V = 0"></span>, so across each resistor <span class="k-inline" data-tex="V = IR"></span>.</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- B: sign in -->
+        <section class="scene" id="sB">
+          <div class="aside">
+            <span class="logo"><svg><use href="#logo-dk"/></svg>Sightline</span>
+            <div>
+              <h2>Look up at the board.<br/>We'll hold your place.</h2>
+              <p>Captions pause when your eyes leave the screen and highlight every line you missed.</p>
+              <div class="mini">
+                <div>Let me draw the three cases on the board.</div>
+                <div class="bm">You looked away here</div>
+                <div><span class="hl">If Δ &gt; 0, we get two real and distinct roots.</span></div>
+              </div>
+            </div>
+            <span style="font-size:14px;color:#7d848c">Built at a hackathon · 2026</span>
+          </div>
+          <div class="form">
+            <span class="logo"><svg><use href="#logo"/></svg>Sightline</span>
+            <h1>Welcome back</h1>
+            <p class="sub">Sign in to pick up where your last lecture left off.</p>
+            <div class="field"><label>Email</label><div class="input" id="fEmail"><svg class="i"><use href="#i-mail"/></svg><span id="tEmail"></span></div></div>
+            <div class="field"><label>Password</label><div class="input" id="fPass"><svg class="i"><use href="#i-lock"/></svg><span id="tPass"></span></div></div>
+            <span class="btn btn-clay" id="bSignIn">Sign in</span>
+            <div class="alt">New to Sightline? <b>Create an account</b></div>
+          </div>
+        </section>
+
+        <!-- C: workspace -->
+        <section class="scene" id="sC">
+          <aside class="side clay">
+            <span class="logo" style="padding:4px 6px"><svg><use href="#logo"/></svg>Sightline</span>
+            <nav class="nav">
+              <a data-nav="dash"><span class="ic" style="color:var(--umber)"><svg class="i"><use href="#i-dash"/></svg></span>Dashboard</a>
+              <a data-nav="setup"><span class="ic" style="color:var(--sage-ink)"><svg class="i"><use href="#i-scan"/></svg></span>Setup</a>
+              <a data-nav="live"><span class="ic" style="color:var(--umber)"><svg class="i"><use href="#i-cap"/></svg></span>Live lecture<span class="lv" id="navLive">LIVE</span></a>
+              <a data-nav="rec"><span class="ic" style="color:var(--lilac-ink)"><svg class="i"><use href="#i-clap"/></svg></span>Recorded lectures</a>
+              <a data-nav="notes"><span class="ic" style="color:var(--sage-ink)"><svg class="i"><use href="#i-notes"/></svg></span>Notes</a>
+              <a data-nav="sign"><span class="ic" style="color:var(--lilac-ink)"><svg class="i"><use href="#i-hand"/></svg></span>Sign language</a>
+            </nav>
+            <div class="foot">
+              <div class="envb"><span class="d"></span>Eye tracker connected</div>
+              <div class="acct"><span class="avatar">AM</span><div><b>Aanya Mehta</b><span>aanya@college.edu</span></div></div>
+            </div>
+          </aside>
+
+          <div class="main">
+            <!-- C1: new lecture -->
+            <div class="view" id="c1">
+              <div class="pagehead"><div class="eb">Live lecture</div><h1>Start a new lecture</h1><p>Name it, choose how you follow it, then give Sightline the slides.</p></div>
+              <div class="c1grid">
+                <div class="card clay">
+                  <div class="field"><label>Lecture title</label><div class="input" id="fTitle"><span id="tTitle"></span></div></div>
+                  <div class="field"><label>Course</label><div class="input"><span>MATH 102 · Algebra II</span></div></div>
+                  <div class="field" style="margin-bottom:22px"><label>How do you follow the lecture?</label>
+                    <div class="modes">
+                      <div class="mode" id="mDeaf"><span class="rb"></span><span class="icontile t-mari"><svg class="i"><use href="#i-eye"/></svg></span><h3>Deaf</h3><p>Captions, spoken maths as real formulas, and sign ↔ speech.</p></div>
+                      <div class="mode"><span class="rb"></span><span class="icontile t-sage"><svg class="i"><use href="#i-ear"/></svg></span><h3>Hard of hearing</h3><p>Captions plus the voice you look at, sent to your hearing aids.</p></div>
+                    </div>
+                  </div>
+                  <span class="btn btn-clay btn-lg" id="bCreate">Create lecture <svg class="i"><use href="#i-arrow"/></svg></span>
+                </div>
+                <div class="card clay recent">
+                  <h3>Recent lectures</h3>
+                  <div class="rrow"><span class="icontile t-mari"><svg class="i"><use href="#i-cap"/></svg></span><div><b>Kirchhoff's laws</b><span class="s">EE101 · Tuesday</span></div><span class="pill pill-ready">Notes ready</span></div>
+                  <div class="rrow"><span class="icontile t-lilac"><svg class="i"><use href="#i-clap"/></svg></span><div><b>Projectile motion</b><span class="s">PHY110 · Monday</span></div><span class="pill pill-ready">Notes ready</span></div>
+                  <div class="rrow"><span class="icontile t-sage"><svg class="i"><use href="#i-notes"/></svg></span><div><b>Le Chatelier's principle</b><span class="s">CHEM120 · Last week</span></div><span class="pill pill-ready">Notes ready</span></div>
+                  <div class="rrow"><span class="icontile t-mari"><svg class="i"><use href="#i-cap"/></svg></span><div><b>Limits &amp; continuity</b><span class="s">MATH101 · Last week</span></div><span class="pill pill-idle">Recording</span></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- C2: prep -->
+            <div class="view" id="c2">
+              <div class="prephead">
+                <div class="pagehead"><div class="eb">Before class · MATH 102 · Deaf mode</div><h1>Quadratic Equations</h1><p>Sightline reads your slides first, so captions spell the jargon right from the first sentence.</p></div>
+                <span class="btn btn-clay btn-lg" id="bStart"><svg class="i"><use href="#i-play"/></svg>Start lecture</span>
+              </div>
+              <div class="c2grid">
+                <div class="card clay">
+                  <h2><span class="icontile t-mari"><svg class="i"><use href="#i-pres"/></svg></span>Lecture slides</h2>
+                  <p class="cs">PDF, PPT or PPTX. Sightline follows along slide by slide during the lecture.</p>
+                  <div class="drop" id="drop"><svg class="i"><use href="#i-upload"/></svg><b>Drop the lecture slides here</b><span>PDF, PPT or PPTX, up to 50 MB</span></div>
+                  <div class="upl" id="upl"></div>
+                  <div class="thumbs" id="thumbs"></div>
+                </div>
+                <div class="card clay">
+                  <h2><span class="icontile t-sage"><svg class="i"><use href="#i-spark"/></svg></span>Words Sightline learned</h2>
+                  <p class="cs">From your slides. Captions spell these right and you can tap them for a definition.</p>
+                  <div class="gloss" id="gloss"></div>
+                  <div class="ready">
+                    <div class="rd"><span class="ck" id="ck1"><svg class="i"><use href="#i-check"/></svg></span>Slides read<em id="ck1t">Waiting for slides</em></div>
+                    <div class="rd"><span class="ck" id="ck2"><svg class="i"><use href="#i-check"/></svg></span>Lecture glossary<em id="ck2t">—</em></div>
+                    <div class="rd"><span class="ck ok"><svg class="i"><use href="#i-check"/></svg></span>Eye tracker<em>Connected</em></div>
+                    <div class="rd"><span class="ck ok"><svg class="i"><use href="#i-check"/></svg></span>Microphone<em>Clip-on mic</em></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- C3: live -->
+            <div class="view" id="c3">
+              <header class="lhead clay">
+                <div class="meta">
+                  <div class="pills">
+                    <span class="pill pill-live"><span class="dot"></span><span id="liveClock">Live · 00:00</span></span>
+                    <span class="pill pill-ready" id="gazePill"><svg class="i"><use href="#i-scan"/></svg><span>Eyes on screen</span></span>
+                    <span class="pill pill-ready"><svg class="i"><use href="#i-mic"/></svg>Mic on</span>
+                  </div>
+                  <h1>Quadratic Equations</h1>
+                </div>
+                <div class="seg"><span class="on"><svg class="i"><use href="#i-eye"/></svg>Deaf</span><span><svg class="i"><use href="#i-ear"/></svg>Hard of hearing</span></div>
+                <span class="rec"><span class="d"></span><span id="recClock">Recording 00:00</span></span>
+                <span class="btn btn-red" id="bEnd">End lecture</span>
+              </header>
+              <div class="lgrid">
+                <section class="cap" id="capPanel">
+                  <div class="capbar"><span id="capStatus">Live</span>
+                    <div class="tools"><span class="btn btn-ghost" id="capBtn"><svg class="i"><use href="#i-pause"/></svg>Pause</span><span class="sep"></span>
+                      <span class="btn btn-ghost"><svg class="i" style="width:19px;height:19px"><use href="#i-aa-down"/></svg></span><span class="btn btn-ghost"><svg class="i" style="width:19px;height:19px"><use href="#i-aa-up"/></svg></span></div>
+                  </div>
+                  <div id="capScroll"><ol id="capList"></ol><div id="capFade"></div>
+                    <div id="awayPill"><div class="p"><span id="awayIcon"><svg class="i"><use href="#i-pres"/></svg></span><span id="awayText"></span><span class="btn btn-clay" id="bResume">Resume live</span></div></div>
+                  </div>
+                </section>
+                <div class="panels">
+                  <section class="panel clay">
+                    <h2><span class="icontile t-mari" style="width:30px;height:30px"><svg class="i"><use href="#i-video"/></svg></span>Scene camera<span class="pill pill-idle r" id="camTag">Board in view</span></h2>
+                    <div class="scam" id="scam"></div>
+                  </section>
+                  <section class="panel clay">
+                    <h2><span class="icontile t-mari" style="width:30px;height:30px"><svg class="i"><use href="#i-pres"/></svg></span>Slides<span class="pill pill-ready r" id="slideTag">Following</span></h2>
+                    <div class="slidebig" id="slideBig"></div>
+                    <div class="slidemeta"><svg class="i" style="width:15px;height:15px"><use href="#i-spark"/></svg><span id="slideMeta">Slide 1 of 6 · matched to what the teacher says</span></div>
+                  </section>
+                </div>
+              </div>
+              <div id="toast"><span class="icontile t-sage"><svg class="i"><use href="#i-camera"/></svg></span><div><b>Board snapshot saved</b><span>"Let me draw…" · added to your notes</span></div></div>
+            </div>
+
+            <!-- C4: finished, notes + recording -->
+            <div class="view" id="c4">
+              <div class="fhead">
+                <span class="pill pill-ready"><svg class="i"><use href="#i-check"/></svg>Lecture finished</span>
+                <h1>Quadratic Equations</h1>
+                <span class="muted" style="font-size:15px">MATH 102 · 14 min · 6 slides · 1 board snapshot</span>
+                <div class="r"><span class="btn btn-soft"><svg class="i"><use href="#i-down"/></svg>Download PDF</span><span class="btn btn-soft">Export Markdown</span></div>
+              </div>
+              <div class="c4grid">
+                <div class="notes">
+                  <div class="skel" id="skel">
+                    <div class="writing"><span class="spin dk" id="skSpin"></span>Writing your notes from the captions…</div>
+                    <div class="sl" style="width:62%;height:28px"></div><div class="sl" style="width:30%"></div><div class="sl" style="width:94%;margin-top:26px"></div><div class="sl" style="width:88%"></div><div class="sl" style="width:72%"></div>
+                    <div class="sl" style="width:100%;height:110px;border-radius:20px;margin-top:22px"></div><div class="sl" style="width:40%;height:22px;margin-top:22px"></div><div class="sl" style="width:90%"></div>
+                  </div>
+                  <div id="notesIn">
+                    <div class="nb"><h2>Quadratic Equations</h2><div class="gen">Written just now from the lecture's captions · 6 slides</div>
+                      <p class="sum">A quadratic <span class="k-inline" data-tex="ax^2+bx+c=0"></span> is solved with <span class="term">Sridharacharya's formula</span>. The <span class="term">discriminant</span> <span class="k-inline" data-tex="\Delta=b^2-4ac"></span> tells you what kind of roots to expect.</p></div>
+                    <div class="take nb"><h3>Takeaways</h3><ul><li>Standard form needs <span class="k-inline" data-tex="a \neq 0"></span>; a, b, c are the coefficients.</li><li>The roots come from completing the square.</li><li>The sign of Δ decides: two real, one repeated, or complex roots.</li></ul></div>
+                    <div class="nsec nb"><h3>Sridharacharya's formula <a>Hear it at 01:12</a></h3><div class="sl">Slide 3</div>
+                      <figure class="nform" style="margin:10px 0 0"><div data-tex="x = \dfrac{-b \pm \sqrt{b^2 - 4ac}}{2a}" data-display="1"></div><figcaption>The quadratic formula</figcaption></figure></div>
+                    <div class="nsec nb"><h3>The discriminant <a>Hear it at 02:40</a></h3><div class="sl">Slide 4</div>
+                      <span class="bfocus"><svg class="i"><use href="#i-pres"/></svg>You looked at the board for 4 s here: worth a second look</span>
+                      <div class="board-call"><div class="img" id="noteBoard"></div><div><b>From the board:</b> the three cases of Δ, sketched as parabolas: two crossings, one touch, no crossing.</div></div>
+                      <dl class="ndef"><dt>Discriminant (Δ)</dt><dd style="margin:2px 0 0"><span class="k-inline" data-tex="b^2-4ac"></span>. Positive: two real roots. Zero: equal roots. Negative: complex conjugates.</dd></dl></div>
+                  </div>
+                </div>
+                <div class="recc clay">
+                  <h2 style="margin:4px 4px 0;display:flex;align-items:center;gap:12px;font-size:17px;font-weight:800"><span class="icontile t-lilac" style="width:30px;height:30px"><svg class="i"><use href="#i-clap"/></svg></span>Recording<span class="pill pill-ready" style="margin-left:auto">Saved · 14:08</span></h2>
+                  <div class="player" id="player"></div>
+                  <div class="tlist" id="tlist">
+                    <div class="tr"><span class="mono">00:04</span><span>Today we study quadratic equations and <span class="term">Sridharacharya's formula</span>.</span></div>
+                    <div class="tr"><span class="mono">00:41</span><span>Standard form <span class="k-inline" data-tex="ax^2+bx+c=0"></span>, where <span class="k-inline" data-tex="a \neq 0"></span>.</span></div>
+                    <div class="tr"><span class="mono">01:12</span><span>The roots are given by <span class="k-inline" data-tex="x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}"></span>.</span></div>
+                    <div class="tr away"><span class="mono">02:58</span><span>If <span class="k-inline" data-tex="\Delta > 0"></span>, two real and distinct roots.</span></div>
+                    <div class="tr away"><span class="mono">03:06</span><span>If <span class="k-inline" data-tex="\Delta = 0"></span>, the roots are real and equal.</span></div>
+                    <div class="tr away"><span class="mono">03:15</span><span>If <span class="k-inline" data-tex="\Delta < 0"></span>, complex conjugates.</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- C5: sign language (sign → sentence → speech) -->
+            <div class="view" id="c5">
+              <div class="signhead">
+                <div class="pagehead" style="display:flex;align-items:center;gap:16px"><span class="icontile t-lilac" style="width:52px;height:52px;border-radius:16px"><svg class="i" style="width:24px;height:24px"><use href="#i-hand"/></svg></span>
+                  <div><h1 style="margin:0">Sign language</h1><p>Fingerspell a sentence. Sightline turns it into speech for the room.</p></div></div>
+                <span class="saveto clay-sm">Saving with <b>Quadratic Equations</b><span class="pill pill-live" style="height:24px"><span class="dot"></span>Live</span></span>
+              </div>
+              <div class="signcard clay">
+                <div>
+                  <div class="who"><span class="on"><svg class="i"><use href="#i-hand"/></svg>I'm signing</span><span><svg class="i"><use href="#i-users"/></svg>Someone else is signing</span></div>
+                  <div class="webcam">
+                    <svg class="cam" viewBox="0 0 640 430" preserveAspectRatio="xMidYMid slice">
+                      <defs><radialGradient id="cg" cx="45%" cy="40%" r="75%"><stop offset="0" stop-color="#39404a"/><stop offset="1" stop-color="#1c2026"/></radialGradient></defs>
+                      <rect width="640" height="430" fill="url(#cg)"/>
+                      <rect x="40" y="40" width="150" height="190" rx="8" fill="#2b3139"/><rect x="470" y="30" width="130" height="90" rx="6" fill="#262b32"/>
+                      <g fill="#14171b"><circle cx="250" cy="170" r="66"/><path d="M110 430 C120 300 180 262 250 262 C320 262 380 300 392 430 Z"/></g>
+                      <g id="handG"></g>
+                    </svg>
+                    <div class="tags"><span class="pill pill-ready">Recogniser connected</span><span class="pill pill-ready" id="handsTag"><svg class="i"><use href="#i-hand"/></svg><span>1 hand in view</span></span></div>
+                    <span class="rec pill">Your video isn't recorded</span>
+                  </div>
+                  <div class="sctl"><span class="btn btn-soft"><svg class="i"><use href="#i-camoff"/></svg>Turn camera off</span><span class="btn btn-clay"><svg class="i"><use href="#i-square"/></svg>Stop recognising</span></div>
+                </div>
+                <div>
+                  <section class="draft clay-sm">
+                    <div class="lbl">Your sentence<span class="btn btn-ghost" style="height:30px;font-size:13.5px"><svg class="i"><use href="#i-x"/></svg>Clear sentence</span></div>
+                    <div class="ta" id="draft"></div>
+                    <div class="guess" id="guess"></div>
+                    <div class="btns"><span class="btn btn-soft">Add space</span><span class="btn btn-soft">Backspace</span><span class="btn btn-clay" id="bSend"><svg class="i"><use href="#i-send"/></svg><span id="bSendT">Send sentence</span></span></div>
+                    <div class="chk"><i><svg class="i" style="width:13px;height:13px;stroke-width:3"><use href="#i-check"/></svg></i>Say it out loud when I send</div>
+                  </section>
+                  <section class="said" id="said">
+                    <div class="k">You said</div>
+                    <div class="s">Could you please repeat the formula?</div>
+                    <div class="alt">Or maybe: “Please repeat the formula.”</div>
+                    <div class="spk" id="spk"><svg class="i" style="width:18px;height:18px"><use href="#i-vol"/></svg><span id="spkT">Saying it out loud</span><span class="bars" id="bars"></span></div>
+                  </section>
+                  <section class="convo"><h3>Conversation</h3>
+                    <div class="cv" id="cvNew"><div class="w">You · just now</div><div class="t">Could you please repeat the formula?</div><div class="gl">REPEAT FORMULA</div></div>
+                    <div class="cv peer"><div class="w">Someone else · 10:01</div><div class="t">Welcome to class, everyone.</div><div class="gl">WELCOME CLASS</div></div>
+                  </section>
+                </div>
+              </div>
+            </div>
+
+            <!-- end-lecture dialog -->
+            <div id="dlg"><div class="ov"></div><div class="box"><h3>End the lecture?</h3><p>Captions stop, the recording is saved and Sightline starts writing your notes. You can't restart this lecture.</p>
+              <div class="row"><span class="btn btn-soft">Keep going</span><span class="btn btn-red" id="bEnd2"><span id="bEnd2t">End lecture</span></span></div></div></div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <div id="chip"></div>
+  <div id="ripple"></div>
+  <div id="dragfile"><span class="ft">PPTX</span><span>quadratic-equations.pptx<br/><span style="font-weight:500;color:#565b62;font-size:13px">6 slides · 2.4 MB</span></span></div>
+  <svg id="cursor" viewBox="0 0 30 30"><path d="M5 3 L5 24 L10.5 18.8 L14.2 27 L18 25.4 L14.4 17.4 L22 17.4 Z" fill="#16181c" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></svg>
+
+  <div id="endc">
+    <span class="lm"><svg><use href="#logo-dk"/></svg></span>
+    <h1>Sightline</h1>
+    <p>Captions that wait for you.</p>
+    <div class="feat"><span><b>●</b>Gaze-paused captions</span><span><b>●</b>Spoken maths as formulas</span><span><b>●</b>Sign ↔ speech</span><span><b>●</b>Automatic notes</span></div>
+  </div>
+</div>
+
+<script>
+/* ---------- helpers ---------- */
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => [...document.querySelectorAll(s)];
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const ease = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const outBack = (x) => { const c1 = 1.5, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+/** 0 → 1 between a and b, eased. */
+const ramp = (t, a, b, f = ease) => f(clamp((t - a) / (b - a)));
+/** Fade in over [a, a+d], out over [b-d, b]. */
+const win = (t, a, b, d = 0.35) => Math.min(ramp(t, a, a + d), 1 - ramp(t, b - d, b));
+const lerp = (a, b, k) => a + (b - a) * k;
+const show = (el, o) => { el.style.opacity = o; el.style.visibility = o <= 0.001 ? "hidden" : "visible"; };
+const mmss = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+const icon = (id, cls = "i") => `<svg class="${cls}"><use href="#${id}"/></svg>`;
+
+function tex(el) {
+  katex.render(el.dataset.tex, el, { displayMode: el.dataset.display === "1", throwOnError: false });
+}
+const K = (t, display = false) => `<span class="${display ? "" : "k-inline"}" data-tex="${t.replace(/"/g, "&quot;")}" ${display ? 'data-display="1"' : ""}></span>`;
+
+/* ---------- slides (fake deck) ---------- */
+const PARAB = (d) => `<svg viewBox="0 0 120 70" style="width:100%;height:100%"><line x1="4" y1="50" x2="116" y2="50" stroke="#c9ccc5" stroke-width="1.5"/><path d="${d}" fill="none" stroke="#f5b301" stroke-width="3" stroke-linecap="round"/></svg>`;
+const SLIDES = [
+  { title: "Quadratic Equations", body: `<div style="text-align:center"><div style="font-weight:800;font-size:1.15em">MATH 102 · Algebra II</div><div class="muted" style="font-size:.8em;margin-top:4px">Lecture 7</div></div>` },
+  { title: "Standard Form", body: K("ax^2 + bx + c = 0") },
+  { title: "Sridharacharya's Formula", body: K("x = \\dfrac{-b \\pm \\sqrt{b^2-4ac}}{2a}") },
+  { title: "The Discriminant", body: K("\\Delta = b^2 - 4ac") },
+  { title: "Worked Example", body: K("x^2 - 5x + 6 = 0") },
+  { title: "Vieta & the Parabola", body: `<div style="width:62%;height:70%">${PARAB("M14 8 Q60 92 106 8")}</div>` },
+];
+$("#thumbs").innerHTML = SLIDES.map((s, i) => `<div class="slide"><span class="stripe"></span><h4>${s.title}</h4><div class="bd">${s.body}</div><span class="sn">${i + 1}</span></div>`).join("");
+$("#slideBig").innerHTML = SLIDES.map((s) => `<div class="sv"><span class="stripe"></span><h4>${s.title}</h4><div class="bd">${s.body}</div></div>`).join("");
+
+const GLOSS = ["Sridharacharya's formula", "Discriminant (Δ)", "Vieta's formulas", "Parabola", "Vertex", "Completing the square", "Coefficients", "Roots", "Complex conjugates"];
+$("#gloss").innerHTML = GLOSS.map((g) => `<span class="gchip"><u>${g}</u></span>`).join("") + [150, 110, 180, 130, 90].map((w) => `<span class="gph" style="width:${w}px"></span>`).join("");
+
+/* the board the scene camera sees: three cases of Δ drawn over time */
+function boardSVG(id) {
+  return `<svg viewBox="0 0 400 240" style="width:100%;height:100%;display:block"><use href="#board"/>
+    <g font-family="Atkinson Hyperlegible Next, sans-serif" font-weight="700" fill="#1f3f8f" font-size="17">
+      <text x="56" y="44" class="bd-t">Δ &gt; 0</text><text x="172" y="44" class="bd-t">Δ = 0</text><text x="290" y="44" class="bd-t">Δ &lt; 0</text></g>
+    <line x1="40" y1="140" x2="360" y2="140" stroke="#9aa0a6" stroke-width="2"/>
+    <g fill="none" stroke="#1f3f8f" stroke-width="4" stroke-linecap="round">
+      <path class="bd-p" d="M44 70 Q80 210 116 70" pathLength="1"/>
+      <path class="bd-p" d="M158 70 Q194 210 230 70" pathLength="1" transform="translate(0 -10)"/>
+      <path class="bd-p" d="M272 64 Q308 170 344 64" pathLength="1"/></g>
+    <g class="bd-reticle"><circle cx="200" cy="110" r="30" fill="rgb(245 179 1 / .18)" stroke="#f5b301" stroke-width="4"/><circle cx="200" cy="110" r="6" fill="#f5b301"/></g>
+    <g class="bd-teacher"><circle cx="372" cy="120" r="15" fill="#2a2f35"/><rect x="354" y="136" width="36" height="70" rx="14" fill="#2a2f35"/></g>
+  </svg>`;
+}
+$("#scam").innerHTML = boardSVG("cam");
+$("#noteBoard").innerHTML = boardSVG("note");
+$("#player").innerHTML = boardSVG("player") + `<div class="ctl">${icon("i-pause")}<span>03:06</span><span class="pb"><i style="width:22%"></i><span class="mk" style="left:21%"></span><span class="mk" style="left:23%"></span></span><span>14:08</span></div>`;
+
+/* ---------- captions script ---------- */
+// at: when the teacher starts the sentence; fin: when the clean caption lands. Lines 6–8 are said while the student
+// is looking at the board.
+const LINES = [
+  { at: 15.5, fin: 16.8, ts: "10:02", interim: "Good morning everyone. Today we are going to study quadratic equations and Shri Dhara Charya's formula",
+    html: `Good morning everyone. Today we're going to study quadratic equations and <span class="term refine">Sridharacharya's formula</span>.` },
+  { at: 17.0, fin: 18.2, ts: "10:02", interim: "a quadratic has the standard form a x squared plus b x plus c equals zero where a is not equal to zero",
+    html: `A quadratic equation has the standard form ${K("ax^2 + bx + c = 0")}, where ${K("a \\neq 0")}.` },
+  { at: 18.4, fin: 19.3, ts: "10:03", interim: "here a b and c are called the coefficients and the solutions are called the roots",
+    html: `Here a, b and c are called the <span class="term">coefficients</span>, and the solutions are called the <span class="term">roots</span>.` },
+  { at: 19.5, fin: 21.1, ts: "10:03", interim: "the roots are given by x equals minus b plus or minus the square root of b squared minus four a c all over two a",
+    html: `The roots are given by<span class="blockf">${K("x = \\dfrac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}", true)}<span class="lbl">“x equals minus b plus or minus the square root of b squared minus four a c, all over two a”</span></span>` },
+  { at: 22.4, fin: 23.3, ts: "10:04", interim: "now this expression b squared minus four a c is called the discriminant and we write it as capital delta",
+    html: `Now this expression, ${K("b^2 - 4ac")}, is called the <span class="term refine">discriminant</span>, and we write it as ${K("\\Delta")}.` },
+  { at: 23.6, fin: 24.2, ts: "10:04", interim: "let me draw the three cases on the board", html: `Let me draw the three cases on the board.` },
+  { at: 25.3, fin: 25.8, ts: "10:05", missed: true, interim: "if delta is greater than zero", html: `If ${K("\\Delta > 0")}, we get two real and distinct roots.` },
+  { at: 26.3, fin: 26.8, ts: "10:05", missed: true, interim: "if delta equals zero", html: `If ${K("\\Delta = 0")}, the two roots are real and equal.` },
+  { at: 27.3, fin: 27.8, ts: "10:05", missed: true, interim: "and if delta is less than zero", html: `And if ${K("\\Delta < 0")}, the roots are complex conjugates.` },
+  // The teacher answers the student's signed question.
+  { at: 39.4, fin: 40.9, ts: "10:07", interim: "sure once more x equals minus b plus or minus the square root of b squared minus four a c over two a",
+    html: `Sure. Once more:<span class="blockf">${K("x = \\dfrac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}", true)}</span>` },
+];
+const BOOKMARK_AFTER = 5;
+$("#capList").innerHTML = LINES.map((l, i) =>
+  `<li class="cl" data-i="${i}"><span class="ts">${l.ts}</span><div class="bdy"><span class="interim"></span><span class="final">${l.html}</span></div></li>` +
+  (i === BOOKMARK_AFTER ? `<li class="bookmark" id="bookmark">You looked away here</li>` : "")).join("");
+
+$$("[data-tex]").forEach(tex);
+
+/* ---------- timeline ---------- */
+// Everything after the sign scene is the original ending shifted by D seconds.
+const D = 11.3;
+const T = {
+  aEnd: 3.7, bEnd: 7.3, c1End: 9.95, c2End: 14.85, gazeAway: 24.7, gazeBack: 28.3, resume: 29.5,
+  signIn: 31.05, signOut: 38.95, letters: 32.0, send: 35.25, c3End: 32.45 + D, end: 37.4 + D, total: 40 + D,
+};
+const CHIPS = [
+  [0, 3.7, "01", "Meet Sightline", "A lecture workspace for deaf and hard-of-hearing students"],
+  [3.7, 7.3, "02", "Sign in", ""],
+  [7.3, 14.85, "03", "Prepare the lecture", "Upload the slides. Sightline learns the jargon."],
+  [14.85, 24.6, "04", "Live captions, real maths", "Spoken formulas become formulas"],
+  [24.6, 30.6, "05", "Look at the board. Captions wait.", "Then it shows you what you missed"],
+  [30.6, 41.4, "06", "Sign to speak", "Fingerspell a question. Sightline says it out loud."],
+  [41.4, 37.4 + D, "07", "Notes and recording, done for you", ""],
+];
+$("#chip").innerHTML = CHIPS.map((c) => `<div class="chipi"><b>${c[2]}</b><strong>${c[3]}</strong>${c[4] ? `<span>${c[4]}</span>` : ""}</div>`).join("");
+
+// Cursor path: [time, target] where target is a selector (its centre) or [x, y] on the stage.
+const CURSOR = [
+  [0, [1500, 900]], [1.4, [1500, 900]], [2.7, "#lpSignIn"], [3.9, "#lpSignIn"],
+  [4.3, "#fEmail"], [5.3, "#fEmail"], [5.55, "#fPass"], [6.15, "#fPass"], [6.6, "#bSignIn"], [7.4, "#bSignIn"],
+  [8.6, [1200, 520]], [9.0, "#mDeaf"], [9.2, "#mDeaf"], [9.55, "#bCreate"], [10.0, "#bCreate"],
+  [10.2, [1760, 1000]], [10.95, "#drop"], [11.2, "#drop"], [13.6, [1500, 640]], [14.25, "#bStart"], [14.8, "#bStart"],
+  [15.3, [1640, 1000]], [28.6, [1640, 1000]], [29.25, "#bResume"], [29.7, "#bResume"],
+  [30.75, "[data-nav=sign]"], [31.1, "[data-nav=sign]"], [33.0, [1480, 760]], [34.85, "#bSend"], [35.5, "#bSend"],
+  [36.6, [1380, 900]], [38.6, "[data-nav=live]"], [39.1, "[data-nav=live]"], [39.6, [1700, 1010]],
+  [30.45 + D, "#bEnd"], [30.9 + D, "#bEnd"], [31.35 + D, "#bEnd2"], [32.5 + D, "#bEnd2"], [33.2 + D, [1700, 1010]],
+];
+const CLICKS = [2.95, 4.35, 5.6, 6.65, 9.05, 9.62, 11.0, 14.45, 29.45, 30.95, T.send, 38.85, 30.75 + D, 31.45 + D];
+// Camera: [time, zoom, centre x, centre y] on the stage.
+const CAM = [
+  [0, 1, 960, 540], [3.4, 1.035, 990, 560], [3.75, 1, 960, 540], [19.9, 1, 960, 540], [20.9, 1.42, 830, 700], [22.6, 1.42, 830, 640],
+  [23.4, 1, 960, 540], [28.0, 1, 960, 540], [28.8, 1.18, 860, 620], [30.2, 1.18, 860, 620], [30.8, 1, 960, 540],
+  [35.5, 1, 960, 540], [36.1, 1.18, 1230, 560], [38.0, 1.18, 1230, 560], [38.5, 1, 960, 540],
+  [39.6, 1, 960, 540], [40.4, 1.2, 870, 690], [41.3, 1.2, 870, 690], [41.9, 1, 960, 540],
+  [33.6 + D, 1, 960, 540], [37.4 + D, 1.07, 900, 560],
+];
+
+function center(target) {
+  if (Array.isArray(target)) return target;
+  const r = $(target).getBoundingClientRect();
+  return [r.left + r.width / 2, r.top + r.height / 2];
+}
+function track(keys, t, fn) {
+  let i = 0;
+  while (i < keys.length - 1 && keys[i + 1][0] <= t) i++;
+  const a = keys[i], b = keys[Math.min(i + 1, keys.length - 1)];
+  const k = b[0] === a[0] ? 0 : ease(clamp((t - a[0]) / (b[0] - a[0])));
+  return fn(a, b, k);
+}
+const pressed = (t, at) => t >= at && t < at + 0.16;
+
+/* ---------- per-frame render ---------- */
+let scroll = 0, lastT = 0, frozenAt = null;
+
+function render(t) {
+  const dt = clamp(t - lastT, 0, 0.1);
+  lastT = t;
+
+  // camera
+  const [z, cx, cy] = track(CAM, t, (a, b, k) => [lerp(a[1], b[1], k), lerp(a[2], b[2], k), lerp(a[3], b[3], k)]);
+  $("#cam").style.transform = `translate(${960 - cx * z}px, ${540 - cy * z}px) scale(${z})`;
+
+  // scenes
+  show($("#sA"), 1 - ramp(t, T.aEnd - 0.3, T.aEnd + 0.1));
+  show($("#sB"), win(t, T.aEnd - 0.3, T.bEnd + 0.1, 0.4));
+  show($("#sC"), ramp(t, T.bEnd - 0.3, T.bEnd + 0.1));
+  show($("#c1"), win(t, T.bEnd - 0.3, T.c1End + 0.1, 0.4));
+  show($("#c2"), win(t, T.c1End - 0.3, T.c2End + 0.1, 0.4));
+  const sign = win(t, T.signIn, T.signOut + 0.3, 0.3);
+  show($("#c3"), win(t, T.c2End - 0.3, T.c3End + 0.1, 0.4) * (1 - sign));
+  show($("#c5"), sign);
+  show($("#c4"), ramp(t, T.c3End - 0.3, T.c3End + 0.1));
+  const slideIn = (el, a) => (el.style.transform = `translateY(${(1 - ramp(t, a - 0.3, a + 0.25)) * 18}px)`);
+  slideIn($("#c2"), T.c1End); slideIn($("#c4"), T.c3End); slideIn($("#c1"), T.bEnd); slideIn($("#c5"), T.signIn + 0.3);
+  slideIn($("#c3"), t < T.signIn ? T.c2End : T.signOut + 0.3);
+  const inSign = t >= T.signIn && t < T.signOut + 0.15;
+  $("#urltext").textContent = t < T.aEnd ? "sightline.app" : t < T.bEnd ? "sightline.app/sign-in" : t < T.c2End ? "sightline.app/lecture"
+    : inSign ? "sightline.app/sign?session=ses_q7x2" : t < T.c3End ? "sightline.app/lecture/ses_q7x2" : "sightline.app/notes/ses_q7x2";
+
+  // chips (out of the way while the camera is zoomed in)
+  const zoomedOut = 1 - clamp((z - 1.06) / 0.12);
+  $$(".chipi").forEach((el, i) => {
+    const [a, b] = CHIPS[i];
+    const o = win(t, a + (i ? 0.05 : 0.3), b, 0.3) * zoomedOut;
+    show(el, o);
+    el.style.transform = `translateY(${(1 - o) * -10}px)`;
+  });
+
+  // nav state
+  const navOn = inSign ? "sign" : t < T.c3End ? "live" : "notes";
+  $$(".nav a").forEach((a) => {
+    const on = a.dataset.nav === navOn;
+    a.className = on ? `on ${{ notes: "on-s", sign: "on-l" }[navOn] ?? "on-m"}` : "";
+  });
+  show($("#navLive"), t > T.c2End && t < T.c3End ? 1 : 0);
+
+  renderLanding(t); renderSignIn(t); renderNew(t); renderPrep(t); renderLive(t, dt); renderSign(t); renderNotes(t);
+
+  // end card
+  const e = ramp(t, T.end, T.end + 0.6);
+  show($("#endc"), e);
+  $("#endc h1").style.transform = `translateY(${(1 - ramp(t, T.end + 0.1, T.end + 0.9)) * 20}px)`;
+  $("#endc .feat").style.opacity = ramp(t, T.end + 0.5, T.end + 1.1);
+
+  // cursor (after layout so targets are current)
+  const [x, y] = track(CURSOR, t, (a, b, k) => { const p = center(a[1]), q = center(b[1]); return [lerp(p[0], q[0], k), lerp(p[1], q[1], k)]; });
+  const cur = $("#cursor");
+  const hidden = (t > 15.1 && t < 28.6) || (t > 39.5 && t < 41.2) || t > 33.1 + D;
+  const co = hidden ? 0 : 1;
+  const down = CLICKS.some((c) => pressed(t, c));
+  show(cur, co);
+  cur.style.transform = `translate(${x - 4}px, ${y - 3}px) scale(${down ? 0.82 : 1})`;
+  const rc = CLICKS.find((c) => t >= c && t < c + 0.5);
+  const rp = $("#ripple");
+  if (rc !== undefined && !hidden) {
+    const k = (t - rc) / 0.5;
+    rp.style.opacity = 1 - k; rp.style.left = x + "px"; rp.style.top = y + "px"; rp.style.transform = `scale(${0.3 + k * 0.9})`;
+  } else rp.style.opacity = 0;
+
+  // dragged file
+  const df = $("#dragfile");
+  const dfo = win(t, 10.1, 11.12, 0.2);
+  show(df, dfo);
+  df.style.left = x + 14 + "px"; df.style.top = y + 10 + "px";
+  df.style.transform = `rotate(${-4 * (1 - ramp(t, 10.8, 11.05))}deg) scale(${1 - 0.15 * ramp(t, 10.95, 11.12)})`;
+}
+
+function renderLanding(t) {
+  $$(".lpl").forEach((el, i) => {
+    const o = ramp(t, 0.35 + i * 0.45, 0.75 + i * 0.45);
+    el.style.opacity = o; el.style.transform = `translateY(${(1 - o) * 12}px)`;
+  });
+  $("#lpSignIn").classList.toggle("pressed", pressed(t, 2.95));
+  $("#lpSignIn").style.background = t > 2.4 && t < T.aEnd ? "var(--muted)" : "";
+}
+
+function typing(el, text, t, a, b, caret = true) {
+  const n = Math.round(text.length * clamp((t - a) / (b - a)));
+  const blink = Math.floor(t * 2.2) % 2 === 0;
+  el.innerHTML = text.slice(0, n) + (caret ? `<span class="caret" style="opacity:${blink || (t > a && t < b) ? 1 : 0}"></span>` : "");
+}
+function renderSignIn(t) {
+  const fe = t > 4.35 && t < 5.6, fp = t >= 5.6 && t < 6.7;
+  $("#fEmail").classList.toggle("focus", fe); $("#fPass").classList.toggle("focus", fp);
+  if (t < 4.35) $("#tEmail").innerHTML = `<span class="ph">you@college.edu</span>`;
+  else typing($("#tEmail"), "aanya@college.edu", t, 4.45, 5.25, fe);
+  if (t < 5.6) $("#tPass").innerHTML = `<span class="ph">Your password</span>`;
+  else typing($("#tPass"), "••••••••••", t, 5.65, 6.05, fp);
+  const b = $("#bSignIn");
+  b.classList.toggle("pressed", pressed(t, 6.65));
+  b.innerHTML = t > 6.7 ? `<span class="spin dk"></span>Signing in…` : "Sign in";
+  const sp = b.querySelector(".spin"); if (sp) sp.style.transform = `rotate(${t * 720}deg)`;
+}
+
+function renderNew(t) {
+  const f = t > T.bEnd - 0.2 && t < 9.0;
+  $("#fTitle").classList.toggle("focus", f);
+  if (t < 7.75) $("#tTitle").innerHTML = `<span class="ph">e.g. Quadratic Equations</span>`;
+  else typing($("#tTitle"), "Quadratic Equations", t, 7.75, 8.6, f);
+  $("#mDeaf").classList.toggle("sel", t > 9.05);
+  $("#bCreate").classList.toggle("pressed", pressed(t, 9.62));
+}
+
+function renderPrep(t) {
+  $("#drop").classList.toggle("hot", t > 10.75 && t < 11.15);
+  const u = $("#upl");
+  if (t < 11.0) u.innerHTML = "";
+  else if (t < 11.8) {
+    const p = Math.round(ramp(t, 11.0, 11.75, (x) => x) * 100);
+    u.innerHTML = `<span class="spin dk" style="transform:rotate(${t * 720}deg)"></span>Uploading quadratic-equations.pptx<span class="bar"><i style="width:${p}%"></i></span><span class="muted mono" style="font-size:13px">${p}%</span>`;
+  } else if (t < 12.6) {
+    u.innerHTML = `${icon("i-file")}<b>quadratic-equations.pptx</b><span class="pill pill-work"><span class="spin dk" style="width:12px;height:12px;border-width:2px;transform:rotate(${t * 720}deg)"></span>Reading the slides…</span>`;
+  } else u.innerHTML = `${icon("i-file")}<b>quadratic-equations.pptx</b><span class="pill pill-ready">${icon("i-check")}6 slides ready</span>`;
+  $$("#thumbs .slide").forEach((el, i) => {
+    const o = ramp(t, 12.6 + i * 0.09, 12.95 + i * 0.09, outBack);
+    el.style.opacity = clamp(o); el.style.transform = `scale(${0.85 + 0.15 * o})`;
+  });
+  $$("#gloss .gchip").forEach((el, i) => {
+    const o = ramp(t, 12.8 + i * 0.11, 13.1 + i * 0.11, outBack);
+    el.style.display = o > 0 ? "" : "none"; el.style.opacity = clamp(o); el.style.transform = `scale(${0.7 + 0.3 * o})`;
+  });
+  $$("#gloss .gph").forEach((el) => (el.style.display = t < 12.8 ? "" : "none"));
+  $("#ck1").classList.toggle("ok", t > 12.6); $("#ck1t").textContent = t < 11 ? "Waiting for slides" : t < 12.6 ? "Reading…" : "6 slides";
+  $("#ck2").classList.toggle("ok", t > 13.8); $("#ck2t").textContent = t < 12.8 ? "—" : t < 13.8 ? "Learning…" : "9 terms";
+  const bs = $("#bStart");
+  bs.style.opacity = t < 13.8 ? 0.45 : 1;
+  bs.style.filter = t < 13.8 ? "grayscale(1)" : "";
+  bs.classList.toggle("pressed", pressed(t, 14.45));
+  const pulse = t > 13.8 && t < 14.45 ? Math.sin((t - 13.8) * 10) * 0.5 + 0.5 : 0;
+  bs.style.boxShadow = `var(--clay-marigold-shadow), 0 0 0 ${pulse * 8}px rgb(245 179 1 / ${0.3 * (1 - pulse)})`;
+}
+
+function renderLive(t, dt) {
+  const el = Math.max(0, t - 15) + 3;
+  $("#liveClock").textContent = `Live · ${mmss(el)}`;
+  $("#recClock").textContent = `Recording ${mmss(el)}`;
+
+  const away = t >= T.gazeAway && t < T.gazeBack;
+  const catchUp = t >= T.gazeBack && t < T.resume + 0.05;
+  const gp = $("#gazePill");
+  gp.className = `pill ${away ? "pill-mari" : "pill-ready"}`;
+  gp.innerHTML = away ? `${icon("i-pres")}<span>Eyes at the board</span>` : `${icon("i-scan")}<span>Eyes on screen</span>`;
+  $("#capStatus").textContent = away ? "Paused while you look at the board" : catchUp ? "Catching up" : "Live";
+  $("#capStatus").style.color = away || catchUp ? "var(--umber)" : "";
+  $("#capBtn").innerHTML = away || catchUp ? `${icon("i-play")}Resume live` : `${icon("i-pause")}Pause`;
+  $("#camTag").className = `pill r ${away ? "pill-mari" : "pill-idle"}`;
+  $("#camTag").textContent = away ? "You're looking here" : "Board in view";
+
+  // caption lines
+  let missedDone = 0;
+  $$("#capList .cl").forEach((li, i) => {
+    const L = LINES[i];
+    const on = t >= L.at;
+    li.style.display = on ? "" : "none";
+    if (!on) return;
+    // Lines said while the student looks away collect off-screen and appear when they come back.
+    li.style.opacity = L.missed ? ramp(t, T.gazeBack, T.gazeBack + 0.4) : 1;
+    const interim = li.querySelector(".interim"), fin = li.querySelector(".final");
+    if (t < L.fin) {
+      const words = L.interim.split(" ");
+      const n = Math.max(1, Math.ceil(words.length * clamp((t - L.at) / (L.fin - L.at - 0.15))));
+      interim.textContent = words.slice(0, n).join(" ") + "…";
+      interim.style.display = ""; fin.style.display = "none";
+    } else {
+      interim.style.display = "none"; fin.style.display = "";
+      fin.style.opacity = ramp(t, L.fin, L.fin + 0.3);
+      if (L.missed) missedDone++;
+    }
+    li.querySelectorAll(".refine").forEach((r) => {
+      const k = ramp(t, L.fin, L.fin + 1.4, (x) => x);
+      r.style.backgroundColor = `rgb(245 179 1 / ${0.45 * (1 - k)})`;
+    });
+    const bdy = li.querySelector(".bdy");
+    const hl = L.missed ? Math.min(ramp(t, T.gazeBack, T.gazeBack + 0.4), 1 - ramp(t, T.resume + 0.2, T.resume + 1.0)) : 0;
+    bdy.style.backgroundColor = `rgb(245 179 1 / ${0.3 * hl})`;
+  });
+  const bm = $("#bookmark");
+  const bmo = Math.min(ramp(t, T.gazeAway, T.gazeAway + 0.3), 1 - ramp(t, T.resume + 0.3, T.resume + 0.9));
+  bm.style.display = bmo > 0 ? "" : "none"; bm.style.opacity = bmo;
+
+  // scroll: follow the newest line while live, hold still while away, bring the missed lines into view on return
+  const box = $("#capScroll"), list = $("#capList");
+  const maxScroll = Math.max(0, list.scrollHeight - box.clientHeight);
+  let target;
+  if (away) { if (frozenAt === null) frozenAt = scroll; target = frozenAt; }
+  else if (catchUp) target = Math.min(maxScroll, Math.max(0, bm.offsetTop - 150));
+  else { frozenAt = null; target = maxScroll; }
+  if (t < 15) scroll = target;
+  scroll += (target - scroll) * (1 - Math.exp(-dt * 7));
+  list.style.transform = `translateY(${-scroll}px)`;
+
+  // floating status pill
+  const pill = $("#awayPill");
+  const po = Math.min(ramp(t, T.gazeAway, T.gazeAway + 0.3), 1 - ramp(t, T.resume + 0.05, T.resume + 0.35));
+  show(pill, po);
+  pill.style.transform = `translateY(${(1 - po) * 14}px)`;
+  $("#awayText").textContent = away ? `Looking at the board · ${missedDone} new` : `You missed ${missedDone} lines. They're highlighted.`;
+  $("#awayIcon").style.display = away ? "" : "none";
+  $("#bResume").style.display = away ? "none" : "";
+  $("#bResume").classList.toggle("pressed", pressed(t, 29.45));
+
+  // slides follow the teacher (back to the formula slide when it is repeated)
+  const FLIPS = [[15, 0], [17.6, 1], [19.7, 2], [22.7, 3], [39.8, 2]];
+  const [flipAt, idx] = FLIPS.filter(([at]) => t >= at).pop() ?? FLIPS[0];
+  $$("#slideBig .sv").forEach((sv, i) => {
+    const o = i === idx ? ramp(t, flipAt, flipAt + 0.35) : 0;
+    sv.style.opacity = o; sv.style.transform = `translateX(${(1 - o) * 16}px)`;
+  });
+  $("#slideMeta").textContent = `Slide ${idx + 1} of 6 · matched to what the teacher says`;
+
+  // the board: teacher draws after "Let me draw…", the gaze reticle shows when the student looks up
+  $$("#scam .bd-p").forEach((p, i) => { const k = ramp(t, 24.4 + i * 1.0, 25.3 + i * 1.0, (x) => x); p.style.strokeDasharray = 1; p.style.strokeDashoffset = 1 - k; });
+  $$("#scam .bd-t").forEach((p, i) => (p.style.opacity = ramp(t, 24.3 + i * 1.0, 24.6 + i * 1.0)));
+  const ret = $("#scam .bd-reticle");
+  const ro = Math.min(ramp(t, T.gazeAway, T.gazeAway + 0.3), 1 - ramp(t, T.gazeBack - 0.1, T.gazeBack + 0.2));
+  ret.style.opacity = ro;
+  const rx = 80 + 116 * clamp((t - 25) / 2.6), ry = 108 + Math.sin(t * 3) * 6;
+  ret.setAttribute("transform", `translate(${rx - 200} ${ry - 110})`);
+  $("#scam .bd-teacher").setAttribute("transform", `translate(${-250 + 120 * clamp((t - 24.3) / 3)} 0)`);
+
+  const toast = $("#toast");
+  const to = win(t, 24.4, 26.6, 0.3);
+  show(toast, to); toast.style.transform = `translateY(${(1 - to) * 16}px)`;
+
+  // end lecture
+  $("#bEnd").classList.toggle("pressed", pressed(t, 30.75 + D));
+  const dlg = $("#dlg");
+  const dlo = win(t, 30.8 + D, T.c3End, 0.2);
+  show(dlg, dlo);
+  dlg.querySelector(".box").style.transform = `scale(${0.96 + 0.04 * dlo})`;
+  $("#bEnd2").classList.toggle("pressed", pressed(t, 31.45 + D));
+  $("#bEnd2t").innerHTML = t > 31.5 + D ? `<span style="display:inline-flex;align-items:center;gap:8px"><span class="spin" style="transform:rotate(${t * 720}deg)"></span>Saving the recording…</span>` : "End lecture";
+}
+
+function renderNotes(t) {
+  const s = T.c3End;
+  const sk = 1 - ramp(t, s + 0.95, s + 1.25);
+  show($("#skel"), sk);
+  $("#skSpin").style.transform = `rotate(${t * 720}deg)`;
+  $$("#skel .sl").forEach((el, i) => (el.style.opacity = 0.5 + 0.5 * Math.sin(t * 6 - i * 0.5)));
+  $$("#notesIn .nb").forEach((el, i) => {
+    const o = ramp(t, s + 1.0 + i * 0.32, s + 1.45 + i * 0.32);
+    el.style.opacity = o; el.style.transform = `translateY(${(1 - o) * 14}px)`;
+  });
+  $("#notesIn").style.transform = `translateY(${-ramp(t, s + 2.6, s + 4.9) * 150}px)`;
+  $$("#tlist .tr").forEach((el, i) => el.classList.toggle("cur", i === (t < s + 3.2 ? 3 : 4)));
+  $("#player .pb i").style.width = `${22 + ramp(t, s, s + 5, (x) => x) * 2}%`;
+  $$("#player .bd-p").forEach((p) => { p.style.strokeDasharray = 1; p.style.strokeDashoffset = 0; });
+  $$("#noteBoard .bd-reticle, #player .bd-reticle").forEach((r) => (r.style.opacity = 0));
+  $$("#noteBoard .bd-teacher, #player .bd-teacher").forEach((r) => r.setAttribute("transform", "translate(-130 0)"));
+}
+
+/* ---------- sign language: a hand-landmark skeleton fingerspells R-E-P-E-A-T F-O-R-M-U-L-A ---------- */
+const WORD = "REPEAT FORMULA";
+const STEP = 0.2;
+// Curl per finger [thumb, index, middle, ring, pinky]: 0 extended, 1 folded.
+const POSE = {
+  R: [0.8, 0, 0, 1, 1], E: [0.9, 0.85, 0.85, 0.85, 0.85], P: [0.2, 0, 0.35, 1, 1], A: [0, 1, 1, 1, 1], T: [0.3, 0.8, 1, 1, 1],
+  F: [0.7, 0.8, 0, 0, 0], O: [0.6, 0.6, 0.6, 0.6, 0.6], M: [1, 0.8, 0.8, 0.8, 1], U: [0.8, 0, 0, 1, 1], L: [0, 0, 1, 1, 1],
+  " ": [0.2, 0.1, 0.1, 0.1, 0.1],
+};
+const FINGERS = [
+  { b: [-40, -34], a: -58, L: [30, 26, 22], dir: 1 },
+  { b: [-26, -84], a: -12, L: [36, 25, 21], dir: 1 },
+  { b: [-3, -90], a: 0, L: [40, 27, 21], dir: 1 },
+  { b: [20, -86], a: 11, L: [36, 25, 20], dir: -1 },
+  { b: [39, -72], a: 24, L: [28, 20, 17], dir: -1 },
+];
+$("#handG").innerHTML =
+  FINGERS.map((_, f) => `<polyline class="hf" data-f="${f}" fill="none" stroke="#f5b301" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>`).join("") +
+  `<polygon id="palm" fill="rgb(245 179 1 / .14)" stroke="#f5b301" stroke-width="4" stroke-linejoin="round"/>` +
+  Array.from({ length: 21 }, () => `<circle class="hj" r="6" fill="#fff" stroke="#16181c" stroke-width="2"/>`).join("");
+
+function poseAt(t) {
+  const i = clamp(Math.floor((t - T.letters) / STEP), -1, WORD.length - 1);
+  const cur = POSE[WORD[Math.max(0, i)]] ?? POSE[" "];
+  const prev = i > 0 ? POSE[WORD[i - 1]] : POSE[" "];
+  const k = i < 0 ? 0 : ramp(t, T.letters + i * STEP, T.letters + i * STEP + 0.09);
+  return cur.map((c, f) => lerp(prev[f], c, k));
+}
+function drawHand(t) {
+  const curls = poseAt(t);
+  const s = 1.55, rot = Math.sin(t * 1.7) * 4 * Math.PI / 180;
+  const wx = 470 + Math.sin(t * 1.3) * 6, wy = 360 + Math.cos(t * 1.1) * 5;
+  const P = (x, y) => [wx + s * (x * Math.cos(rot) - y * Math.sin(rot)), wy + s * (x * Math.sin(rot) + y * Math.cos(rot))];
+  const joints = [P(0, 0)];
+  FINGERS.forEach((F, f) => {
+    let [x, y] = F.b;
+    const pts = [P(x, y)];
+    F.L.forEach((len, j) => {
+      const ang = (F.a + F.dir * curls[f] * (55 + j * 45)) * Math.PI / 180;
+      const l = len * (1 - 0.45 * curls[f]);
+      x += Math.sin(ang) * l; y -= Math.cos(ang) * l;
+      pts.push(P(x, y));
+    });
+    joints.push(...pts);
+    $(`.hf[data-f="${f}"]`).setAttribute("points", [joints[0], ...pts].map((p) => p.join(",")).join(" "));
+  });
+  $("#palm").setAttribute("points", [joints[0], joints[1], joints[5], joints[9], joints[13], joints[17]].map((p) => p.join(",")).join(" "));
+  $$(".hj").forEach((c, i) => { c.setAttribute("cx", joints[i][0]); c.setAttribute("cy", joints[i][1]); });
+}
+
+function renderSign(t) {
+  if (t < T.signIn - 0.5 || t > T.signOut + 0.5) return;
+  drawHand(t);
+  const n = clamp(Math.floor((t - T.letters - 0.12) / STEP) + 1, 0, WORD.length);
+  const blink = Math.floor(t * 2.2) % 2 === 0;
+  $("#draft").innerHTML = WORD.slice(0, n) + `<span class="caret" style="opacity:${blink || (n > 0 && n < WORD.length) ? 1 : 0}"></span>`;
+  const gi = Math.floor((t - T.letters) / STEP);
+  const guessing = gi >= 0 && gi < WORD.length && WORD[gi] !== " " && t - T.letters - gi * STEP < 0.12;
+  $("#guess").innerHTML = t > T.send ? "" : guessing ? `<span class="g">Guess: ${WORD[gi]}?</span>` : n === WORD.length ? "Press Enter or Send sentence." : "Ready for the next letter.";
+
+  const b = $("#bSend");
+  b.classList.toggle("pressed", pressed(t, T.send));
+  const sending = t > T.send && t < T.send + 0.5;
+  $("#bSendT").textContent = sending ? "Sending…" : "Send sentence";
+  if (t > T.send + 0.5) $("#draft").innerHTML = `<span class="caret" style="opacity:${blink ? 1 : 0}"></span>`;
+
+  const so = ramp(t, T.send + 0.5, T.send + 0.85, outBack);
+  const said = $("#said");
+  said.style.opacity = clamp(so); said.style.transform = `scale(${0.92 + 0.08 * so})`;
+  const speaking = t > T.send + 0.6 && t < T.send + 2.9;
+  $("#spkT").textContent = speaking ? "Saying it out loud" : "Play again";
+  $("#bars").innerHTML = Array.from({ length: 9 }, (_, i) =>
+    `<i style="height:${speaking ? 5 + Math.abs(Math.sin(t * 9 + i * 1.3)) * 16 : 4}px"></i>`).join("");
+  const cv = $("#cvNew");
+  cv.style.display = t > T.send + 0.5 ? "" : "none";
+  cv.style.opacity = ramp(t, T.send + 0.5, T.send + 0.9);
+}
+
+window.__render = render;
+window.__duration = T.total;
+window.__ready = document.fonts.ready.then(() => { render(0); return true; });
+
+if (new URLSearchParams(location.search).has("play")) {
+  window.__ready.then(() => {
+    const t0 = performance.now();
+    const loop = () => { const t = ((performance.now() - t0) / 1000) % T.total; if (t < lastT) { scroll = 0; frozenAt = null; } render(t); requestAnimationFrame(loop); };
+    loop();
+  });
+} else if (new URLSearchParams(location.search).has("t")) {
+  window.__ready.then(() => {
+    const target = +new URLSearchParams(location.search).get("t");
+    for (let t = 0; t <= target; t += 1 / 30) render(t);
+  });
+}
+</script>
+</body>
+</html>
